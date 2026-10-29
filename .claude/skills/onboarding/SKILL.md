@@ -27,25 +27,30 @@ At the start, run `node scripts/board.ts` and list each section as done, unfinis
 
 ## Steps
 
-### 1. Prerequisites and repo privacy
+### 1. Prerequisites and keeping the data private
 
-Run these and report each result in one line:
+The user may know nothing about git, GitHub or Node. Run the checks yourself, act on what they show, and talk in plain words: "this folder", "this computer", "online", "public" and "private", never "repo", "remote", "origin" or "visibility" unless the user uses them first. Ask only what the user can answer.
+
+Run these and keep the results to yourself until a bullet below says what to tell the user:
 
 ```sh
 node --version                      # needs ^24.11 or >=26 (package.json engines)
-git remote get-url origin
-gh repo view --json visibility -q .visibility
+git remote get-url origin           # no output: the folder lives only on this computer
 ls -d "${NVM_DIR:-$HOME/.nvm}" 2>/dev/null; command -v fnm volta brew   # which Node managers exist
 for p in "${CHROME_PATH:-}" "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" /usr/bin/google-chrome /usr/bin/google-chrome-stable /usr/bin/chromium /usr/bin/chromium-browser; do [ -n "$p" ] && [ -x "$p" ] && echo "chrome: $p" && break; done
 command -v pdftotext pdfinfo
 ```
 
-- Node outside the range (Node 25 is outside it too): stop; the user installs a supported Node, then reruns. Suggest only a manager the check found: `nvm install` or `fnm install` (both read `.nvmrc`), `volta install node@26`, or `brew upgrade node`; with none, the installer from nodejs.org. With two Node binaries on PATH, `which -a node` shows which one wins.
-- `origin` is `leonardoazeredo/job-coach` (cloned instead of **Use this template**): the user cannot push there, but the copy has no private home. Ask whether it stays local-only or gets a private repository. For a private one: `git remote rename origin upstream`, create an empty private repository, `git remote add origin <its URL>` and `git push -u origin main`. Either way `upstream` already points at the engine, so `docs/updating.md` works without its first step and without `--allow-unrelated-histories`.
-- Visibility `PUBLIC`: say loudly that profile, CV and pipeline files hold personal data and must not be committed to a public repository. A fork of a public repository cannot be made private, so the user recreates the copy from the template as private; a repository created from the template can be switched with `gh repo edit --visibility private --accept-visibility-change-consequences`. Continue only when the user confirms the repository is, or will be, private. If `gh` cannot tell (not installed, no remote), say so and ask the user to confirm.
+For a GitHub `origin` that is not the engine, check it without `gh` or a login: `curl -s -o /dev/null -w '%{http_code}' https://api.github.com/repos/<owner>/<name>` answers 200 for a public repository and 404 for a private one (or one that does not exist).
+
+- Node outside the range (Node 25 is outside it too): stop. Give one command, for a manager the check found: `nvm install` or `fnm install` (both read `.nvmrc`), `volta install node@26`, or `brew upgrade node`. With none, point to the installer on nodejs.org and say which version to pick. If the old version still shows afterwards, `which -a node` finds the copy that is in the way.
+- No `origin`: the data stays on this computer. Tell the user that in one line; nothing to ask.
+- `origin` is `leonardoazeredo/job-coach` (copied straight from the public project): nobody else's data can reach it, but unlink it so nothing ever can. Say: "This folder was copied from the public project online. I'll unlink it so what you add here stays on this computer; updates to the coach still work." On a yes, run `git remote rename origin upstream`. Engine updates then follow `docs/updating.md` without its first step and without `--allow-unrelated-histories`.
+- Any other `origin` that answers 200 (public): stop and say plainly that this folder is linked to a public page online, where anything saved could be seen by anyone, and that nothing personal goes in until that is fixed. If the user made it with **Use this template**, `gh repo edit --visibility private --accept-visibility-change-consequences` (or the repository's Settings page) makes it private; a fork cannot be made private, so the user starts again from the template, or unlinks with `git remote rename origin public-copy` and keeps the data local.
+- `origin` answers 404, or is not on GitHub: say the online copy is private or cannot be checked, and ask one plain question: "Is the online copy of this folder set to private, or would you rather keep everything on this computer?" Keeping it local means `git remote rename origin unused-online-copy` after a yes.
 - No Chrome or no poppler is a warning, not a stop: only PDF export needs them, and it is optional and can be set up later. A PDF CV can still be imported in step 2 without poppler. Give the install command: `brew install --cask google-chrome` and `brew install poppler` on macOS; `sudo apt install chromium poppler-utils` on Debian or Ubuntu; elsewhere set `CHROME_PATH` to a Chrome binary.
 
-Done when Node is in range, visibility is private or confirmed so by the user, `origin` is not the engine repository (or the user chose local-only), and each warning has been shown.
+Done when Node is in range, the data either stays on this computer or goes only to an online copy that is private, and each warning has been shown.
 
 ### 2. CV import
 

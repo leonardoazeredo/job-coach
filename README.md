@@ -14,14 +14,14 @@ Required:
 
 Optional:
 
-- The `gh` CLI: onboarding uses it to confirm that your repository is private.
+- The `gh` CLI, only if you want to make a GitHub copy private from the command line.
 - Chrome or Chromium and poppler, for PDF export (see [Per-role CV export](#per-role-cv-export)).
 
 ## Getting started
 
 1. On GitHub, choose **Use this template** and create a **private** repository.
 2. Clone it and run `npm ci` in it. The scripts the coach runs (the record checker, the board, the CV tools) need its dependencies.
-3. Open the folder in Claude Code and send any first message. A fresh copy has no `profile/coach.md`, so `CLAUDE.md` starts the `onboarding` skill: prerequisites and repo privacy, CV import, identity and targets, then wins, voice, a competency pack and optional sensitive sections, then a final check. Every file is shown to you and written only after your yes. Steps 1, 2, 3 and 8 (the final check) are required; the rest can wait.
+3. Open the folder in Claude Code and send any first message. A fresh copy has no `profile/coach.md`, so `CLAUDE.md` starts the `onboarding` skill: prerequisites and keeping your data private, CV import, identity and targets, then wins, voice, a competency pack and optional sensitive sections, then a final check. Every file is shown to you and written only after your yes. Steps 1, 2, 3 and 8 (the final check) are required; the rest can wait.
 4. Later, `node scripts/board.ts` lists any onboarding section still unfinished, and `/onboarding` reruns one section, showing a diff before it overwrites anything.
 
 Cloned `leonardoazeredo/job-coach` directly instead? Run `git remote rename origin upstream`, then point `origin` at a private repository of your own, or keep the copy local. Onboarding checks this too.
