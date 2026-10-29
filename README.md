@@ -9,7 +9,7 @@ A job-search coach for one person, run in Claude Code. It reads your CV and targ
 Required:
 
 - [Claude Code](https://docs.claude.com/en/docs/claude-code/overview)
-- Node 24.11 or later in the 24 line, or Node 26 or later (not 25). `nvm use` picks the version in `.nvmrc`.
+- Node 24.11 or later in the 24 line, or Node 26 or later (not 25). With nvm or fnm, `nvm use` or `fnm use` picks the version in `.nvmrc`; Homebrew's `node` or the nodejs.org installer works too.
 - git, on macOS or Linux. On Windows, use WSL.
 
 Optional:
@@ -23,6 +23,8 @@ Optional:
 2. Clone it and run `npm ci` in it. The scripts the coach runs (the record checker, the board, the CV tools) need its dependencies.
 3. Open the folder in Claude Code and send any first message. A fresh copy has no `profile/coach.md`, so `CLAUDE.md` starts the `onboarding` skill: prerequisites and repo privacy, CV import, identity and targets, then wins, voice, a competency pack and optional sensitive sections, then a final check. Every file is shown to you and written only after your yes. Steps 1, 2, 3 and 8 (the final check) are required; the rest can wait.
 4. Later, `node scripts/board.ts` lists any onboarding section still unfinished, and `/onboarding` reruns one section, showing a diff before it overwrites anything.
+
+Cloned `leonardoazeredo/job-coach` directly instead? Run `git remote rename origin upstream`, then point `origin` at a private repository of your own, or keep the copy local. Onboarding checks this too.
 
 After onboarding, paste a job ad to start tracking a role, or ask for your board.
 
