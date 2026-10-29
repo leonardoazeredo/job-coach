@@ -1,0 +1,5 @@
+# The engine lives upstream; a user's data folders are never shipped
+
+Scripts, skills, config defaults, schemas, docs and the fictional persona are the engine and are shared from `leonardoazeredo/job-coach`. `profile/`, `pipeline/<slug>/`, `cv/` and `experience-bank/` hold one person's data and never leave that person's own private repository. Everything personal that the engine reads therefore sits in those folders: the search thresholds in `profile/search.yaml`, the name, locale, timezone, currency and competency pack in `profile/identity.yaml`, the coach's tone in `profile/coach.md`. `config/rules.yaml` keeps only defaults that are safe to overwrite on an upstream merge.
+
+Tests and docs use `examples/austin-backend`, never a real person. The `check` command warns when the repository is public, since a user's data repo that is public leaks it. Shipping a template with the data folders emptied was rejected: an engine fix would then have to be merged around personal files, and a missed file would be a leak.

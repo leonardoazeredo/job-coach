@@ -1,0 +1,88 @@
+# Competencies a job ad can ask for, and how a CV shows them. Used by cv-for-role and scripts/cv-evidence.ts.
+# Research and reasoning: docs/cv-for-role.md. Edited by the user; skills read these instead of hard-coding them.
+#
+# id:         used in pipeline/<slug>/requirements.yaml (competency) and as an experience-bank tag
+# ad_words:   phrases an ad may use for it; matched case-insensitively when breaking an ad down
+# win_themes: wins.yaml themes that may hold evidence for it
+# slots:      what a bullet must show; the interview asks only for slots no source fills
+# questions:  open templates, one per slot; {role} is the past role, never assume the event happened
+
+competencies:
+  - id: stakeholder-management
+    label: Stakeholder management
+    ad_words: [stakeholder, stakeholders, senior leadership, executives, business partners, non-technical]
+    win_themes: [leadership]
+    slots: [stakeholders, decision, own-position, resolution, outcome]
+    questions:
+      stakeholders: "At {role}, who besides your own team had a say in the frontend work (roles, not only names)?"
+      decision: "Was there a decision you had to get agreed with them? What was it?"
+      own-position: "What did you propose or argue for, and what did you show them?"
+      resolution: "Who made the final call, and how was it settled?"
+      outcome: "What happened afterwards? Anything you could count (people, releases, time)?"
+
+  - id: influence-push-back
+    label: Influence and push-back
+    ad_words: [influence, push back, challenge, advocate, persuade, buy-in, without authority, opinions]
+    win_themes: [leadership]
+    slots: [proposal-or-objection, evidence-shown, decider, result]
+    questions:
+      proposal-or-objection: "At {role}, did you ever disagree with a decision or push for one that wasn't yours to make? If so, what was it?"
+      evidence-shown: "What did you show or build to make the case?"
+      decider: "Who decided in the end?"
+      result: "What changed because of it, if anything?"
+
+  - id: technical-leadership
+    label: Technical leadership
+    ad_words: [technical direction, set standards, architecture, technical strategy, lead, best practices, raise the bar]
+    win_themes: [leadership, modernisation, process]
+    slots: [standard-or-decision, adoption-mechanism, adopters, outcome]
+    questions:
+      standard-or-decision: "At {role}, which technical standard or direction did you set?"
+      adoption-mechanism: "How did it get adopted: a document, tooling, CI, pairing, a reference implementation?"
+      adopters: "Who adopted it, and how many people or teams?"
+      outcome: "What came of it?"
+
+  - id: mentoring
+    label: Mentoring and team growth
+    ad_words: [mentor, mentoring, coach, grow engineers, knowledge sharing, onboarding, level up]
+    win_themes: [leadership, process]
+    slots: [people, format, frequency, result]
+    questions:
+      people: "At {role}, who did you help grow, and how many people?"
+      format: "What did it look like: pairing, reviews, workshops, docs?"
+      frequency: "How often?"
+      result: "What changed for them or the team?"
+
+  - id: cross-functional-collaboration
+    label: Cross-functional collaboration
+    ad_words: [cross-functional, cross-discipline, product manager, designers, design, partner with, work closely]
+    win_themes: [product-impact, design-system]
+    slots: [partners, working-loop, joint-decision]
+    questions:
+      partners: "At {role}, which disciplines did you work with day to day (product, design, backend, support)?"
+      working-loop: "How did work move between you: prototypes, specs, contracts, reviews?"
+      joint-decision: "Is there a decision you made together that changed the product? What was it?"
+
+  - id: product-data-judgement
+    label: Product and data judgement
+    ad_words: [data, metrics, dashboards, experiment, a/b, user feedback, insight, impact, outcomes]
+    win_themes: [product-impact, data-ops]
+    slots: [signal, decision, result]
+    questions:
+      signal: "At {role}, which data or user signal did you use to decide something?"
+      decision: "What did you decide because of it?"
+      result: "What happened, and was it measured?"
+
+  - id: ownership-delivery
+    label: Ownership and delivery
+    ad_words: [ownership, own, end to end, start to finish, deliver, ship, autonomy, accountable]
+    win_themes: [product-impact, modernisation]
+    slots: [scope, constraints, delivery, result]
+    questions:
+      scope: "At {role}, which piece of work did you own end to end?"
+      constraints: "What made it hard (time, legacy, people)?"
+      delivery: "How did you ship it: in one go, incrementally, behind flags?"
+      result: "What came of it?"
+
+# Experience-bank tags may use any competency id above or any of these wins.yaml themes.
+themes: [performance, modernisation, leadership, process, product-impact, ai, data-ops, reliability, design-system]

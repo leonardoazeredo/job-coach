@@ -1,0 +1,26 @@
+role: larkspur-backend-engineer
+jd: jd.md
+requirements:
+  - id: r1
+    quote: "You enjoy working with many stakeholders across a large services codebase."
+    kind: competency
+    competency: stakeholder-management
+    weight: strong
+    keywords: [stakeholders, services codebase]
+    status: partial
+    evidence:
+      - ref: bank:brightwell#4
+        slots: [stakeholders, decision, resolution]
+      - ref: bank:brightwell#2
+        slots: [stakeholders, decision]
+    missing_slots: [own-position]
+  - id: r2
+    quote: "Designing idempotent payment APIs"
+    kind: technology
+    weight: must
+    keywords: [idempotency]
+    status: covered
+    evidence:
+      - ref: win:cl-idempotency-keys
+        slots: []
+    missing_slots: []

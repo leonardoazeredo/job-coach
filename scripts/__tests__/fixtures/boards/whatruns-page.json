@@ -1,0 +1,55 @@
+{
+  "data": [
+    {
+      "id": 520023,
+      "company": "Ravenmoor",
+      "source": "ashby",
+      "title": "Backend Engineer",
+      "location": "Toronto",
+      "remote": true,
+      "applyUrl": "https://jobs.ashbyhq.com/ravenmoor/f406eef3-4008-42c2-9d56-02423dbbb6c2/application",
+      "jobUrl": "https://jobs.ashbyhq.com/ravenmoor/f406eef3-4008-42c2-9d56-02423dbbb6c2",
+      "publishedAt": "2026-10-21T11:33:59.443Z",
+      "compensationSummary": null
+    },
+    {
+      "id": 149490,
+      "company": "Hazelcroft",
+      "source": "ashby",
+      "title": "Lead Data Engineer",
+      "location": "Austin",
+      "remote": true,
+      "applyUrl": "https://jobs.ashbyhq.com/hazelcroft/892baffe-9c45-4d78-b277-b2a417a26d4e/application",
+      "jobUrl": "https://jobs.ashbyhq.com/hazelcroft/892baffe-9c45-4d78-b277-b2a417a26d4e",
+      "publishedAt": "2026-06-10T13:12:37.548Z",
+      "compensationSummary": "$100K – $130K"
+    },
+    {
+      "id": 306065,
+      "company": "Wrenfield",
+      "source": "teamtailor",
+      "title": "Senior Platform Engineer",
+      "location": "Berlin",
+      "remote": false,
+      "applyUrl": "https://wrenfield.example.com/jobs/8163051-senior-platform-engineer",
+      "jobUrl": "https://wrenfield.example.com/jobs/8163051-senior-platform-engineer",
+      "publishedAt": "2026-08-03T13:49:17.000Z",
+      "compensationSummary": null
+    },
+    {
+      "id": 556192,
+      "company": "Alderwick",
+      "source": "ashby",
+      "title": "Senior Software Engineer ",
+      "location": "Lisbon",
+      "remote": false,
+      "applyUrl": "https://jobs.ashbyhq.com/alderwick/f1175897-c789-4540-bc0c-bf1b119af240/application",
+      "jobUrl": "https://jobs.ashbyhq.com/alderwick/f1175897-c789-4540-bc0c-bf1b119af240",
+      "publishedAt": "2026-09-10T08:23:08.534Z",
+      "compensationSummary": null
+    }
+  ],
+  "total": 8,
+  "page": 1,
+  "totalPages": 2
+}

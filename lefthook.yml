@@ -1,0 +1,19 @@
+# Git hooks. pre-commit: staged files only.
+# pre-push: the whole local CI (biome, tsc, vitest, and the example workspace check).
+
+pre-commit:
+  parallel: true
+  jobs:
+    - name: biome
+      glob: '*.{ts,json}'
+      run: npx biome check --write --diagnostic-level=error --no-errors-on-unmatched --files-ignore-unknown=true {staged_files}
+      stage_fixed: true
+    - name: pipeline
+      glob: '{pipeline,config,profile,examples}/**/*.{yaml,md}'
+      # The template itself has no profile, so its own commits are checked against the example.
+      run: if [ -f profile/identity.yaml ]; then node scripts/check.ts; else npm run examples:check; fi
+
+pre-push:
+  jobs:
+    - name: ci
+      run: npm run ci

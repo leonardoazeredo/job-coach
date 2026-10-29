@@ -1,0 +1,19 @@
+{
+	"name": "Alex Example",
+	"headline": "Senior Software Engineer",
+	"location": "Rotterdam",
+	"email": "alex.example@example.com",
+	"phone": "+44 7000 000000",
+	"linkedin": "linkedin.com/in/alex-example",
+	"github": "github.com/alex-example",
+	"summary": "Engineer who builds offline-first mobile apps and automates delivery workflows. Owns build configuration, release tooling and the office's shared developer environment.",
+	"skills": ["React", "React Native", "TypeScript", "Node.js", "PostgreSQL", "Tailwind CSS"],
+	"work": [
+		{ "id": "acme", "role": "Senior Software Engineer", "company": "Acme Ltd", "start": "April 2021", "end": "Present", "bullets": [] },
+		{ "id": "globex", "role": "Software Engineer", "company": "Globex Corporation", "start": "March 2017", "end": "March 2021", "bullets": [] }
+	],
+	"training": [],
+	"projects": [],
+	"education": [],
+	"languages": []
+}

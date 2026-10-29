@@ -1,0 +1,57 @@
+slug: larkspur-backend-engineer
+company: Larkspur Freight
+job_title: Backend Engineer
+status: Applied
+status_reason: null
+tier: 1
+fit:
+  verdict: Strong fit
+  reason: Python and Go services on Postgres with end-to-end ownership; close to the Brightwell dock-booking API.
+  stack_overlap_pct: 100
+dates:
+  identified: 2026-10-16
+  applied: 2026-10-20
+  last_activity: 2026-10-20
+next_action:
+  what: Follow up if there is no reply
+  due: 2026-11-03
+
+source: company site
+url: https://larkspur.example.com/careers/backend-engineer
+location: Austin, TX (hybrid, 2 office days)
+work_style: Hybrid (2 days)
+salary_range: $150,000 - $175,000
+equity: Not specified
+experience_level: Mid-senior
+team_or_product: Quoting and tendering for freight shippers
+posting_date: 2026-10-14
+application_deadline: Not specified
+
+tech_stack_required: [Python, Go, PostgreSQL, REST APIs, AWS]
+tech_stack_nice_to_have: [Redis, Kafka]
+core_stack_matches: [Python, Go, PostgreSQL, Redis, AWS]
+secondary_stack_matches: [Kafka]
+other_relevant_experience: [Carrier-facing dock-booking API at Brightwell Logistics]
+tech_stack_gaps: []
+
+responsibilities:
+  - Own the quoting service end to end, from API design to on-call.
+  - Work with product and operations to turn shipper requirements into technical plans.
+  - Design idempotent APIs for tendering.
+company_mission_culture:
+  - "You enjoy working with many stakeholders across a large services codebase."
+values_match: [Service ownership, Hybrid in Austin]
+values_miss: []
+funding_stage: Series B
+funding_amount: Not specified
+benefits: Not specified
+notes: Fictional role for the example persona.
+
+hook:
+  win_slugs: [bw-dock-scheduling, cl-idempotency-keys]
+  pain_point: "Inference: tendering retries from shippers create duplicate bookings."
+  line: "Idempotency keys on card calls at Cedarline Payments: double-posted ledger entries fell from 41 in the prior quarter to zero over the next 90 days."
+
+contacts: []
+
+campaign: 2026-10

@@ -1,0 +1,86 @@
+# Engine defaults for the pipeline: statuses, staleness, events, board groups, fit rules and discovery freshness. Skills read these
+# instead of hard-coding thresholds. Upstream merges may change this file; put anything personal
+# (tiers, fit thresholds, search) in profile/search.yaml, which is meant to stay out of upstream merges.
+
+fit:
+  statuses: [Strong fit, Potential fit, Not a fit]
+  untiered: [Not a fit]              # verdicts that must carry tier: null; each must be in statuses
+  overlap_rule: >
+    Only technologies count in the percentage: frameworks, languages, libraries, platforms and tools.
+    Non-technology items in a required list ("agile", "microservices", "performance metrics") are
+    excluded from the count. At or above search.yaml fit.min_stack_overlap_pct with no other failing
+    rule the verdict is Strong fit. Below it the verdict is Potential fit with every gap named; the
+    percentage alone never gives Not a fit.
+  criteria_rule: >
+    identity.ideal_role_criteria inform the one-line reason and values_match / values_miss. They never
+    produce Not a fit on their own.
+  salary_test: >
+    A published range is tested by its top end: a range whose ceiling reaches the threshold qualifies.
+    This applies to the fit floor and to the tier thresholds in profile/search.yaml.
+  hard_gap_rule: >
+    If a mandatory primary language or framework sits outside core and secondary in stack.yaml, the
+    role is Not a fit regardless of overlap. A language offered as one option among others
+    ("Python, Go, or comparable") is not a hard gap.
+  salary_rule: >
+    Below identity.compensation.floor (in identity.compensation.currency) is Not a fit unless the user
+    says otherwise. Missing salary is recorded as "Not specified", never estimated in the record.
+  location_rule: >
+    Judged against profile/search.yaml fit.location_rule and identity.work_setup. More office days than
+    identity.work_setup.office_days_ok is Not a fit.
+
+discovery:
+  fresh_days: 60            # a listing posted more than this many days ago is expired
+
+staleness:
+  applied_no_response_days: 14       # after this, pipeline-board lists the role as stale; only pipeline-update
+                                     # changes the status to "Likely rejected", and only when the user agrees
+  post_interview_follow_up_business_days: 5
+  interview_prep_window_days: 3
+
+statuses:                   # allowed values for record.status, in lifecycle order
+  - Identified              # extracted, not applied
+  - Skipped                 # decided not to apply (reason required)
+  - Applied
+  - In conversation         # recruiter or hiring manager messaging
+  - Interviewing
+  - Offer
+  - Accepted
+  - Rejected
+  - Likely rejected         # stale, computed by pipeline-board, written by pipeline-update when confirmed
+  - Withdrawn
+  - Ended                   # a job the user took and then left; reason required
+
+status_reason_required: [Skipped, Rejected, Likely rejected, Withdrawn, Ended]
+
+# Statuses reachable only by applying, so the record must carry dates.applied. Rejected and
+# Withdrawn are left out because a role can end that way before an application.
+implies_applied: [Applied, In conversation, Interviewing, Offer, Accepted, Ended, Likely rejected]
+
+follow_up_statuses: [Interviewing]  # follow-up due after post_interview_follow_up_business_days idle
+
+board_groups:               # every status must appear in exactly one group; check.ts and board.ts both fail otherwise
+  active: [In conversation, Interviewing, Offer, Accepted]
+  identified: [Identified]
+  waiting: [Applied]         # split into waiting and stale by applied_no_response_days
+  closed: [Rejected, Likely rejected, Skipped, Withdrawn, Ended]
+
+closed_recently_days: 30    # the board counts closed roles whose last activity is this recent
+
+events:                     # allowed values for the Event column of events.md
+  - Identified              # written by job-intake
+  - Applied
+  - Skipped
+  - Recruiter message
+  - Interview scheduled
+  - Interview rescheduled
+  - Interview done
+  - Take-home received
+  - Take-home submitted
+  - Rejected
+  - Likely rejected         # when the user agrees a stale role is closed (see staleness)
+  - Offer
+  - Accepted
+  - Ended                   # a job the user took and then left
+  - Withdrawn
+  - Ghosted (no-show)
+  - Other

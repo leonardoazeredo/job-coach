@@ -1,0 +1,21 @@
+# Template for profile/standard-answers.yaml. Optional. Why it exists: application forms ask the
+# same questions every time, and answering them once means application-writer reuses your words.
+# The scripts only check that the file exists and has no CHANGE_ME left. Keep the name
+# salary_expectation, which application-writer reads by level; add or drop the others as
+# your forms need. CHANGE_ME marks a value still to replace.
+
+work_authorization: "CHANGE_ME Yes, I can work in X without sponsorship."
+sponsorship_required: "CHANGE_ME No"
+based_in: "CHANGE_ME City, Country."
+notice_period: "CHANGE_ME Two weeks."
+years_experience: "CHANGE_ME 8 years."
+salary_expectation:             # pick by the role's level (identity.yaml compensation.by_level)
+  mid: "CHANGE_ME Amount range in your currency, depending on the full package."
+office_attendance: "CHANGE_ME How many office days a week you accept."
+employment_type: "CHANGE_ME Permanent, contract, or either."
+links:
+  linkedin: CHANGE_ME linkedin.com/in/your-handle
+  github: CHANGE_ME github.com/your-handle
+
+career_gaps: >
+  CHANGE_ME One honest paragraph about a gap or a short role, if forms are likely to ask; delete this entry if not.

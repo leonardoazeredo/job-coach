@@ -1,0 +1,39 @@
+# Template for profile/search.yaml: what the pipeline hunts for. The scripts read it with
+# config/rules.yaml, which holds the engine defaults you should leave alone.
+# The salary floor and currency live in identity.yaml (compensation), not here.
+# CHANGE_ME marks a value still to replace.
+
+tiers:                         # how much effort a role earns; job-intake assigns one per role
+  0:
+    label: Career maker
+    when: CHANGE_ME What makes a role worth deep preparation, for example the product or the pay
+    action: Deep preparation; company-research and a tailored application.
+  1:
+    label: High-value target
+    when: CHANGE_ME The pay, stack and scope that make a role clearly worth it
+    action: Deep preparation; tailored answers and research.
+  2:
+    label: Standard role
+    when: Fits the stack and criteria but lower pay, broader scope or less ownership.
+    action: Standard answers with light customisation.
+
+fit:
+  min_stack_overlap_pct: 70    # below this share of the role's required technologies you match (see fit.overlap_rule in rules.yaml) the verdict is Potential fit with each gap named; the percentage alone never makes a role Not a fit
+  location_rule: >             # prose the skills read; no script does
+    CHANGE_ME Where you can work: remote where, hybrid with how many office days in which city,
+    and whether relocation is ever acceptable.
+
+discovery:
+  agentic_keywords: [Agent, LLM orchestration]   # words that flag an AI-heavy ad; an empty list is fine
+  search_titles:               # job titles pulled from the job boards
+    - CHANGE_ME Software Engineer
+  title_expansion:             # extra titles that still qualify a listing, such as Product Engineer
+    - CHANGE_ME Founding Engineer
+  search:
+    city: CHANGE_ME City
+    country: CHANGE_ME Country
+    regions: [Remote]
+    seniority: [mid, senior]
+    stack: [CHANGE_ME Language]
+    employment: full-time
+    hybrid: true

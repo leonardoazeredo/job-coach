@@ -1,0 +1,151 @@
+{
+  "pageProps": {
+    "initialJobOpenings": [
+      {
+        "slug": "backend-developer-remote",
+        "created_at": "2026-10-25T11:01:02.674+00:00",
+        "roleTitle": "Backend Developer",
+        "url": "https://careers.quillmark.example.com/jobs/1001-backend-developer",
+        "company": {
+          "slug": "quillmark",
+          "name": "Quillmark"
+        },
+        "locationCountries": null,
+        "locationCity": null,
+        "locationType": "remote",
+        "salaryRange": null,
+        "isJunior": false,
+        "isMidLevel": true,
+        "isSenior": true,
+        "isLead": false,
+        "requiredLanguages": ["en"],
+        "techStack": ["Go", "PostgreSQL", "Redis"],
+        "twoLineJobDescriptionSummary": "Backend Developer building order-routing services for Quillmark’s invented logistics platform. Improving reliability and working with product teams."
+      },
+      {
+        "slug": "senior-data-engineer-canada-remote",
+        "created_at": "2026-10-20T14:42:25.973+00:00",
+        "roleTitle": "Senior Data Engineer",
+        "url": "https://careers.fernbrook.example.com/jobs/2002-senior-data-engineer",
+        "company": {
+          "slug": "fernbrook-labs",
+          "name": "Fernbrook Labs"
+        },
+        "locationCountries": ["Canada", "United States"],
+        "locationCity": null,
+        "locationType": "remote",
+        "salaryRange": null,
+        "isJunior": false,
+        "isMidLevel": false,
+        "isSenior": true,
+        "isLead": false,
+        "requiredLanguages": ["en"],
+        "techStack": ["Airflow", "Python", "SQL"],
+        "twoLineJobDescriptionSummary": "Senior Data Engineer building pipelines for Fernbrook’s invented analytics platform."
+      },
+      {
+        "slug": "software-engineer-platform-remote",
+        "created_at": "2026-10-19T13:24:19.053+00:00",
+        "roleTitle": "Software Engineer, Platform",
+        "url": "https://jobs.ashbyhq.com/pinewick/a7c2bb9c-3782-48f3-8083-94ba2bdd6b02",
+        "company": {
+          "slug": "pinewick",
+          "name": "Pinewick"
+        },
+        "locationCountries": null,
+        "locationCity": null,
+        "locationType": "remote",
+        "salaryRange": {
+          "salaryHumanReadableText": "£80,000 - £125,000 per year"
+        },
+        "isJunior": false,
+        "isMidLevel": true,
+        "isSenior": true,
+        "isLead": false,
+        "requiredLanguages": ["en"],
+        "techStack": ["Kubernetes", "Terraform"],
+        "twoLineJobDescriptionSummary": "Platform engineer building deployment tooling and internal infrastructure. Pinewick is an invented company used for tests."
+      },
+      {
+        "slug": "product-engineer-lisbon-hybrid",
+        "created_at": "2026-10-10T03:31:35.877+00:00",
+        "roleTitle": "Product Engineer",
+        "url": "https://apply.workable.com/thistlegate/j/424254A8F6",
+        "company": {
+          "slug": "thistlegate",
+          "name": "Thistlegate"
+        },
+        "locationCountries": null,
+        "locationCity": "Lisbon",
+        "locationType": "hybrid",
+        "salaryRange": {
+          "salaryHumanReadableText": "€55,000 - €60,000 per year"
+        },
+        "isJunior": false,
+        "isMidLevel": true,
+        "isSenior": true,
+        "isLead": false,
+        "requiredLanguages": ["en"],
+        "techStack": ["Django", "PostgreSQL", "Python", "React"],
+        "twoLineJobDescriptionSummary": "Product Engineer building Thistlegate’s invented booking platform end to end."
+      },
+      {
+        "slug": "data-engineer-spanish-europe-remote",
+        "created_at": "2026-10-20T17:29:45.92+00:00",
+        "roleTitle": "Data Engineer, Spanish",
+        "url": "https://jobs.ashbyhq.com/dunmere/bb28eafe-8d97-4208-95b6-fc0f1029bcaf",
+        "company": {
+          "slug": "dunmere",
+          "name": "Dunmere"
+        },
+        "locationCountries": null,
+        "locationCity": null,
+        "locationType": "remote",
+        "salaryRange": {
+          "salaryHumanReadableText": "€60,000 - €95,000 per year"
+        },
+        "isJunior": false,
+        "isMidLevel": true,
+        "isSenior": true,
+        "isLead": false,
+        "requiredLanguages": ["es", "en"],
+        "techStack": ["Cloud", "Python", "SQL", "TypeScript", "Go"],
+        "twoLineJobDescriptionSummary": "Data Engineer maintaining Dunmere’s invented reporting warehouse for Spanish-market customers."
+      },
+      {
+        "slug": "engineering-manager-platform-germany-remote",
+        "created_at": "2026-10-18T17:51:33.099+00:00",
+        "roleTitle": "Engineering Manager, Platform",
+        "url": "https://boards.greenhouse.io/oakhollow/jobs/7003004005",
+        "company": {
+          "slug": "oakhollow",
+          "name": "Oakhollow"
+        },
+        "locationCountries": ["Germany", "Portugal"],
+        "locationCity": null,
+        "locationType": "remote",
+        "salaryRange": null,
+        "isJunior": false,
+        "isMidLevel": false,
+        "isSenior": true,
+        "isLead": true,
+        "requiredLanguages": ["en"],
+        "techStack": [
+          "Azure",
+          "Cloud",
+          "Docker",
+          "Kafka",
+          "Kubernetes",
+          "MongoDB",
+          "MySQL",
+          "Node.js",
+          "Redis",
+          "Terraform",
+          "TypeScript"
+        ],
+        "twoLineJobDescriptionSummary": "Manager leading the platform team at Oakhollow, an invented company. Owns technical quality and staffing."
+      }
+    ],
+    "initialTotalJobCount": 50
+  }
+}

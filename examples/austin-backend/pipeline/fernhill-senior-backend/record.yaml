@@ -1,0 +1,54 @@
+slug: fernhill-senior-backend
+company: Fernhill
+job_title: Senior Backend Engineer
+status: Rejected
+status_reason: Fernhill chose a candidate with deeper Kafka experience.
+tier: 1
+fit:
+  verdict: Strong fit
+  reason: Python, Postgres and queues match; remote within the US.
+  stack_overlap_pct: 100
+dates:
+  identified: 2026-10-01
+  applied: 2026-10-05
+  last_activity: 2026-10-19
+next_action:
+  what: null
+  due: null
+
+source: Hacker News
+url: https://fernhill.example.com/jobs/senior-backend
+location: Remote (United States)
+work_style: Remote
+salary_range: $165,000 - $190,000
+equity: Not specified
+experience_level: Senior
+team_or_product: Scheduling API for clinics
+posting_date: 2026-09-29
+application_deadline: Not specified
+
+tech_stack_required: [Python, PostgreSQL, Message queues]
+tech_stack_nice_to_have: [Kafka]
+core_stack_matches: [Python, PostgreSQL]
+secondary_stack_matches: []
+other_relevant_experience: [Clinic booking service built while self-employed]
+tech_stack_gaps: []
+
+responsibilities:
+  - Own the scheduling API and its data model.
+company_mission_culture: []
+values_match: [Fully remote]
+values_miss: []
+funding_stage: Seed
+funding_amount: Not specified
+benefits: Not specified
+notes: Fictional role for the example persona.
+
+hook:
+  win_slugs: [ind-clinic-booking]
+  pain_point: Not specified
+  line: Not specified
+
+contacts: []
+
+campaign: 2026-10

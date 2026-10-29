@@ -1,0 +1,37 @@
+{
+  "name": "CHANGE_ME Full Name",
+  "headline": "CHANGE_ME Seniority Discipline | main stack | domain",
+  "location": "CHANGE_ME City, Country",
+  "email": "CHANGE_ME name@example.com",
+  "phone": "CHANGE_ME +00 000 000 0000",
+  "linkedin": "CHANGE_ME linkedin.com/in/your-handle, or an empty string if none",
+  "github": "CHANGE_ME github.com/your-handle, or an empty string if none",
+  "summary": "CHANGE_ME Two or three sentences: years, what you build, one strength. Nothing that is not in wins.yaml or stack.yaml.",
+  "skills": ["CHANGE_ME Language"],
+  "work": [
+    {
+      "id": "CHANGE_ME-role-id",
+      "role": "CHANGE_ME Title as in history.yaml",
+      "company": "CHANGE_ME Company",
+      "location": "CHANGE_ME City, Country",
+      "start": "CHANGE_ME January 2020",
+      "end": "CHANGE_ME January 2022",
+      "note": "CHANGE_ME contract",
+      "tech": ["CHANGE_ME Language"],
+      "bullets": ["CHANGE_ME One achievement from wins.yaml, worded with its exact metric."]
+    }
+  ],
+  "training": ["CHANGE_ME Course name (provider), 2022"],
+  "projects": [],
+  "education": [
+    {
+      "id": "CHANGE_ME-degree",
+      "degree": "CHANGE_ME Degree",
+      "institution": "CHANGE_ME University",
+      "location": "CHANGE_ME City, Country",
+      "start": "CHANGE_ME 2014",
+      "end": "CHANGE_ME 2018"
+    }
+  ],
+  "languages": ["CHANGE_ME English (native)"]
+}

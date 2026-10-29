@@ -1,0 +1,26 @@
+role: larkspur-backend-engineer
+jobs:
+  - id: cedarline-payments
+    bullets:
+      - text: "Rebuilt the daily settlement-file reconciliation in Python, with a finance review queue for what is left: unmatched settlement lines down from about 300 to under 20 a month."
+        sources: [win:cl-ledger-reconciliation]
+        answers: []
+      - text: "Replaced static threshold alerts with SLO burn-rate alerts in Datadog and wrote runbooks for the most frequent pages: pages to the on-call engineer cut from 25 a week to 6."
+        sources: [win:cl-pager-load]
+        answers: []
+  - id: brightwell
+    bullets:
+      - text: "Wrote the dock-appointment booking API that carriers call to reserve unloading slots, with overbooking rules each warehouse sets for itself."
+        sources: [win:bw-dock-scheduling]
+        answers: []
+      - text: "Agreed two cutover windows with the warehouse operations leads, after showing them which dock hours each option would block."
+        sources: [bank:brightwell#4]
+        answers: [r1]
+      - text: "Moved the tracking-events table to monthly Postgres partitions and archived older months to S3: nightly vacuum time down from 6 hours to 40 minutes."
+        sources: [win:bw-postgres-partitioning]
+        answers: []
+  - id: harbor-health
+    bullets:
+      - text: "Rewrote the interface that sends lab results to the patient-records system, adding validation and a retry queue: lab-result messages rejected by the records system down from about 2% to under 0.1%."
+        sources: [win:hh-lab-results-interface]
+        answers: []

@@ -1,0 +1,95 @@
+# FICTIONAL persona. Achievements. Every outward claim must trace to one of these.
+# `metric` is quoted exactly. `never_say` lists inflations seen in past drafts.
+# status: approved | proposed (proposed wins need Dana's yes before outward use)
+# themes: correctness, reliability, cost, performance, data, delivery, leadership, security, developer-experience
+
+wins:
+  - slug: cl-idempotency-keys
+    role: cedarline-payments
+    status: approved
+    themes: [correctness, reliability]
+    metric: "double-posted ledger entries fell from 41 in the prior quarter to zero over the next 90 days"
+    action: Introduced idempotency keys on the card authorisation and capture calls, stored in Postgres with a 24-hour expiry, plus a nightly job that checks the ledger for duplicate postings.
+    competencies: [ownership-delivery]
+
+  - slug: cl-ledger-reconciliation
+    role: cedarline-payments
+    status: approved
+    themes: [correctness, data]
+    metric: "unmatched settlement lines down from about 300 to under 20 a month"
+    action: Rebuilt the daily settlement-file reconciliation in Python, matching card-network files to ledger entries on a composite key and sending what is left to a finance review queue.
+    competencies: [system-design]
+
+  - slug: cl-pager-load
+    role: cedarline-payments
+    status: approved
+    themes: [reliability]
+    metric: "pages to the on-call engineer cut from 25 a week to 6"
+    action: Replaced static threshold alerts with SLO burn-rate alerts in Datadog and wrote runbooks for the most frequent pages.
+    never_say: ["zero downtime"]
+    competencies: [reliability-operations]
+
+  - slug: cl-pci-scope
+    role: cedarline-payments
+    status: approved
+    themes: [security, delivery]
+    metric: "Not specified"
+    action: 'Contributed to the tokenisation project that took raw card numbers out of most services: wrote the Python client library and moved four services onto it; the security team ran the vault and the audit.'
+    competencies: [cross-functional-collaboration]
+
+  - slug: bw-postgres-partitioning
+    role: brightwell
+    status: approved
+    themes: [performance, data]
+    metric: "nightly vacuum time down from 6 hours to 40 minutes"
+    action: Moved the tracking-events table to monthly Postgres partitions and archived older months to S3 as Parquet, with the cutover run in two short maintenance windows agreed with operations.
+    never_say: ["no downtime at all"]
+    competencies: [system-design]
+
+  - slug: bw-aws-cost
+    role: brightwell
+    status: approved
+    themes: [cost]
+    metric: "monthly AWS bill for label printing down from $9,400 to $3,100"
+    action: Moved label-printing workers from always-on EC2 instances to Lambda functions fed by SQS, batching requests per dock door.
+    never_say: ["halved cloud spend", "cut AWS costs company-wide"]
+    competencies: [system-design]
+
+  - slug: bw-test-suite
+    role: brightwell
+    status: approved
+    themes: [developer-experience, delivery]
+    metric: "CI time on the main service down from 38 minutes to 11"
+    action: Split the pytest suite to run in parallel, gave each test its own Postgres container through Testcontainers, and moved flaky tests to a quarantine list reviewed weekly.
+    competencies: [technical-leadership]
+
+  - slug: bw-dock-scheduling
+    role: brightwell
+    status: approved
+    themes: [delivery]
+    metric: "Not specified"
+    action: Wrote the dock-appointment booking API that carriers call to reserve unloading slots, with overbooking rules each warehouse sets for itself.
+    competencies: [ownership-delivery]
+
+  - slug: bw-intern-programme
+    role: brightwell
+    status: approved
+    themes: [leadership]
+    metric: "Not specified"
+    action: Set up the summer internship for the backend team, wrote the starter projects, and mentored each intern through twice-weekly pairing and their code reviews.
+    competencies: [mentoring]
+
+  - slug: ind-clinic-booking
+    role: independent
+    status: approved
+    themes: [delivery, reliability]
+    metric: "missed appointments down by up to 30% at the two pilot clinics"
+    action: Built a FastAPI booking service with Twilio SMS reminders for a group of physiotherapy clinics.
+    never_say: ["30% fewer missed appointments across all clinics"]
+
+  - slug: hh-lab-results-interface
+    role: harbor-health
+    status: approved
+    themes: [data, correctness]
+    metric: "lab-result messages rejected by the records system down from about 2% to under 0.1%"
+    action: Rewrote the C# interface that sends lab results to the patient-records system as HL7 messages, adding field validation and a retry queue for rejected messages.

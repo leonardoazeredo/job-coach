@@ -1,0 +1,49 @@
+# FICTIONAL persona. What the pipeline hunts for: the scripts read this file with config/rules.yaml.
+# The salary floor and currency live in identity.yaml (compensation).
+
+tiers:
+  0:
+    label: Stretch worth the effort
+    when: >
+      Payments, ledger or inventory systems at a company whose engineering she already respects,
+      with a stack she can show evidence for.
+    action: Deep preparation; company-research and a tailored application.
+  1:
+    label: Strong match
+    when: Base of $160k or more (or no range, at a company known to pay that), Python or Go on Postgres, and a service she would own.
+    action: Tailored answers and company research.
+  2:
+    label: Worth a standard application
+    when: Stack and criteria fit, but the pay, scope or ownership is weaker.
+    action: Standard answers, lightly adjusted.
+
+fit:
+  min_stack_overlap_pct: 80
+  location_rule: >
+    She stays in Austin. Fully remote within the US works, as does hybrid in Austin with no more
+    than 2 office days a week. Any role that needs a move is Not a fit.
+
+discovery:
+  agentic_keywords: [Agent, LLM orchestration, Generative, AI-native]
+  search_titles:
+    - Backend Engineer
+    - Backend Developer
+    - Python Engineer
+    - Go Engineer
+    - Software Engineer
+  title_expansion:
+    - Product Engineer
+    - Founding Engineer
+    - Payments Engineer
+    - Member of Technical Staff
+    - "Software Engineer, Ledger"
+    - "Software Developer, Platform"
+    - "Tech Lead, Platform"
+  search:
+    city: Austin
+    country: United States
+    regions: [North America, Remote]
+    seniority: [mid, senior]
+    stack: [Python, Go, PostgreSQL]
+    employment: full-time
+    hybrid: true

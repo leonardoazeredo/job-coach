@@ -1,0 +1,14 @@
+node_modules/
+.tmp/
+
+# Claude Code session worktrees each carry a biome.json, which Biome rejects as a nested root
+.claude/worktrees/
+
+# Discovery pulls and shortlists are generated output; Biome would fail them on formatting or its 1 MiB size limit
+discovery/
+
+# Exported CVs carry the user's name and contact details; the verifier's test PDFs are fictional
+*.pdf
+!scripts/cv-pdf/verify/testdata/**/*.pdf
+
+.DS_Store

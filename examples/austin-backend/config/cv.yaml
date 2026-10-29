@@ -1,0 +1,22 @@
+# Rules scripts/cv-lint.ts applies to every CV variant (pipeline/<slug>/cv/bullets.yaml).
+
+# A bullet using one of these verbs (or its forms) needs a cited source that uses the same verb,
+# or `strength_ok_by: user` on the bullet after the user confirms it.
+strength_words:
+  - [led, lead, leading, leads]
+  - [owned, own, owning, owns, owner, ownership]
+  - [managed, manage, managing, manages, manager]
+  - [mentored, mentor, mentoring, mentors]
+  - [drove, drive, driving, drives]
+  - [spearheaded, spearhead]
+  - [headed, head]
+  - [architected, architect]
+
+# Qualifiers that must survive: if a cited win's action uses one, a bullet citing that win must too.
+qualifiers: ["contributed to"]
+
+# Seniority words a headline may use only when a history.yaml public title contains them.
+seniority_words: [Staff, Principal, Lead, Head, Director, Manager, VP]
+
+# Bullets per job: the newest three jobs (the recent_jobs default) and older ones.
+bullets_per_job: {recent: [2, 5], older: [0, 2]}

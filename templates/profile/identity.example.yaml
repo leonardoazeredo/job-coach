@@ -1,0 +1,42 @@
+# Template for profile/identity.yaml: who you are and what you are looking for.
+# The onboarding skill fills it from your answers. CHANGE_ME marks a value still to replace;
+# the board lists a file that still contains it as unfinished. The sample values that are personal
+# (dates, timezone, years, pay, office days) carry a trailing CHANGE_ME comment, so a copy left
+# unedited is not mistaken for a finished one. Remove each comment when you set the value.
+# Read by the scripts: name (the CV PDF is named from it), location.timezone (decides "today"),
+# locale (passed with the timezone when today's date is computed), competency_pack. The rest is read by the skills.
+
+name: CHANGE_ME Full Name
+email: CHANGE_ME name@example.com
+phone: CHANGE_ME +00 000 000 0000
+linkedin: CHANGE_ME linkedin.com/in/your-handle
+github: CHANGE_ME github.com/your-handle
+locale: en-US                  # BCP 47 language tag; dates in files stay ISO whatever it is
+competency_pack: frontend      # file name under config/competencies/ without .yaml; frontend is the one the engine ships
+
+location:
+  city: CHANGE_ME City, Country
+  since: 2020-01               # CHANGE_ME year-month you moved there
+  timezone: Etc/UTC            # CHANGE_ME IANA name, for example America/Chicago or Europe/Berlin
+right_to_work:                 # one line per country you can work in, and on what basis
+  CHANGE_ME country: CHANGE_ME citizen, no sponsorship needed
+availability: CHANGE_ME Notice period, or immediately if between roles
+
+languages:
+  - CHANGE_ME English (native)
+
+experience_years: 0            # CHANGE_ME whole years of professional experience
+seniority_targets: [CHANGE_ME Mid-level, Senior]
+
+compensation:
+  currency: USD                # CHANGE_ME ISO 4217 code; every amount below is in it
+  floor: 0                     # CHANGE_ME annual base below which a role is a Not a fit, unless you say otherwise
+  by_level:                    # one entry per level you target, annual base
+    mid: {min: 0, max: 0}      # CHANGE_ME your level name and range
+
+work_setup:
+  office_days_ok: 0            # CHANGE_ME most office days a week you accept
+  remote: true
+
+ideal_role_criteria:           # what a good role has, in your words; job-intake weighs a role against these
+  - CHANGE_ME One thing you want in a role

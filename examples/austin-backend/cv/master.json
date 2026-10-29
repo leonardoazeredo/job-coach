@@ -1,0 +1,87 @@
+{
+  "name": "Dana Okafor",
+  "headline": "Senior Backend Engineer | Python and Go | Payments ledgers and warehouse systems",
+  "location": "Austin, TX, United States",
+  "email": "dana.okafor@example.com",
+  "phone": "+1 512 555 0142",
+  "linkedin": "linkedin.example.com/in/dana-okafor-example",
+  "github": "github.example.com/dana-okafor-example",
+  "summary": "Backend engineer with nine years in Python, most recently on a card-issuing ledger. Works where correctness is checked rather than assumed: reconciliation, retries that cannot double-post, and alerts that page for a reason. Has written warehouse booking APIs and moved large Postgres tables without stopping the business. Shares on-call and fixes what pages her.",
+  "skills": [
+    "Python",
+    "Go",
+    "FastAPI",
+    "Django",
+    "SQLAlchemy",
+    "PostgreSQL",
+    "Redis",
+    "REST APIs",
+    "OpenAPI",
+    "AWS",
+    "Docker",
+    "SQS",
+    "CI/CD",
+    "Terraform",
+    "Datadog",
+    "Twilio (client SMS integrations)"
+  ],
+  "work": [
+    {
+      "id": "cedarline",
+      "role": "Senior Backend Engineer",
+      "company": "Cedarline Payments",
+      "location": "Austin, United States",
+      "start": "November 2023",
+      "end": "July 2026",
+      "tech": ["Python", "FastAPI", "PostgreSQL", "Celery", "AWS", "Datadog", "GitHub Actions"],
+      "bullets": [
+        "Rebuilt the daily settlement-file reconciliation in Python, with a finance review queue for unmatched lines.",
+        "Replaced static threshold alerts with SLO burn-rate alerts in Datadog and wrote runbooks for the most frequent pages.",
+        "Wrote the Python client library for the card tokenisation project and moved four services onto it, working with the security team."
+      ]
+    },
+    {
+      "id": "brightwell",
+      "role": "Backend Engineer",
+      "company": "Brightwell Logistics",
+      "location": "Austin, United States",
+      "start": "February 2021",
+      "end": "October 2023",
+      "tech": ["Python", "Django", "Go", "PostgreSQL", "AWS", "SQS", "Lambda", "Docker"],
+      "bullets": [
+        "Wrote the dock-appointment booking API that carriers call to reserve unloading slots.",
+        "Moved the tracking-events table to monthly Postgres partitions and archived older months to S3.",
+        "Moved label-printing workers from always-on EC2 instances to Lambda functions fed by SQS.",
+        "Split the pytest suite to run in parallel with per-test Postgres containers from Testcontainers."
+      ]
+    },
+    {
+      "id": "independent",
+      "role": "Contract Python Developer",
+      "company": "Self-employed",
+      "location": "Remote, United States",
+      "start": "March 2020",
+      "end": "January 2021",
+      "note": "self-employed",
+      "tech": ["Python", "FastAPI", "PostgreSQL", "Twilio"],
+      "bullets": [
+        "Built a FastAPI booking service with Twilio SMS reminders for a group of physiotherapy clinics."
+      ]
+    },
+    {
+      "id": "harborhealth",
+      "role": "Software Developer",
+      "company": "Harbor Health Network",
+      "location": "San Antonio, United States",
+      "start": "September 2017",
+      "end": "February 2020",
+      "tech": ["Python", "C#", ".NET", "SQL Server"],
+      "bullets": [
+        "Rewrote the C# interface that sends lab results to the patient-records system as HL7 messages, with validation and a retry queue."
+      ]
+    }
+  ],
+  "training": [],
+  "projects": [],
+  "languages": ["English (native)", "Spanish (conversational)"]
+}

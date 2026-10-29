@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>letter-spaced headings</title>
+<style>
+@page { size: A4; margin: 48px 0; }
+html, body { margin: 0; padding: 0; }
+body { color: #17202a; background: #fff; }
+.cv {
+	width: 680px; margin: 0 auto;
+	font-family: Inter, Helvetica, Arial, sans-serif;
+	font-size: 14.667px; line-height: 1.225;
+	font-variant-ligatures: none;
+	font-feature-settings: "liga" 0, "clig" 0, "dlig" 0;
+}
+.cv-name { font-size: 1.8em; line-height: 1; font-weight: 800; margin: 0 0 0.13em; }
+.cv-headline { font-size: 1.09em; color: #54606c; margin: 0 0 0.67em; }
+.cv-header { border-bottom: 2px solid #17202a; padding-bottom: 0.55em; margin-bottom: 1em; }
+.cv-section { margin-bottom: 1em; }
+.cv-section h2 {
+	font-size: 1em; font-weight: 800; margin: 0 0 0.7em; padding-bottom: 0.36em;
+	break-after: avoid; border-bottom: 1px solid #dfe5ea;
+}
+.cv-section p { margin: 0; }
+.job { margin: 0 0 1.1em; break-inside: avoid; }
+.job-role { font-size: 1.14em; font-weight: 800; }
+.job-line { font-size: 1.09em; font-weight: 700; }
+.job-dates { font-weight: 400; color: #54606c; }
+.job ul { margin: 0.36em 0 0 1.64em; padding: 0; }
+.job li { margin: 0 0 0.3em; }
+.cv-section h2 { letter-spacing: 1.5px; }</style>
+</head>
+<body>
+<main class="cv">
+<header class="cv-header">
+	<h1 class="cv-name">Alex Example</h1>
+	<div class="cv-headline">Senior Software Engineer</div>
+	<div class="cv-contact">
+		<div>alex.example@example.com</div>
+		<div>+44 7000 000000</div>
+		<div>Rotterdam</div>
+		<div>linkedin.com/in/alex-example</div>
+		<div>github.com/alex-example</div>
+	</div>
+</header>
+<section class="cv-section">
+	<h2>PROFESSIONAL SUMMARY</h2>
+	<p>Engineer who builds offline-first mobile apps and automates delivery workflows. Owns build
+	configuration, release tooling and the office's shared developer environment.</p>
+</section>
+<section class="cv-section">
+	<h2>CORE SKILLS</h2>
+	<p class="cv-skills">React, React Native, TypeScript, Node.js, PostgreSQL, Tailwind CSS</p>
+</section>
+<section class="cv-section">
+	<h2>WORK EXPERIENCE</h2>
+	<div class="job">
+		<div class="job-role">Senior Software Engineer</div>
+		<div class="job-line">Acme Ltd, Rotterdam, Netherlands <span class="job-dates">| April 2021 – Present</span></div>
+		<ul><li>Rebuilt the release workflows so a mobile build ships in ten minutes instead of an hour.</li><li>Moved the app configuration into typed modules, which removed a class of startup crashes.</li><li>Led the offline-first sync layer used by field staff with no reliable connection.</li><li>Mentored four engineers and ran the weekly architecture review.</li></ul>
+	</div>
+	<div class="job">
+		<div class="job-role">Software Engineer</div>
+		<div class="job-line">Globex Corporation, Rotterdam, Netherlands <span class="job-dates">| March 2017 – March 2021</span></div>
+		<ul><li>Rebuilt the release workflows so a mobile build ships in ten minutes instead of an hour.</li><li>Moved the app configuration into typed modules, which removed a class of startup crashes.</li><li>Led the offline-first sync layer used by field staff with no reliable connection.</li><li>Mentored four engineers and ran the weekly architecture review.</li></ul>
+	</div>
+</section>
+</main>
+</body>
+</html>

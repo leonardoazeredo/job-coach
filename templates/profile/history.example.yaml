@@ -1,0 +1,18 @@
+# Template for profile/history.yaml: employment history, newest first. CHANGE_ME marks a value still to replace.
+# The sample employment type and dates carry a trailing CHANGE_ME comment, so a copy left
+# unedited is not mistaken for a finished one. Remove each comment when you set the value.
+# `public` is the only part outward material (CV, forms, messages) may use: titles, dates and
+# employment type follow it exactly. Private reasons and payroll titles go in history-private.yaml.
+# employment_type: permanent | contract | self-employed | internship | other
+
+roles:
+  - id: CHANGE_ME-role-id        # lowercase, hyphens; wins.yaml, stack.yaml and the experience bank refer to it
+    company: CHANGE_ME Company
+    public:
+      title: CHANGE_ME Title as you want it shown
+      employment_type: permanent # CHANGE_ME
+      start: 2020-01             # CHANGE_ME year-month
+      end: 2022-01               # CHANGE_ME year-month; use "present" for a current role
+      location: CHANGE_ME City, Country
+    summary: CHANGE_ME One sentence on what the role was for.
+    # experience_bank: experience-bank/<role-id>.md   # add once experience-mining has written that file

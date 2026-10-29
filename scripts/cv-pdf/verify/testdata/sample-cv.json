@@ -1,0 +1,121 @@
+{
+  "name": "Sam Sample",
+  "headline": "Lead Frontend Engineer",
+  "location": "York, United Kingdom",
+  "email": "sam@example.com",
+  "phone": "+44 20 7946 0001",
+  "linkedin": "linkedin.com/in/sam-sample",
+  "github": "github.com/sam-sample",
+  "summary": "Frontend engineer with twelve years of experience building web applications for travel, publishing and public-sector clients. Works mostly in Vue and TypeScript, with a strong interest in internationalisation, forms and search. Prefers small, steady releases, plain documentation and close work with support teams, and is at ease owning a feature from the first sketch to the support queue.",
+  "skills": [
+    "JavaScript",
+    "TypeScript",
+    "Vue",
+    "Nuxt",
+    "Pinia",
+    "Svelte",
+    "HTML5",
+    "CSS3",
+    "PostCSS",
+    "Vite",
+    "Rollup",
+    "Vitest",
+    "Playwright",
+    "Mock Service Worker",
+    "REST APIs",
+    "OpenAPI",
+    "Elasticsearch",
+    "Python",
+    "Django",
+    "MySQL",
+    "Redis",
+    "Sentry",
+    "GitLab CI",
+    "Terraform",
+    "Azure",
+    "Internationalisation (i18n)",
+    "Accessibility (WCAG)",
+    "Progressive Enhancement",
+    "Kanban",
+    "Technical Writing",
+    "Support Rotation",
+    "Confluence"
+  ],
+  "work": [
+    {
+      "id": "harbour-travel",
+      "role": "Lead Frontend Engineer",
+      "company": "Harbour Travel",
+      "location": "York, United Kingdom",
+      "start": "June 2022",
+      "end": "Present",
+      "note": "Hybrid",
+      "tech": ["Vue", "Nuxt", "TypeScript", "Pinia", "Vitest", "Playwright", "Elasticsearch", "Sentry", "GitLab CI"],
+      "bullets": [
+        "Rebuilt holiday search on Elasticsearch facets, so results load in under a second for 90% of queries.",
+        "Added right-to-left layouts and eleven new locales to the booking site, with translators working in a shared glossary.",
+        "Wrote the error-budget policy the frontend team uses to choose between new work and fixes.",
+        "Joined the weekly support rotation and turned the top ten ticket causes into backlog items."
+      ]
+    },
+    {
+      "id": "riverside-press",
+      "role": "Frontend Engineer",
+      "company": "Riverside Press",
+      "location": "Leeds, United Kingdom",
+      "start": "January 2019",
+      "end": "May 2022",
+      "tech": ["Vue", "JavaScript", "Python", "Django", "MySQL", "Redis", "Rollup"],
+      "bullets": [
+        "Built the newsroom's article editor with live previews for print and web layouts.",
+        "Cut image weight on article pages by serving responsive sizes from a resizing service.",
+        "Moved paywall rules from templates into a tested rules module shared by web and apps."
+      ]
+    },
+    {
+      "id": "civic-forms",
+      "role": "Web Developer",
+      "company": "Civic Forms",
+      "location": "Bradford, United Kingdom",
+      "start": "March 2016",
+      "end": "December 2018",
+      "note": "Contract",
+      "tech": ["JavaScript", "HTML5", "CSS3", "Django", "Azure"],
+      "bullets": [
+        "Delivered council application forms that work without JavaScript and save progress between visits.",
+        "Ran usability sessions with residents and fed the findings into the form design guide.",
+        "Set up automated accessibility checks in the release pipeline."
+      ]
+    },
+    {
+      "id": "kestrel-outdoor",
+      "role": "Junior Web Developer",
+      "company": "Kestrel Outdoor",
+      "location": "Harrogate, United Kingdom",
+      "start": "September 2013",
+      "end": "February 2016",
+      "tech": ["JavaScript", "jQuery", "PHP", "MySQL"],
+      "bullets": [
+        "Maintained the shop's product pages and seasonal landing pages.",
+        "Wrote the stock-sync script that kept the website in line with the warehouse system."
+      ]
+    },
+    {
+      "id": "moorland-library",
+      "role": "Digital Assistant",
+      "company": "Moorland Library Service",
+      "location": "York, United Kingdom",
+      "start": "July 2012",
+      "end": "August 2013",
+      "tech": ["HTML5", "CSS3", "WordPress"],
+      "bullets": ["Kept the library website and events calendar up to date and ran drop-in computer sessions."]
+    }
+  ],
+  "training": [],
+  "projects": [
+    "Open-source Vue plugin for pluralisation rules in twenty languages, used by several travel sites.",
+    "Small static site generator for walking-route guides, with offline maps and printable pages."
+  ],
+  "education": [],
+  "languages": ["English (Native)", "Spanish (Intermediate)", "Welsh (Basic)"]
+}

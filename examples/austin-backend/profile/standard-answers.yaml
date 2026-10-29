@@ -1,0 +1,21 @@
+# FICTIONAL persona. Reusable answers for application forms.
+
+work_authorization_us: "Yes. I am a US citizen, so no sponsorship is needed."
+sponsorship_required: "No"
+based_in: "Austin, Texas, United States."
+notice_period: "None. I can start from November 16, 2026."
+years_experience: "9 years."
+headline_companies: "Cedarline Payments, Brightwell Logistics, Harbor Health Network"
+degree_or_gpa: "BS Computer Science, University of Texas at San Antonio."
+salary_expectation:             # pick by the role's level (identity.yaml compensation.by_level)
+  mid: "$135,000 to $160,000 base, depending on the full package."
+  senior: "$165,000 to $195,000 base, depending on the full package."
+office_attendance: "Hybrid in Austin works for me, up to two days a week in the office."
+employment_type: "Looking for a full-time position. I would discuss a contract-to-hire if the team is set on one."
+links:
+  linkedin: linkedin.com/in/dana-okafor-example
+  github: github.com/dana-okafor-example
+
+reason_for_leaving: >
+  Cedarline moved its card-issuing engineering to its Denver hub in 2026 and I chose not to
+  relocate. I left on good terms once the reconciliation work was handed over.

@@ -1,0 +1,58 @@
+# FICTIONAL persona. What Dana can claim, at what depth.
+# Rule: a technology not listed here is a gap. Items in do_not_claim are never claimed.
+
+core:
+  - Python (8+ years)
+  - FastAPI
+  - Django
+  - SQLAlchemy
+  - Go
+  - PostgreSQL
+  - Redis
+  - REST APIs, OpenAPI contracts
+  - "AWS (ECS, RDS, S3, SQS, Lambda)"
+  - Docker
+  - "Message queues: SQS, RabbitMQ"
+
+secondary:
+  - gRPC
+  - Kafka
+  - Terraform
+  - "CI/CD: GitHub Actions, CircleCI"
+  - "Testing: pytest, Testcontainers"
+  - "Observability: Datadog, OpenTelemetry"
+  - TypeScript, Node.js
+  - {name: Twilio, roles: [independent], claim_as: "Twilio (client SMS integrations)"}
+  - {name: Rust, roles: [], claim_as: "Rust (side projects)"}
+
+past:
+  - {name: "C# / .NET", roles: [harbor-health], claim_as: "C# / .NET (early career)"}
+  - SQL Server
+
+tools:
+  - Git
+  - GitHub
+  - Postman
+  - Jira
+  - tmux
+  - VS Code
+  - {name: Kubernetes, roles: [], claim_as: "Kubernetes (deploy only)"}
+
+do_not_claim:
+  - item: Kubernetes cluster administration
+    allowed_framing: "Ships services to clusters a platform team runs; has not administered one."
+    patterns: ["kubernetes (cluster )?(admin|administrator|expert|specialist)", "\\bcka\\b"]
+  - item: Frontend framework development
+    allowed_framing: "Reads and fixes React code when a service change needs it."
+    patterns: ["angular", "frontend (expert|specialist)"]
+  - item: Machine-learning model training
+    allowed_framing: "Builds the services and pipelines around models that data scientists train."
+    patterns: ["trained (the |a )?(ml )?models?", "\\bml engineer"]
+  - item: Java and the JVM
+    allowed_framing: none, treat as a hard gap
+    patterns: ["\\bjava\\b", "\\bkotlin\\b", "\\bscala\\b"]
+
+adaptability_framing: >
+  Say plainly that the skill is missing. Then give one concrete case of learning on the job:
+  she wrote her first Go at Brightwell, for the label-printing Lambda functions. Offer a
+  starting plan only if asked.

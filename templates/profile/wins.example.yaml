@@ -1,0 +1,17 @@
+# Template for profile/wins.yaml: achievements. Every outward claim must trace to one. CHANGE_ME marks a value still to replace.
+# `metric` is quoted exactly as you confirmed it, qualifiers included ("contributed to", "up to").
+# Write "Not specified" when you have no number: a win with no metric is still a win.
+# `never_say` lists inflations a draft might drift into, for example a userbase metric stated as revenue.
+# status: approved | proposed (proposed wins need your yes before outward use)
+# themes: pick from config/competencies/<pack>.yaml `themes`
+# competencies: ids from config/competencies/<pack>.yaml
+
+wins:
+  - slug: CHANGE_ME-short-slug    # lowercase, hyphens; wins are cited by slug, never by number
+    role: CHANGE_ME-role-id       # id from history.yaml
+    status: proposed
+    themes: [CHANGE_ME theme]
+    metric: "Not specified"
+    action: CHANGE_ME What you did, in one or two sentences, with your own part clear.
+    never_say: []
+    competencies: []

@@ -1,0 +1,42 @@
+# FICTIONAL persona. Who Dana is and what she is looking for.
+
+name: Dana Okafor
+email: dana.okafor@example.com
+phone: "+1 512 555 0142"
+linkedin: linkedin.com/in/dana-okafor-example
+github: github.com/dana-okafor-example
+locale: en-US
+competency_pack: backend   # config/competencies/backend.yaml
+
+location:
+  city: Austin, Texas, United States
+  since: 2020-03
+  timezone: America/Chicago
+right_to_work:
+  us: US citizen, no sponsorship needed
+  canada: None
+availability: Free to start from 2026-11-16
+
+languages:
+  - English (native)
+  - Spanish (conversational)
+
+experience_years: 9
+seniority_targets: [Senior]
+
+compensation:
+  currency: USD
+  floor: 130000               # base, annual; below this a role is a Not a fit unless she says otherwise
+  by_level:
+    mid: {min: 135000, max: 160000}
+    senior: {min: 165000, max: 195000}
+
+work_setup:
+  office_days_ok: 2
+  remote: true
+
+ideal_role_criteria:
+  - Owns a service end to end, from design to on-call
+  - Postgres-heavy product with real traffic
+  - Money or inventory where correctness is checked, not assumed
+  - Engineers share on-call and fix what pages them

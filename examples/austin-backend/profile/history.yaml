@@ -1,0 +1,43 @@
+# FICTIONAL persona. Employment history, newest first. `public` is what outward material uses.
+
+roles:
+  - id: cedarline-payments
+    company: Cedarline Payments
+    public:
+      title: Senior Backend Engineer
+      employment_type: permanent
+      start: 2023-11
+      end: 2026-07
+      location: Austin, United States
+    summary: Card-issuing platform; worked on the ledger, settlement reconciliation and on-call alerting.
+
+  - id: brightwell
+    company: Brightwell Logistics
+    public:
+      title: Backend Engineer
+      employment_type: permanent
+      start: 2021-02
+      end: 2023-10
+      location: Austin, United States
+    summary: Warehouse and dispatch software; dock booking, tracking-events data and the test suite.
+    experience_bank: experience-bank/brightwell.md
+
+  - id: independent
+    company: Self-employed
+    public:
+      title: Contract Python Developer
+      employment_type: self-employed
+      start: 2020-03
+      end: 2021-01
+      location: Remote, United States
+    summary: Booking and reminder services for small healthcare clinics.
+
+  - id: harbor-health
+    company: Harbor Health Network
+    public:
+      title: Software Developer
+      employment_type: permanent
+      start: 2017-09
+      end: 2020-02
+      location: San Antonio, United States
+    summary: In-house developer at a regional hospital network; clinical data interfaces and reports in C#, Python and SQL Server.

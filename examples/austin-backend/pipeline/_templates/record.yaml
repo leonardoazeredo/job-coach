@@ -1,0 +1,57 @@
+# One per role, at pipeline/<slug>/record.yaml. Slug: <company>-<role-short>, lowercase, hyphens (e.g. acme-web-engineer).
+# Unknown values are "Not specified". Never estimate inside the record; estimates go in research.md with a source.
+
+slug:
+company:
+job_title:                  # exact title from the ad
+status: Identified          # one of config/rules.yaml statuses
+status_reason:              # required for every status in config/rules.yaml status_reason_required
+tier:                       # 0, 1, 2, or null when Not a fit
+fit:
+  verdict:                  # Strong fit | Potential fit | Not a fit
+  reason:                   # one or two sentences
+  stack_overlap_pct:
+dates:
+  identified:               # YYYY-MM-DD
+  applied:                  # required for every status in config/rules.yaml implies_applied
+  last_activity:            # date of the newest event in events.md
+next_action:
+  what:
+  due:                      # YYYY-MM-DD
+
+source:                     # Cord, Welcome to the Jungle, HN, YC, LinkedIn, company site, referral
+url:
+location:
+work_style:                 # Remote / Hybrid (days) / Onsite
+salary_range:               # as written in the ad
+equity:
+experience_level:
+team_or_product:
+posting_date:
+application_deadline:
+
+tech_stack_required: []     # every technology the ad lists as required, verbatim
+tech_stack_nice_to_have: []
+core_stack_matches: []      # each must appear in profile/stack.yaml core
+secondary_stack_matches: [] # each must appear in profile/stack.yaml secondary
+other_relevant_experience: []
+tech_stack_gaps: []         # required items not in stack.yaml, plus any do_not_claim hits
+
+responsibilities: []        # the ad's bullets, verbatim
+company_mission_culture: [] # direct quotes
+values_match: []            # against identity.ideal_role_criteria
+values_miss: []
+funding_stage:
+funding_amount:
+benefits:
+notes:
+
+hook:
+  win_slugs: []             # from profile/wins.yaml
+  pain_point:               # inferred, labelled as inference
+  line:                     # one-sentence pitch
+
+contacts: []                # - {name, role, channel, notes}
+
+campaign:                   # YYYY-MM of the search campaign the role belongs to (e.g. 2026-09)
+

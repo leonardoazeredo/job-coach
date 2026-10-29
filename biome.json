@@ -1,0 +1,106 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true,
+    "defaultBranch": "main"
+  },
+  "files": {
+    "ignoreUnknown": false,
+    "includes": [
+      "**/*.ts",
+      "**/*.tsx",
+      "**/*.json",
+      "!**/node_modules",
+      "!cv/master.json",
+      "!scripts/cv-pdf/verify/testdata"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "semicolons": "asNeeded"
+    }
+  },
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["scripts/__tests__/**"],
+      "linter": { "rules": { "correctness": { "useHookAtTopLevel": "off" } } }
+    },
+    {
+      "includes": ["scripts/cv-pdf/*.tsx"],
+      "linter": {
+        "rules": {
+          "suspicious": { "noArrayIndexKey": "off" },
+          "correctness": { "useExhaustiveDependencies": "off" }
+        }
+      }
+    }
+  ],
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "complexity": {
+        "noExcessiveCognitiveComplexity": {
+          "level": "warn",
+          "options": { "maxAllowedComplexity": 15 }
+        },
+        "noExcessiveLinesPerFunction": {
+          "level": "info",
+          "options": { "maxLines": 80, "skipBlankLines": true }
+        },
+        "useMaxParams": { "level": "warn", "options": { "max": 4 } },
+        "noForEach": "warn",
+        "noImplicitCoercions": "warn",
+        "noUselessUndefined": "warn",
+        "noUselessReturn": "warn"
+      },
+      "style": {
+        "noNestedTernary": "warn",
+        "noParameterAssign": "error",
+        "noUselessElse": "warn",
+        "useCollapsedIf": "warn",
+        "useCollapsedElseIf": "warn",
+        "useThrowOnlyError": "error",
+        "noExcessiveLinesPerFile": {
+          "level": "info",
+          "options": { "maxLines": 300, "skipBlankLines": true }
+        }
+      },
+      "suspicious": {
+        "noEmptyBlockStatements": "warn",
+        "noEvolvingTypes": "error",
+        "noUnusedExpressions": "error",
+        "noConstantBinaryExpressions": "error",
+        "noNestedPromises": "warn",
+        "noUnnecessaryConditions": "warn",
+        "noImportCycles": "error"
+      },
+      "correctness": {
+        "noUndeclaredDependencies": "error"
+      },
+      "nursery": {
+        "noFloatingPromises": "warn",
+        "noMisusedPromises": "warn",
+        "useExhaustiveSwitchCases": "warn",
+        "noUnsafeTypeAssertion": "info"
+      }
+    }
+  }
+}

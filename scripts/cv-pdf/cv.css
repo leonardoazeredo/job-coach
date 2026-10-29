@@ -1,0 +1,292 @@
+/* ---------------------------------------------------------------------------
+   CV stylesheet.
+
+   Rules here are ATS-driven, not aesthetic preference. Each one maps to a
+   measured failure mode:
+
+   - one column, no flex/grid on text runs -> field order survives extraction
+   - no letter-spacing on headings -> no "P R O F I L E" in the text layer
+   - company and dates on one line, dates inline after a pipe -> role/company/
+     date stay adjacent
+   - ligatures disabled on the sheet -> keyword search finds "configuration"
+   - A4 page, break-inside avoid on entries -> no job split across pages
+   - font size, leading and gap come from three variables the fit step sets
+     (--cv-font, --cv-leading, --cv-gap); text sizes and spacing inside the
+     sheet are in em
+   --------------------------------------------------------------------------- */
+
+:root {
+	--ink: #17202a;
+	--muted: #54606c;
+	--line: #dfe5ea;
+	--accent: #155eef;
+	--paper: #ffffff;
+
+	/* Nominal fit level. The fit step overrides these inline on the preview's
+	   .cv and on the .cv-measure wrapper of the hidden measuring copy;
+	   descendants inherit, so they are declared on :root only. */
+	--cv-font: 14.667px;
+	--cv-leading: 1.225;
+	--cv-gap: 1.1;
+
+	/* A4 at 96dpi, the size Chrome prints. The printer applies the vertical
+	   margin per page via @page, so content is 1026px, one pixel under
+	   1123 - 2 * 48, and a line the measurer accepts always fits the page. */
+	--page-w: 794px;
+	--page-margin-x: 57px;
+	--page-margin-y: 48px;
+	--cv-content-w: 680px;
+	--cv-content-h: 1026px;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+html,
+body {
+	margin: 0;
+	padding: 0;
+}
+
+body {
+	background: #eef1f4;
+	color: var(--ink);
+	font-family: Inter, Helvetica, Arial, sans-serif;
+	font-size: 11px;
+	line-height: 1.10;
+	-webkit-font-smoothing: antialiased;
+}
+
+/* The sheet. In print this is the whole document. */
+.cv {
+	width: var(--page-w);
+	min-height: calc(var(--cv-content-h) + 2 * var(--page-margin-y));
+	margin: 24px auto;
+	padding: var(--page-margin-y) var(--page-margin-x);
+	/* Re-declared here because the app shell (.studio) sets its own size and
+	   font stack, and unsized elements inherit from it instead of body. */
+	font-family: Inter, Helvetica, Arial, sans-serif;
+	font-size: var(--cv-font);
+	line-height: var(--cv-leading);
+	/* Chrome substitutes fi/fl ligature glyphs, which some extractors return as
+	   U+FB01/FB02 and keyword search then misses "workflows". */
+	font-variant-ligatures: none;
+	font-feature-settings: "liga" 0, "clig" 0, "dlig" 0;
+	/* A long unbroken string (URL, token) wraps instead of running off the
+	   sheet; text that already fits is unaffected. */
+	overflow-wrap: anywhere;
+	color: var(--ink);
+	background: var(--paper);
+	box-shadow: 0 6px 28px rgba(20, 30, 40, 0.12);
+}
+
+/* ---------------------------------------------------------------- header */
+
+.cv-header {
+	border-bottom: 2px solid var(--ink);
+	padding-bottom: 0.55em;
+	margin-bottom: calc(0.91em * var(--cv-gap));
+}
+
+.cv-name {
+	font-size: 1.8em;
+	line-height: 1;
+	font-weight: 800;
+	margin: 0 0 0.13em;
+}
+
+.cv-headline {
+	font-size: 1.09em;
+	color: var(--muted);
+	margin: 0 0 0.67em;
+}
+
+/* One field per line: a flex row glues email to phone in the text layer. */
+.cv-contact {
+	font-size: 1em;
+	line-height: calc(var(--cv-leading) + 0.15);
+}
+
+.cv-contact div {
+	display: block;
+}
+
+.cv a {
+	color: var(--accent);
+	text-decoration: none;
+	border-bottom: 1px solid rgba(21, 94, 239, 0.25);
+}
+
+/* -------------------------------------------------------------- sections */
+
+.cv-section {
+	margin-bottom: calc(0.91em * var(--cv-gap));
+}
+
+.cv-section:last-child {
+	margin-bottom: 0;
+}
+
+/* No letter-spacing: spaced glyph runs are a documented parse failure. */
+.cv-section h2 {
+	font-size: 1em;
+	font-weight: 800;
+	margin: 0 0 calc(0.64em * var(--cv-gap));
+	padding-bottom: 0.36em;
+	/* A heading stranded as the last line of a page reads as an empty section. */
+	break-after: avoid;
+	page-break-after: avoid;
+	border-bottom: 1px solid var(--line);
+}
+
+.cv-section p {
+	margin: 0;
+}
+
+.cv-skills {
+	margin: 0;
+}
+
+/* ------------------------------------------------------------------ work */
+
+.job {
+	margin: 0 0 calc(1em * var(--cv-gap));
+	break-inside: avoid;
+	page-break-inside: avoid;
+}
+
+.job:last-child {
+	margin-bottom: 0;
+}
+
+.job-role {
+	font-size: 1.14em;
+	font-weight: 800;
+}
+
+/* company, location and dates stay on one line, dates after a pipe, so
+   extraction keeps them adjacent. Dates are an inline span, never a block or
+   flex child. */
+.job-line {
+	font-size: 1.09em;
+	font-weight: 700;
+}
+.edu-line {
+	font-size: 1.09em;
+}
+
+.job-dates {
+	font-weight: 400;
+	color: var(--muted);
+}
+
+.job-tech {
+	font-size: 1em;
+	color: var(--muted);
+	margin: 0.18em 0 0.27em;
+}
+
+.job ul {
+	margin: 0.36em 0 0 1.64em;
+	padding: 0;
+}
+
+.job li {
+	margin: 0 0 calc(0.27em * var(--cv-gap));
+}
+
+.cv-list {
+	margin: 0 0 0 1.64em;
+	padding: 0;
+}
+
+.cv-list li {
+	margin: 0 0 calc(0.27em * var(--cv-gap));
+}
+
+/* ----------------------------------------------------------------- print */
+
+/* The vertical margin lives here so every page gets it, not just the first.
+   @page cannot read custom properties, so 48px repeats --page-margin-y. */
+@page {
+	size: A4;
+	margin: 48px 0;
+}
+
+/* Measuring copy for the fit step: one column box of exactly one page, so
+   overflow columns are pages. position: fixed takes the box out of flow so it
+   cannot widen the page. */
+@media screen {
+	.cv-measure {
+		position: fixed;
+		left: 0;
+		top: 0;
+		visibility: hidden;
+		pointer-events: none;
+		overflow: hidden;
+		width: var(--cv-content-w);
+		height: var(--cv-content-h);
+		column-width: var(--cv-content-w);
+		column-gap: 0;
+		column-fill: auto;
+	}
+
+	.cv-measure .cv {
+		width: auto;
+		min-height: 0;
+		margin: 0;
+		padding: 0;
+		box-shadow: none;
+	}
+
+	/* The preview shows real pages from the same DOM. Rows of page-high columns
+	   stack with a row gap of the two page margins plus a 24px gutter, so each
+	   row's content starts 48px inside its sheet. The gradient period is one
+	   sheet (content + 2 * margin = 1122px) plus the gutter, 1146px, which is
+	   the row pitch: 1026 + the 120px row gap. Without column-wrap the
+	   continuous sheet stays. */
+	@supports (column-wrap: wrap) {
+		.cv-pages .cv {
+			column-width: var(--cv-content-w);
+			column-height: var(--cv-content-h);
+			column-wrap: wrap;
+			column-gap: 0;
+			column-fill: auto;
+			row-gap: calc(2 * var(--page-margin-y) + 24px);
+			min-height: 0;
+			box-shadow: none;
+			background: repeating-linear-gradient(
+				to bottom,
+				var(--paper) 0,
+				var(--paper) calc(var(--cv-content-h) + 2 * var(--page-margin-y)),
+				transparent calc(var(--cv-content-h) + 2 * var(--page-margin-y)),
+				transparent calc(var(--cv-content-h) + 2 * var(--page-margin-y) + 24px)
+			);
+		}
+	}
+}
+
+@media print {
+	.cv-measure {
+		display: none;
+	}
+
+	body {
+		background: #fff;
+	}
+
+	.cv {
+		/* Explicit width so print wraps exactly where the screen sheet does. */
+		width: var(--cv-content-w);
+		margin: 0 auto;
+		padding: 0;
+		min-height: 0;
+		box-shadow: none;
+	}
+
+	.cv a {
+		color: inherit;
+		border: 0;
+	}
+}

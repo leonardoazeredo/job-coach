@@ -1,0 +1,25 @@
+# Template for profile/stack.yaml: what you can claim, at what depth. CHANGE_ME marks a value still to replace.
+# Rule: a technology not listed here is a gap in every check. Items in do_not_claim are never claimed.
+# A string entry is claimable without limit. An entry written as {name, roles, claim_as} is
+# limited: it may be claimed only in the listed history.yaml role ids, and only worded as
+# claim_as. An empty roles list means no role, so it may appear in a skills line and never as
+# work experience.
+
+core:                          # what you would be hired for
+  - CHANGE_ME Language (3+ years)
+secondary:                     # used, comfortable, not your headline
+  - CHANGE_ME Tool
+  - {name: CHANGE_ME Limited tech, roles: [CHANGE_ME-role-id], claim_as: "CHANGE_ME Limited tech (client prototypes)"}
+past:                          # earlier in your career; name where
+  - {name: CHANGE_ME Old tech, roles: [CHANGE_ME-role-id], claim_as: "CHANGE_ME Old tech (early career)"}
+tools:                         # everyday tooling that does not decide fit
+  - Git
+
+do_not_claim:                  # things a recruiter might assume that you cannot honestly say
+  - item: CHANGE_ME Skill you only studied
+    allowed_framing: "CHANGE_ME The honest sentence you can say instead."
+    patterns: ["change_me pattern"]   # case-insensitive regular expressions that catch a claim in CV text
+
+adaptability_framing: >
+  CHANGE_ME How to answer when an ad asks for something you lack: say so plainly, then name one
+  time you learned a tool on the job and shipped with it. Never imply depth you do not have.

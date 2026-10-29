@@ -1,0 +1,14 @@
+# Template for profile/history-private.yaml. Optional. Why it exists: some facts about past roles
+# are true and useful to you but must never appear in outward material, for example a payroll title
+# that differs from the public one, why a role ended, or a background-check risk. Only
+# interview-prep and offer-review open this file; the scripts only check it exists and has no
+# CHANGE_ME left, so the keys below are a suggestion.
+# CHANGE_ME marks a value still to replace.
+
+roles:
+  - id: CHANGE_ME-role-id        # same id as in history.yaml
+    payroll_title: CHANGE_ME Title on your contract, if different from the public one
+    why_it_ended: CHANGE_ME The honest reason, for your own preparation
+    background_check_risk: CHANGE_ME What a verifier could find that differs from the public label, or "none"
+    salary_history: CHANGE_ME Annual base and currency in this role, only if you want it on file; delete this line otherwise
+    notes: CHANGE_ME Anything else you want to remember before an interview

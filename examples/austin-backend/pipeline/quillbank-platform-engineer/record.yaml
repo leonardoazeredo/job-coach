@@ -1,0 +1,55 @@
+slug: quillbank-platform-engineer
+company: Quillbank
+job_title: Platform Engineer, Payments
+status: Identified
+status_reason: null
+tier: 0
+fit:
+  verdict: Potential fit
+  reason: Python and Go on Postgres fit; Kubernetes operations is a gap (deploys to clusters, has not run one).
+  stack_overlap_pct: 75
+dates:
+  identified: 2026-10-26
+  applied: null
+  last_activity: 2026-10-26
+next_action:
+  what: Decide whether to apply
+  due: 2026-10-30
+
+source: LinkedIn
+url: https://quillbank.example.com/jobs/platform-engineer-payments
+location: Remote (United States)
+work_style: Remote
+salary_range: $185,000 - $215,000
+equity: Not specified
+experience_level: Senior
+team_or_product: Payments platform for a neobank
+posting_date: 2026-10-23
+application_deadline: Not specified
+
+tech_stack_required: [Python, Go, PostgreSQL, Kubernetes, Terraform]
+tech_stack_nice_to_have: [Kafka]
+core_stack_matches: [Python, Go, PostgreSQL]
+secondary_stack_matches: [Terraform]
+other_relevant_experience: []
+tech_stack_gaps: [Kubernetes]
+
+responsibilities:
+  - Run and evolve the payments platform on Kubernetes.
+  - Own service reliability and on-call.
+company_mission_culture: []
+values_match: [Fully remote]
+values_miss: [Cluster operations is the core of the job]
+funding_stage: Series C
+funding_amount: Not specified
+benefits: Not specified
+notes: Fictional role for the example persona.
+
+hook:
+  win_slugs: [cl-idempotency-keys]
+  pain_point: "Inference: the platform team wants engineers who can run clusters."
+  line: Not specified
+
+contacts: []
+
+campaign: 2026-10

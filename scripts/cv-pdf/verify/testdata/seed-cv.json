@@ -1,0 +1,120 @@
+{
+  "name": "Alex Example",
+  "headline": "Operations & Content Production Coordinator",
+  "location": "Utrecht, Netherlands",
+  "email": "alex@example.com",
+  "phone": "+44 20 7946 0000",
+  "linkedin": "",
+  "summary": "A detail-oriented operations and content production professional with fluent English and Spanish. Proven track record in running quality checks, managing digital assets, and coordinating fast-paced content pipelines for international clients. Experienced in vendor management, defect tracking (Jira), and cross-functional collaboration to ensure accurate, on-time delivery of media components and localised material.",
+  "skills": [
+    "Content Production",
+    "Production Coordination",
+    "Digital Asset Management",
+    "Vendor Management",
+    "Defect Tracking & Bug Reporting",
+    "Cross-cultural Communication",
+    "Quality Assurance (QA)",
+    "Data Validation",
+    "Project Management",
+    "Time Management",
+    "Jira",
+    "Confluence",
+    "Trello",
+    "Asana",
+    "SharePoint",
+    "Microsoft 365",
+    "Google Workspace"
+  ],
+  "work": [
+    {
+      "id": "northwind-media",
+      "role": "Production Coordinator",
+      "company": "Northwind Media",
+      "location": "Madrid, Spain",
+      "start": "January 2025",
+      "end": "Present",
+      "tools": [
+        "Trello",
+        "Google Drive"
+      ],
+      "bullets": [
+        "Acted as the central production coordinator for a weekly streaming series, managing a continuous content pipeline and delivering ~25 time-sensitive video assets each week.",
+        "Directed external vendors, including a design agency and freelance videographers; reviewed creative output, handled rejections, and enforced strict delivery schedules.",
+        "Established a digital asset management structure in Google Drive, categorising raw footage and final media for rapid retrieval and same-day publishing.",
+        "Tracked workflows, approvals and deadlines in Trello, keeping communication clear across teams in several time zones."
+      ]
+    },
+    {
+      "id": "fabrikam-interactive",
+      "role": "Quality Assurance Tester",
+      "company": "Fabrikam Interactive",
+      "location": "Utrecht, Netherlands",
+      "start": "2022",
+      "end": "2024",
+      "tools": [
+        "Jira",
+        "Confluence"
+      ],
+      "bullets": [
+        "Executed structured test plans on multilingual game builds, logging reproducible defects in Jira with clear steps, severity and evidence.",
+        "Verified text, audio and subtitle content against source scripts and style guides, cutting repeat defects between builds.",
+        "Worked with producers and developers to triage issues before milestone deadlines.",
+        "Wrote concise release notes summarising open issues for non-technical stakeholders."
+      ]
+    },
+    {
+      "id": "contoso-consulting",
+      "role": "Business Analyst",
+      "company": "Contoso Consulting",
+      "location": "Ghent, Belgium",
+      "start": "2016",
+      "end": "2017",
+      "tools": [
+        "Excel"
+      ],
+      "bullets": [
+        "Analysed client procurement data and produced weekly summaries for the account team.",
+        "Maintained a shared tracker of open tasks and supplier correspondence."
+      ]
+    },
+    {
+      "id": "tailspin-academy",
+      "role": "Research Assistant",
+      "company": "Tailspin Academy",
+      "location": "Barcelona, Spain",
+      "start": "January 2014",
+      "end": "December 2014",
+      "bullets": [
+        "Compiled sources and prepared briefing notes for a faculty research project.",
+        "Coordinated interview schedules and transcribed recorded sessions."
+      ]
+    },
+    {
+      "id": "wingtip-trading",
+      "role": "Import Assistant",
+      "company": "Wingtip Trading",
+      "location": "Valencia, Spain",
+      "start": "2012",
+      "end": "2013",
+      "bullets": [
+        "Prepared shipping documents and customs paperwork for inbound orders.",
+        "Updated stock records and answered supplier queries by email."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "id": "example-university",
+      "degree": "Bachelor of International Relations",
+      "institution": "Example University",
+      "location": "Spain",
+      "start": "2012",
+      "end": "2016"
+    }
+  ],
+  "languages": [
+    "English (Native)",
+    "Spanish (Fluent)",
+    "French (Intermediate)"
+  ]
+}
