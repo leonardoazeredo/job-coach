@@ -5,7 +5,7 @@ node_modules/
 .claude/worktrees/
 
 # Discovery pulls and shortlists are generated output; Biome would fail them on formatting or its 1 MiB size limit
-discovery/
+/discovery/
 
 # Exported CVs carry the user's name and contact details; the verifier's test PDFs are fictional
 *.pdf

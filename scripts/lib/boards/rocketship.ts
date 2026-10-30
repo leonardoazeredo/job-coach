@@ -34,8 +34,11 @@ type Answer = { page: Page } | { status: number }
 const SITE = 'https://www.remoterocketship.com'
 const HEADERS = { 'user-agent': 'Mozilla/5.0' }
 // The search preferences as the site's query parameters, with the sort order fixed here.
-// The site has no region parameter, so the regions are not sent. The parameters narrow the
-// pull up front; the shortlist still applies the title and expiry rules to what comes back.
+// Only the country goes in `locations`: a country search already includes worldwide-remote
+// roles, `Europe` would pull in far more than a country search, and an unknown name such
+// as EMEA falls back to worldwide-only results (docs/boards/rocketship.md).
+// The parameters narrow the pull up front; the shortlist still applies the title and
+// expiry rules to what comes back.
 const filters = (search: SearchPreferences) => ({
   sort: 'DateAdded',
   locations: search.country,

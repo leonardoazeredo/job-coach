@@ -34,8 +34,10 @@ const main = async (args: string[]): Promise<number> => {
     console.error('usage: node scripts/check.ts [--warnings] [--root <dir>]')
     return EXIT.usage
   }
-  // The examples are fictional and ship in the public template, so the public-repo warning
-  // would be noise there.
+  // --root skips the visibility probe. A root inside this checkout, such as
+  // examples/austin-backend, has no remote of its own, so the probe would report this
+  // checkout's origin, the public template. A root outside this checkout loses the
+  // public-repo warning too.
   return check(
     args,
     openWorkspace(resolve(repoRoot(), dir), () => undefined),

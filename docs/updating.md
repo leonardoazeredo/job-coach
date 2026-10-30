@@ -6,7 +6,10 @@ Once, in your copy:
 
 ```
 git remote add upstream https://github.com/leonardoazeredo/job-coach.git
+gh repo set-default <you>/<your-copy>    # only if you use the gh CLI
 ```
+
+The second line matters if you use `gh`. When there is a remote named `upstream`, `gh` treats it as the default repository, so `gh issue` commands would otherwise go to the public job-coach repository instead of your private copy.
 
 Each time you update:
 

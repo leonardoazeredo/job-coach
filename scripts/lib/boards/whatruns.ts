@@ -1,8 +1,7 @@
-// WhatRuns as a job board. Its API pages one location at a time and now and then
-// fails to connect or answers with an error page or HTML instead of JSON, so each
-// page is retried with a growing pause before the whole pull fails. The API filters by
-// location only, so the seniority, stack, employment type and hybrid preferences are
-// ignored.
+// WhatRuns as a job board. The API can fail to connect or answer with an error page or
+// HTML instead of JSON, so each page is retried with a growing pause before the whole
+// pull fails. Only locations are sent, so the seniority, stack, employment type and
+// hybrid preferences are ignored.
 import type { BoardDeps, JobBoard, Listing } from '../listings.ts'
 import type { SearchPreferences } from '../schema.ts'
 
@@ -22,8 +21,8 @@ type Card = {
 type Page = { data: Card[]; total: number; totalPages: number }
 
 const API = 'https://jobs.whatrunsindia.com/api/jobs'
-// The API filters by one location at a time, and a role may be filed under its
-// city, its country or a region, so each is pulled in turn. A listing filed
+// A role is filed under its city, its country or a region, and the site does not nest
+// them, so the city, the country and each region are pulled in turn. A listing filed
 // under more than one is kept once, by id.
 const locations = (search: SearchPreferences): string[] => [
   search.city,

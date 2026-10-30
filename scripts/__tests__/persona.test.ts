@@ -23,7 +23,8 @@ describe('example persona', () => {
     expect(errors(problems)).toEqual([])
   })
 
-  // The persona is a standalone repo, so it carries its own copy of the engine rules.
+  // Opened as its own workspace root, the persona reads its own config/rules.yaml, so that
+  // copy must match the engine's or the example would follow different rules.
   it('carries the engine rules unchanged', () => {
     expect(readFileSync(join(PERSONA, 'config/rules.yaml'), 'utf8')).toBe(
       readFileSync(join(repoRoot(), 'config/rules.yaml'), 'utf8'),
