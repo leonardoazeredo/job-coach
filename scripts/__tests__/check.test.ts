@@ -14,13 +14,13 @@ const runCheck = (visibility: () => RepoVisibility | undefined) =>
   repo.run((args) => check(args, openWorkspace(repo.path('.'), visibility)))
 
 describe('check and repo visibility', () => {
-  it('warns, without failing, when the repo is public', async () => {
+  it('warns, without failing, when the online copy is public', async () => {
     const run = await runCheck(() => 'public')
     expect(run.code).toBe(0)
-    expect(run.stdout).toMatch(/warn {3}repo: this repository is public/)
+    expect(run.stdout).toMatch(/warn {3}profile: the online copy of this folder is public/)
   })
 
-  it('says nothing when the repo is private', async () => {
+  it('says nothing when the online copy is private', async () => {
     const run = await runCheck(() => 'private')
     expect(run.code).toBe(0)
     expect(run.stdout).not.toMatch(/public/)

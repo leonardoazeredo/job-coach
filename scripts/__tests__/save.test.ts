@@ -2,9 +2,10 @@ import { execFileSync } from 'node:child_process'
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { gitHubRepo } from '../lib/history.ts'
 import { save } from '../lib/save.ts'
+import { saveCommand } from '../save.ts'
 
 let dir: string
 let savedEnv: NodeJS.ProcessEnv
@@ -204,6 +205,50 @@ describe('save', () => {
       expect(result).toMatchObject({ kind: 'saved', online: 'failed' })
       expect(commits()).toBe(2)
     })
+  })
+})
+
+describe('save command first line', () => {
+  const firstLine = async (deps: Parameters<typeof saveCommand>[2]) => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      await saveCommand(['x'], work(), deps)
+      return String(log.mock.calls[0]?.[0])
+    } finally {
+      log.mockRestore()
+      err.mockRestore()
+    }
+  }
+  const onGitHub = () => {
+    execFileSync('git', ['init', '-q', '--bare', join(dir, 'online.git')])
+    git('remote', 'add', 'origin', 'git@github.com:someone/my-copy.git')
+    git('remote', 'set-url', '--push', 'origin', join(dir, 'online.git'))
+  }
+
+  it('says the online copy is up to date after a push', async () => {
+    checkout()
+    onGitHub()
+    write('pipeline/acme/record.yaml', 'status: Applied\n')
+    expect(await firstLine({ probe: neverPublic })).toBe('saved; the online copy is up to date')
+  })
+
+  it('says the online copy waits until it is confirmed private', async () => {
+    checkout()
+    onGitHub()
+    write('pipeline/acme/record.yaml', 'status: Applied\n')
+    expect(await firstLine({ probe: async () => undefined })).toBe(
+      'saved on this computer; the online copy waits until it is confirmed private',
+    )
+  })
+
+  it('says updating the online copy failed', async () => {
+    checkout()
+    git('remote', 'add', 'origin', join(dir, 'missing.git'))
+    write('pipeline/acme/record.yaml', 'status: Applied\n')
+    expect(await firstLine({ probe: neverPublic })).toBe(
+      'saved on this computer; updating the online copy failed',
+    )
   })
 })
 
