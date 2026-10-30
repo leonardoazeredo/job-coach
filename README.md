@@ -1,34 +1,33 @@
 # Job coach
 
-A job-search coach for one person, run in Claude Code. It reads your CV and targets, vets job ads, tracks every application, builds a tailored CV per role and prepares you for interviews. Everything it knows lives in plain files in your own repository.
+A job-search coach for one person, run in Claude Code. It reads your CV and targets, vets job ads, tracks every application, builds a tailored CV per role and prepares you for interviews. Everything it knows lives in plain files in a folder on your computer.
 
-**Your copy will hold your CV, profile and applications. Keep it private.**
+**This folder will hold your CV, profile and applications. Keep it private.**
 
-## Prerequisites
+## Never used a terminal?
 
-Required:
+1. Install [Claude Code](https://docs.claude.com/en/docs/claude-code/overview).
+2. Get the folder: on [the project page](https://github.com/leonardoazeredo/job-coach), choose **Code**, then **Download ZIP**, and unzip it wherever you keep documents.
+3. Open that folder in Claude Code.
+4. Say hello.
 
-- [Claude Code](https://docs.claude.com/en/docs/claude-code/overview)
-- Node 24.11 or later in the 24 line, or Node 26 or later (not 25). With nvm or fnm, `nvm use` or `fnm use` picks the version in `.nvmrc`; Homebrew's `node` or the nodejs.org installer works too.
-- git, on macOS or Linux. On Windows, use WSL.
+The coach does the rest: it installs what it needs (asking you to type your computer password if a step needs it), takes your CV, asks about the roles you want, and explains everything in plain words. Say "update the coach" whenever you like; it also offers when a new version is out.
 
-Optional:
+Runs on macOS and Linux. On Windows, use WSL.
 
-- The `gh` CLI, only if you want to make a GitHub copy private from the command line.
-- Chrome or Chromium and poppler, for PDF export (see [Per-role CV export](#per-role-cv-export)).
+## Using git
 
-## Getting started
+git is optional. With it, the coach saves a history of every change it makes to your data, and backs it up to a private online copy if you have one.
 
-1. On GitHub, choose **Use this template** and create a **private** repository.
-2. Clone it and run `npm ci` in it. The scripts the coach runs (the record checker, the board, the CV tools) need its dependencies.
-3. Open the folder in Claude Code and send any first message. A fresh copy has no `profile/coach.md`, so `CLAUDE.md` starts the `onboarding` skill: prerequisites and keeping your data private, CV import, identity and targets, then wins, voice, a competency pack and optional sensitive sections, then a final check. Every file is shown to you and written only after your yes. Steps 1, 2, 3 and 8 (the final check) are required; the rest can wait.
-4. Later, `node scripts/board.ts` lists any onboarding section still unfinished, and `/onboarding` reruns one section, showing a diff before it overwrites anything.
+1. On GitHub, choose **Use this template** and create a **private** repository, then clone it. (Or clone `leonardoazeredo/job-coach` directly and keep it local; onboarding unlinks it from the public project.)
+2. Open the folder in Claude Code and send any first message. A fresh copy has no `profile/coach.md`, so `CLAUDE.md` starts the `onboarding` skill: prerequisites and keeping your data private, CV import, identity and targets, then wins, voice, a competency pack and optional sensitive sections, then a final check. Every file is shown to you and written only after your yes. Steps 1, 2, 3 and 8 (the final check) are required; the rest can wait.
+3. Later, `node scripts/board.ts` lists any onboarding section still unfinished, and `/onboarding` reruns one section, showing a diff before it overwrites anything.
 
-Cloned `leonardoazeredo/job-coach` directly instead? Run `git remote rename origin upstream`, then point `origin` at a private repository of your own, or keep the copy local. Onboarding checks this too.
+Onboarding installs or switches Node itself (24.11 or later in the 24 line, or 26 or later; the version in `.nvmrc`) and runs `npm ci`. Each write to your data is committed by `node scripts/save.ts`, and pushed only to an `origin` that is not public. Engine updates run through the `update-coach` skill; [docs/updating.md](docs/updating.md) is the same procedure by hand.
 
-After onboarding, paste a job ad to start tracking a role, or ask for your board.
+Optional extras: the `gh` CLI, only to make a GitHub copy private from the command line; Chrome or Chromium and poppler, for PDF export (see [Per-role CV export](#per-role-cv-export)).
 
-To take later engine updates, see [docs/updating.md](docs/updating.md). Engine bugs and ideas go to the issue tracker on `leonardoazeredo/job-coach` ([CONTRIBUTING.md](CONTRIBUTING.md)). MIT licensed ([LICENSE](LICENSE)).
+Engine bugs and ideas go to the issue tracker on `leonardoazeredo/job-coach` ([CONTRIBUTING.md](CONTRIBUTING.md)). MIT licensed ([LICENSE](LICENSE)).
 
 ## Layout
 
@@ -36,7 +35,7 @@ The engine (scripts, skills, config defaults, schemas, docs) is shared upstream.
 
 ```
 CLAUDE.md                  core prompt, always loaded
-.claude/skills/<name>/     one skill per task, onboarding included (16)
+.claude/skills/<name>/     one skill per task, onboarding and update-coach included (17)
 templates/                 commented *.example.* files onboarding copies into profile/ and cv/
 config/rules.yaml          engine defaults: staleness, statuses, events and board groups
 config/competencies/<pack>.yaml   competencies an ad can ask for, evidence slots, interview questions
@@ -44,6 +43,8 @@ config/cv.yaml             wording rules the CV lint enforces
 scripts/check.ts           validates every pipeline folder against the rules and profile files
 scripts/board.ts           computes the pipeline board
 scripts/cv-*.ts            per-role CV: evidence search, build, provenance lint, PDF export
+scripts/save.ts            saves your data folders into the folder's history, and online when private
+scripts/update.ts          weekly check for a new engine, and the update for a ZIP folder
 docs/cv-for-role.md        how per-role CVs are built, and the research behind it
 examples/                  a fictional user, for tests and for seeing finished files
 
@@ -53,6 +54,7 @@ profile/history-private.yaml  private facts about past roles; read only by inter
 cv/master.json             CV source
 pipeline/<slug>/           one folder per tracked role (see pipeline/README.md)
 experience-bank/           recorded Q&A per past role
+.coach/                    local state: last update check, backups from ZIP updates (ignored)
 ```
 
 ## Commands

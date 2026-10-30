@@ -13,6 +13,7 @@
       "**/*.tsx",
       "**/*.json",
       "!**/node_modules",
+      "!.coach",
       "!cv/master.json",
       "!scripts/cv-pdf/verify/testdata"
     ]

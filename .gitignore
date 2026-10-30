@@ -1,6 +1,9 @@
 node_modules/
 .tmp/
 
+# The coach's local state: the date of the last update check, and backups of files an update replaced
+/.coach/
+
 # Claude Code session worktrees each carry a biome.json, which Biome rejects as a nested root
 .claude/worktrees/
 

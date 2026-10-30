@@ -8,7 +8,7 @@
     "node": "^24.11.0 || >=26.0.0"
   },
   "scripts": {
-    "prepare": "git rev-parse --git-dir >/dev/null 2>&1 || exit 0; lefthook install",
+    "prepare": "[ -e .git ] || exit 0; lefthook install",
     "check": "biome check .",
     "check:write": "biome check --write .",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p scripts/cv-pdf/tsconfig.json --noEmit",

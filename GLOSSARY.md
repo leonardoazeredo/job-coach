@@ -186,6 +186,28 @@ _Avoid_: pipeline, hit
 The listings left after dedupe, qualification and expiry, each with its match, in the order triage reads them, together with what was dropped and why.
 _Avoid_: triage (the screening that gives each role a verdict), merge, candidates
 
+## Saving and updates
+
+**Engine**:
+Everything shipped by `leonardoazeredo/job-coach`: scripts, skills, config defaults, templates, docs and the core prompt. Under `pipeline/` and `experience-bank/`, only the README and `pipeline/_templates/` are engine files.
+_Avoid_: template (the GitHub button that copies it), app
+
+**User data**:
+The four folders the engine never ships: `profile/`, `cv/`, `pipeline/` and `experience-bank/`.
+_Avoid_: workspace (the folders a command reads, which can be the worked example)
+
+**History**:
+A git checkout whose top level is the folder itself. A ZIP download, a folder unpacked inside another checkout, or a computer without git keeps none.
+_Avoid_: repo (in anything the user reads)
+
+**Save**:
+A commit of the user data with a plain message, made by `scripts/save.ts` after each write, then a push to an online copy that is not public. Without history, nothing happens.
+_Avoid_: commit, backup (a backup is the copy a ZIP update keeps)
+
+**Coach update**:
+Bringing the engine up to the newest upstream version: a merge in a folder with history, or a copy over the engine files with backups in `.coach/backups/` in one without.
+_Avoid_: pipeline update (recording a change to a role)
+
 ## Tests
 
 **Worked example**:
