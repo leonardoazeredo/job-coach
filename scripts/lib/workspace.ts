@@ -18,7 +18,7 @@ import { type OnboardingSection, onboardingStatus } from './onboarding.ts'
 import { error, hasErrors, type Problem } from './problem.ts'
 import { loadProfile, type Profile } from './profile.ts'
 import { fileProblem, readFile, writeProblem, yaml } from './read-file.ts'
-import { ghVisibility, type RepoVisibility, type VisibilityProbe } from './repo-visibility.ts'
+import { type RepoVisibility, repoVisibility, type VisibilityProbe } from './repo-visibility.ts'
 import { roleRequirements } from './requirements.ts'
 import { listSlugs, missing, readCvFile, readRole, rolePaths } from './role-folder.ts'
 import { loadRules } from './rules.ts'
@@ -56,7 +56,7 @@ export type Workspace = {
   rules: () => { rules: Rules | undefined; problems: Problem[] }
   profile: () => { profile: Profile | undefined; problems: Problem[] }
   // Undefined when it cannot be told; see repo-visibility.ts.
-  visibility: () => RepoVisibility | undefined
+  visibility: () => Promise<RepoVisibility | undefined>
   check: () => { problems: Problem[]; roles: number }
   lintCvs: (slug?: string) => { problems: Problem[]; checked: number }
   roleCv: (slug: string) => RoleCv
@@ -153,7 +153,7 @@ const memo = <T>(load: () => T): (() => T) => {
 
 export const openWorkspace = (
   root = repoRoot(),
-  probe: VisibilityProbe = ghVisibility,
+  probe: VisibilityProbe = repoVisibility,
 ): Workspace => {
   const slugs = memo(() => listSlugs(root))
   const roles = memo(() => slugs().map((slug) => readRole(root, slug)))
