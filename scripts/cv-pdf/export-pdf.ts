@@ -15,15 +15,11 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { type CvData, CvDataSchema } from '../lib/cv-schema.ts'
+import { EXIT } from '../lib/problem.ts'
 import { findChrome } from './chrome.ts'
 import { outputName } from './outputName.ts'
 import { expectations } from './verify/expectations.ts'
-import {
-  ensurePoppler,
-  exitForMissingPoppler,
-  PopplerMissingError,
-  pdfInfo,
-} from './verify/poppler.ts'
+import { ensurePoppler, PopplerMissingError, pdfInfo } from './verify/poppler.ts'
 import { verifyPdf } from './verify/run.ts'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -37,8 +33,15 @@ export type ExportOptions = {
   log: (line: string) => void
 }
 
-// Thrown for any reason the PDF must not be sent; the message is for the user.
-export class ExportError extends Error {}
+// Thrown for any reason the PDF must not be sent; the message is for the user. The code
+// is the exit status the command ends with, so the entry point does not guess it.
+export class ExportError extends Error {
+  readonly code: number
+  constructor(message: string, code: number = EXIT.problems) {
+    super(message)
+    this.code = code
+  }
+}
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 
@@ -270,6 +273,11 @@ export const exportPdf = async (opts: ExportOptions): Promise<void> => {
   }
 }
 
+const exitCodeFor = (e: unknown): number => {
+  if (e instanceof PopplerMissingError) return EXIT.missing
+  return e instanceof ExportError ? e.code : EXIT.problems
+}
+
 const usage =
   'usage: node scripts/cv-pdf/export-pdf.ts --data <cv.json> [--keywords <file>] [out.pdf]'
 
@@ -281,7 +289,7 @@ const main = async (argv: string[]): Promise<void> => {
     const value = args[at + 1]
     if (!value || value.startsWith('--')) {
       console.error(`\n  ERROR: ${flag} needs a path\n  ${usage}\n`)
-      process.exit(64)
+      process.exit(EXIT.usage)
     }
     args.splice(at, 2)
     return value
@@ -290,7 +298,7 @@ const main = async (argv: string[]): Promise<void> => {
   const keywordsFile = take('--keywords')
   if (!cvJson || args.some((a) => a.startsWith('--'))) {
     console.error(usage)
-    process.exit(64)
+    process.exit(EXIT.usage)
   }
   // Before reading the CV, so a missing verifier is reported even for a CV that would fail
   // validation, and before the build: it should cost seconds.
@@ -300,7 +308,7 @@ const main = async (argv: string[]): Promise<void> => {
 
   // Before the build, like poppler: a missing browser should cost seconds.
   const found = findChrome()
-  if ('error' in found) throw new ExportError(found.error)
+  if ('error' in found) throw new ExportError(found.error, EXIT.missing)
   await exportPdf({
     cvJson,
     pdf,
@@ -312,8 +320,7 @@ const main = async (argv: string[]): Promise<void> => {
 
 if (import.meta.main) {
   main(process.argv.slice(2)).catch((e: unknown) => {
-    if (e instanceof PopplerMissingError) exitForMissingPoppler(e)
     console.error(`\n  ERROR: ${e instanceof Error ? e.message : String(e)}\n`)
-    process.exit(1)
+    process.exit(exitCodeFor(e))
   })
 }

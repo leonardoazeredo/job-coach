@@ -41,9 +41,9 @@ describe.skipIf(!hasPoppler)('verify cli', () => {
     assert.match(r.err, /usage:/)
   })
 
-  it('reports an unreadable --data file', () => {
+  it('reports an unreadable --data file and exits 66', () => {
     const r = cli('--data', join(dir, 'nope.json'), SAMPLE)
-    assert.notEqual(r.code, 0)
+    assert.equal(r.code, 66)
     assert.match(r.err, /could not read --data/)
   })
 
@@ -51,7 +51,7 @@ describe.skipIf(!hasPoppler)('verify cli', () => {
     const file = join(dir, 'array.json')
     await writeFile(file, '[]')
     const r = cli('--data', file, SAMPLE)
-    assert.notEqual(r.code, 0)
+    assert.equal(r.code, 65)
     assert.match(r.err, /should hold a JSON object/)
   })
 
@@ -89,13 +89,13 @@ describe.skipIf(!hasPoppler)('verify cli', () => {
 
   it('rejects --data=path', () => {
     const r = cli('--data=verify/testdata/seed-cv.json', SAMPLE)
-    assert.notEqual(r.code, 0)
+    assert.equal(r.code, 64)
     assert.match(r.err, /use --data <path>, not --data=<path>/)
   })
 
   it('rejects --data with no path', () => {
     const r = cli(SAMPLE, '--data')
-    assert.notEqual(r.code, 0)
+    assert.equal(r.code, 64)
     assert.match(r.err, /--data needs a path/)
   })
 
@@ -148,24 +148,65 @@ function withoutPoppler(script: string, ...args: string[]) {
 describe('a missing poppler', () => {
   const hint = new RegExp(installHint(process.platform).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
 
-  it('exits 2 from the CLI and prints the install hint once', () => {
+  it('exits 66 from the CLI and prints the install hint once', () => {
     const r = withoutPoppler(CLI, '--data', SEED, SAMPLE)
-    assert.equal(r.code, 2, r.all)
+    assert.equal(r.code, 66, r.all)
     assert.equal(r.all.match(hint)?.length, 1, r.all)
   })
 
   // Goes through main's catch, which a PopplerMissingError thrown later in the
   // run (from verifyPdf's own ensurePoppler) takes as well.
-  it('exits 2 from the export before building and prints the hint once', () => {
+  it('exits 66 from the export before building and prints the hint once', () => {
     const r = withoutPoppler(
       join(ROOT, 'export-pdf.ts'),
       '--data',
       SEED,
       join(tmpdir(), 'never-written.pdf'),
     )
-    assert.equal(r.code, 2, r.all)
+    assert.equal(r.code, 66, r.all)
     assert.equal(r.all.match(hint)?.length, 1, r.all)
     assert.doesNotMatch(r.all, /building/)
+  })
+})
+
+describe('the export command', () => {
+  const EXPORT = join(ROOT, 'export-pdf.ts')
+  const EXAMPLE_CV = join(ROOT, '../../examples/austin-backend/cv/master.json')
+  const run = (env: Record<string, string>, ...args: string[]) => {
+    const r = spawnSync(process.execPath, [EXPORT, ...args], {
+      cwd: ROOT,
+      encoding: 'utf8',
+      timeout: 120_000,
+      env: { ...process.env, ...env },
+    })
+    return { code: r.status, all: r.stdout + r.stderr }
+  }
+
+  it('exits 64 with no --data', () => {
+    const r = run({})
+    assert.equal(r.code, 64, r.all)
+    assert.match(r.all, /usage:/)
+  })
+
+  it('exits 64 when --data has no path', () => {
+    assert.equal(run({}, '--data').code, 64)
+  })
+
+  it.skipIf(!hasPoppler)('exits 66 when no browser is found', () => {
+    const r = run({ CHROME_PATH: join(tmpdir(), 'no-such-chrome') }, '--data', EXAMPLE_CV)
+    assert.equal(r.code, 66, r.all)
+    assert.match(r.all, /CHROME_PATH/)
+  })
+
+  it.skipIf(!hasPoppler)('exits 1 for a CV that is not valid', async () => {
+    const file = join(tmpdir(), `bad-cv-${process.pid}.json`)
+    await writeFile(file, '{}')
+    try {
+      const r = run({}, '--data', file)
+      assert.equal(r.code, 1, r.all)
+    } finally {
+      await rm(file, { force: true })
+    }
   })
 })
 
