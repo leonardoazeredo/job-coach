@@ -169,7 +169,7 @@ export const tempRepo = (): TempRepo => {
 
   return {
     ...repo,
-    workspace: () => openWorkspace(root, () => 'private'),
+    workspace: () => openWorkspace(root, async () => 'private'),
     addRole,
     workedExample,
     editRules: (edit) => repo.editYaml<EngineRules>('config/rules.yaml', edit),
@@ -178,7 +178,7 @@ export const tempRepo = (): TempRepo => {
       capture(() =>
         command(
           args,
-          openWorkspace(root, () => 'private'),
+          openWorkspace(root, async () => 'private'),
         ),
       ),
     dispose: () => rmSync(root, { recursive: true, force: true }),

@@ -8,10 +8,10 @@ import { resolve } from 'node:path'
 import { EXIT, hasErrors, type Problem, printProblems, summary } from './lib/problem.ts'
 import { type Command, openWorkspace, repoRoot } from './lib/workspace.ts'
 
-export const check: Command = (args, workspace) => {
+export const check: Command = async (args, workspace) => {
   const { roles, ...found } = workspace.check()
   const problems: Problem[] = [...found.problems]
-  if (workspace.visibility() === 'public')
+  if ((await workspace.visibility()) === 'public')
     problems.push({
       slug: 'profile',
       level: 'warning',
@@ -40,7 +40,7 @@ const main = async (args: string[]): Promise<number> => {
   // public-repo warning too.
   return check(
     args,
-    openWorkspace(resolve(repoRoot(), dir), () => undefined),
+    openWorkspace(resolve(repoRoot(), dir), async () => undefined),
   )
 }
 

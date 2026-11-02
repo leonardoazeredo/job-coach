@@ -2,6 +2,7 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { ENGINE, type Git, gitHubRepo, gitIn, output } from './history.ts'
+import { visibilityOfRepo } from './repo-visibility.ts'
 
 export const DATA_FOLDERS = ['profile', 'cv', 'pipeline', 'experience-bank']
 
@@ -19,12 +20,8 @@ export type SaveResult =
 export type PublicProbe = (repo: string) => Promise<boolean | undefined>
 
 export const gitHubPublic: PublicProbe = async (repo) => {
-  const res = await fetch(`https://api.github.com/repos/${repo}`, {
-    signal: AbortSignal.timeout(10_000),
-  }).catch(() => undefined)
-  if (res?.status === 200) return true
-  // Without a login GitHub answers 404 for a private repository, as for a missing one.
-  return res?.status === 404 ? false : undefined
+  const visibility = await visibilityOfRepo(repo)
+  return visibility && visibility === 'public'
 }
 
 export type SaveOptions = {
