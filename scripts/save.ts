@@ -1,22 +1,22 @@
 // Saves the user's data (profile/, cv/, pipeline/, experience-bank/) into this folder's history
-// and backs it up to the online copy, unless that copy is the engine, or is on GitHub and GitHub
+// and sends it to the online copy, unless that copy is the engine, or is on GitHub and GitHub
 // answers that it is public or cannot be asked.
 // Usage: node scripts/save.ts [--everything] "<message>"
 // --everything saves every change in the folder, not only the data folders.
-// Prints one line for the coach to put in plain words; a refusal or failed backup adds the
-// tool's output on stderr. Exit 64 without a message. Exit 1 when the save was refused (the data
-// stays written but unsaved) or the online backup failed. Otherwise 0, including when the folder
-// keeps no history and nothing is saved.
+// Prints one line for the coach to put in plain words; a refusal or a failed update of the
+// online copy adds the tool's output on stderr. Exit 64 without a message. Exit 1 when the save
+// was refused (the data stays written but unsaved) or updating the online copy failed. Otherwise
+// 0, including when the folder keeps no history and nothing is saved.
 import { EXIT } from './lib/problem.ts'
 import { type Online, type SaveOptions, save } from './lib/save.ts'
 import { repoRoot } from './lib/workspace.ts'
 
 const SAVED: Record<Online, string> = {
-  pushed: 'saved; backed up online',
+  pushed: 'saved; the online copy is up to date',
   'no-copy': 'saved on this computer',
   public: 'saved on this computer; the online copy is public, so nothing was sent to it',
-  unchecked: 'saved on this computer; the online backup waits until the copy is confirmed private',
-  failed: 'saved on this computer; the online backup failed',
+  unchecked: 'saved on this computer; the online copy waits until it is confirmed private',
+  failed: 'saved on this computer; updating the online copy failed',
 }
 
 export const saveCommand = async (

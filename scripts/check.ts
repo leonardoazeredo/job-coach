@@ -13,10 +13,10 @@ export const check: Command = (args, workspace) => {
   const problems: Problem[] = [...found.problems]
   if (workspace.visibility() === 'public')
     problems.push({
-      slug: 'repo',
+      slug: 'profile',
       level: 'warning',
       message:
-        'this repository is public; profile/, cv/, experience-bank/ and pipeline/ hold personal data. Make it private (gh repo edit --visibility private) before committing it',
+        'the online copy of this folder is public; profile/, cv/, experience-bank/ and pipeline/ hold personal data. Make the online copy private before saving to it',
     })
   const failed = hasErrors(problems)
   const warningsShown = args.includes('--warnings') || !failed
