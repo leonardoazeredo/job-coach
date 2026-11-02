@@ -4,13 +4,13 @@ import { plain, repo, useWorkspaceRepo } from './workspace-repo.ts'
 
 useWorkspaceRepo()
 
-describe('discovery', () => {
-  const discovery = () => {
-    const { discovery } = repo.workspace().discovery()
-    if (!discovery) throw new Error('no Discovery')
-    return discovery
-  }
+const discovery = () => {
+  const { discovery } = repo.workspace().discovery()
+  if (!discovery) throw new Error('no Discovery')
+  return discovery
+}
 
+describe('discovery matching', () => {
   it('matches a tracked role by company and title', () => {
     repo.addRole('quartzly-ui', { company: 'Quartzly', job_title: 'UI Engineer' })
     expect(discovery().match('Quartzly', 'Senior UI Engineer')).toEqual({
@@ -61,7 +61,9 @@ describe('discovery', () => {
       roles: [{ slug: SLUG, status: 'Identified' }],
     })
   })
+})
 
+describe('discovery title qualifying', () => {
   it('qualifies a title listed only in search.yaml title_expansion', () => {
     expect(discovery().qualifies('Solutions Architect')).toBe(false)
     repo.editSearch((r) => {
@@ -126,7 +128,9 @@ describe('discovery', () => {
     expect(qualifies('Senior Full Stack Engineer (Javascript)')).toBe(false)
     expect(qualifies('Full-Stack Product Engineering Manager')).toBe(false)
   })
+})
 
+describe('discovery rules problems', () => {
   it('builds a Discovery with no problems when the status rules are inconsistent', () => {
     repo.editRules((r) => {
       r.board_groups.waiting = []

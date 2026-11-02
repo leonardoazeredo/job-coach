@@ -106,12 +106,10 @@ export function CvDocument({ data, fit }: { data: CvData; fit?: FitResult | null
         </section>
       ) : null}
 
-      {/* biome-ignore lint/suspicious/noUnnecessaryConditions: cv.json reaches the page unvalidated and --data can be a hand-written file with no education, so the type is stricter than the input */}
-      {data.education?.length > 0 ? (
+      {data.education.length > 0 ? (
         <section className="cv-section">
           <h2>EDUCATION</h2>
-          {/* biome-ignore lint/suspicious/noUnnecessaryConditions: cv.json reaches the page unvalidated and --data can be a hand-written file with no education, so the type is stricter than the input */}
-          {data.education?.map((ed) => {
+          {data.education.map((ed) => {
             const line = [ed.institution, ed.location].filter(Boolean).join(', ')
             const dates = [ed.start, ed.end].filter(Boolean).join(' - ')
             return (

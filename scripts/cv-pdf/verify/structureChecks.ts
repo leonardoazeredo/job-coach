@@ -111,12 +111,6 @@ export function checkJobDates(popplerText: string, pairs: Array<[string, string]
   return { failures, lines }
 }
 
-/**
- * `sizes` maps pt (rounded to 0.1) to glyph count; null means the glyph walk
- * itself failed. A partial count says nothing reliable, so this reports the
- * read failure alone. `readError` is the reader's message, appended to the failure
- * line when `sizes` is null and ignored otherwise.
- */
 function sizeProblems(smallest: number, body: number, largest: number): string[] {
   const problems: string[] = []
   if (smallest < BODY_PT_MIN - SIZE_TOLERANCE_PT) {
@@ -131,6 +125,12 @@ function sizeProblems(smallest: number, body: number, largest: number): string[]
   return problems
 }
 
+/**
+ * `sizes` maps pt (rounded to 0.1) to glyph count; null means the glyph walk
+ * itself failed. A partial count says nothing reliable, so this reports the
+ * read failure alone. `readError` is the reader's message, appended to the failure
+ * line when `sizes` is null and ignored otherwise.
+ */
 export function checkTextSizes(sizes: Map<number, number> | null, readError?: string): CheckResult {
   if (sizes === null) {
     const why = readError === undefined ? '' : `: ${readError}`

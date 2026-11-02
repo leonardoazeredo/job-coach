@@ -86,7 +86,7 @@ export const isEngineFile = (rel: string): boolean => {
 const blobId = (bytes: Buffer): string =>
   createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex')
 
-const StateSchema = z.object({ lastUpdateCheck: z.string().optional() })
+const StateSchema = z.looseObject({ lastUpdateCheck: z.string().optional() })
 type State = z.infer<typeof StateSchema>
 
 const readState = (root: string): State => {

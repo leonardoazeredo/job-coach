@@ -3,17 +3,17 @@ import { rocketshipBoard } from '../lib/boards/rocketship.ts'
 import { fakeFetch, fixture, html, json, search, sleep } from './board-fakes.ts'
 import { personaRules } from './temp-repo.ts'
 
-describe('rocketship', () => {
-  const index = fixture('rocketship-index.html')
-  const page = JSON.parse(fixture('rocketship-page.json'))
-  const empty = { pageProps: { initialJobOpenings: [], initialTotalJobCount: 6 } }
-  // The build id in the recorded index page. A data request under any other id gets the
-  // index page back, which is not JSON, so the pull fails.
-  const isData = (u: URL) => u.pathname.startsWith('/_next/data/build-0000-fixture01/')
-  const pageOf = (u: URL) => Number(u.searchParams.get('page'))
-  const board = (fetch: (url: string) => Promise<Response>, searchTitles = ['Frontend Engineer']) =>
-    rocketshipBoard({ fetch, sleep, search, searchTitles })
+const index = fixture('rocketship-index.html')
+const page = JSON.parse(fixture('rocketship-page.json'))
+const empty = { pageProps: { initialJobOpenings: [], initialTotalJobCount: 6 } }
+// The build id in the recorded index page. A data request under any other id gets the
+// index page back, which is not JSON, so the pull fails.
+const isData = (u: URL) => u.pathname.startsWith('/_next/data/build-0000-fixture01/')
+const pageOf = (u: URL) => Number(u.searchParams.get('page'))
+const board = (fetch: (url: string) => Promise<Response>, searchTitles = ['Frontend Engineer']) =>
+  rocketshipBoard({ fetch, sleep, search, searchTitles })
 
+describe('rocketship paging', () => {
   it('throws when the jobs page carries no build id', async () => {
     const { fetch } = fakeFetch(() => html('<html><body>no data</body></html>'))
     await expect(board(fetch).pull()).rejects.toThrow(/build id/)
@@ -65,7 +65,9 @@ describe('rocketship', () => {
     })
     expect(await board(fetch).pull()).toHaveLength(6)
   })
+})
 
+describe('rocketship retries and failures', () => {
   it('throws after four failed attempts at one page, naming the URL', async () => {
     const { fetch, urls } = fakeFetch((u) =>
       isData(u) ? html('<html>not JSON</html>') : html(index),
@@ -126,7 +128,9 @@ describe('rocketship', () => {
       expect.stringMatching(/^warning: .*"?Missing Title"?.*404/),
     ])
   })
+})
 
+describe('rocketship search queries', () => {
   it('logs a later page that is not OK as a stop, not a warning', async () => {
     const lines: string[] = []
     const { fetch } = fakeFetch((u) => {
@@ -198,7 +202,9 @@ describe('rocketship', () => {
       showHybridJobs: 'false',
     })
   })
+})
 
+describe('rocketship listing mapping', () => {
   it('keeps one listing per company and job slug across searches', async () => {
     const { fetch } = fakeFetch((u) => (isData(u) ? json(page) : html(index)))
     const listings = await board(fetch, ['Frontend Engineer', 'Product Engineer']).pull()

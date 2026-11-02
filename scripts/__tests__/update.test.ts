@@ -222,6 +222,31 @@ describe('checkForUpdate', () => {
     expect(asked).toBe(3)
   })
 
+  it('keeps unknown keys in the state file across a check', async () => {
+    mkdirSync(join(work(), '.coach'), { recursive: true })
+    writeFileSync(
+      join(work(), '.coach/state.json'),
+      JSON.stringify({ lastUpdateCheck: '2026-10-01T00:00:00Z', other: 'kept' }),
+    )
+    await checkForUpdate(work(), { now, source: source() })
+    const state = JSON.parse(read('.coach/state.json'))
+    expect(state.other).toBe('kept')
+    expect(state.lastUpdateCheck).toBe(now.toISOString())
+  })
+
+  it('treats a malformed lastUpdateCheck as not yet checked', async () => {
+    mkdirSync(join(work(), '.coach'), { recursive: true })
+    writeFileSync(join(work(), '.coach/state.json'), JSON.stringify({ lastUpdateCheck: 42 }))
+    const counting = source({
+      latestFiles: async () => {
+        asked++
+      },
+    })
+    let asked = 0
+    expect(await checkForUpdate(work(), { now, source: counting })).toBe('unknown')
+    expect(asked).toBe(1)
+  })
+
   it('compares file contents in a folder that keeps no history', async () => {
     put(work(), { ...DATA, ...OLD_ENGINE })
     // Upstream's own data paths differ from the user's, and must not count.

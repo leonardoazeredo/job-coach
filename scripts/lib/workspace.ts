@@ -151,9 +151,10 @@ const memo = <T>(load: () => T): (() => T) => {
   }
 }
 
-// A write needs the build, and there is no build without the variant, so here a
-// missing variant is a Problem. So is missing requirements: keywords.txt would be
-// empty, and the export's keyword check would pass with nothing to check.
+// A write needs the build, and there is no build without the variant, so a write asks
+// for the variant as a Problem, unlike the read paths. So does missing requirements:
+// keywords.txt would be empty, and the export's keyword check would pass with nothing
+// to check.
 const writeCvFiles = (
   slug: string,
   files: RoleCv['files'],
@@ -182,8 +183,8 @@ const writeCvFiles = (
 }
 
 // Without a given day, the day in the timezone and locale in profile/identity.yaml. With no
-// readable timezone or locale there is no today: the UTC day would be silently wrong for an hour
-// every summer night.
+// readable timezone or locale there is no safe today: the UTC date can differ from the local
+// date for hours every day, so falling back to it would be silently wrong.
 const todayOf = (
   read: { identity: Identity | undefined; problems: Problem[] },
   { given, now = new Date() }: Parameters<Workspace['today']>[0] = {},

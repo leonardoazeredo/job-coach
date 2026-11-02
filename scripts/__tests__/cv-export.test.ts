@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync }
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { ExportError, readCv } from '../cv-pdf/export-pdf.ts'
 import {
   type ChromePrinterDeps,
   chromePrinter,
@@ -63,17 +64,22 @@ const fakePrinter = (behaviour: Behaviour, unavailable?: string) => {
   return { calls, printer }
 }
 
-describe('exportCv', () => {
-  let repo: TempRepo
-  let larkspur: WorkedExample
-  const run = (printer: PdfPrinter): Promise<ExportOutcome> =>
-    exportCv({ workspace: repo.workspace(), slug: larkspur.slug, printer })
+let repo: TempRepo
+let larkspur: WorkedExample
+const run = (printer: PdfPrinter): Promise<ExportOutcome> =>
+  exportCv({ workspace: repo.workspace(), slug: larkspur.slug, printer })
 
+// Each describe registers the hooks itself, since hooks only apply within their own describe.
+const useExportRepo = () => {
   beforeEach(() => {
     repo = tempRepo()
     larkspur = repo.workedExample()
   })
   afterEach(() => repo.dispose())
+}
+
+describe('exportCv printer results', () => {
+  useExportRepo()
 
   it('accepts a fresh PDF and keeps the report in verify.txt', async () => {
     const outcome = await run(fakePrinter('writes').printer)
@@ -109,6 +115,10 @@ describe('exportCv', () => {
     expect(outcome).toMatchObject({ kind: 'print-failed', report: 'verify: fails\n' })
     expect(larkspur.read('cv/verify.txt')).toBe('verify: fails\n')
   })
+})
+
+describe('exportCv blocked runs', () => {
+  useExportRepo()
 
   it('never calls the printer when the lint finds errors', async () => {
     larkspur.writeVariant((v) => {
@@ -143,6 +153,10 @@ describe('exportCv', () => {
     )
     expect(fake.calls).toEqual([])
   })
+})
+
+describe('exportCv outcome details', () => {
+  useExportRepo()
 
   it('returns the outcome with a problem when verify.txt cannot be written', async () => {
     mkdirSync(larkspur.path('cv/verify.txt'))
@@ -240,5 +254,31 @@ describe('chromePrinter', () => {
       ok: false,
       report: 'building\nERROR: Chrome did not write a PDF within 60s\n',
     })
+  })
+})
+
+describe('readCv', () => {
+  let dir: string
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'read-cv-'))
+  })
+  afterEach(() => rmSync(dir, { recursive: true, force: true }))
+
+  const write = (body: unknown) => {
+    const path = join(dir, 'cv.json')
+    writeFileSync(path, JSON.stringify(body))
+    return path
+  }
+
+  it('rejects a JSON object of the wrong shape, naming the file and the fields', () => {
+    const path = write({ name: 'A', work: 'nope' })
+    expect(() => readCv(path)).toThrow(ExportError)
+    expect(() => readCv(path)).toThrow(new RegExp(`${path} is not a valid CV: .*work`))
+  })
+
+  it('rejects a file that is not JSON', () => {
+    const path = join(dir, 'cv.json')
+    writeFileSync(path, '{nope')
+    expect(() => readCv(path)).toThrow(/could not read/)
   })
 })

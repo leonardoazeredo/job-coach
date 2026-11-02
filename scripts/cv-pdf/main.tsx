@@ -12,7 +12,7 @@ const App = () => {
   const [fit, setFit] = useState<FitResult | null>(null)
   useEffect(() => {
     void fetch('./cv.json')
-      // biome-ignore lint/nursery/noUnsafeTypeAssertion: cv.json is written by our own export script beside this page, so its shape is not untrusted input
+      // biome-ignore lint/nursery/noUnsafeTypeAssertion: export-pdf validates cv.json against CvDataSchema before serving this page, and a compile-time check keeps that schema in sync with CvData
       .then((res) => res.json() as Promise<CvData>)
       .then(setData)
   }, [])
