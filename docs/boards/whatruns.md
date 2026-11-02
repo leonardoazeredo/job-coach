@@ -21,7 +21,7 @@ There is no login gate and no page limit: page 3170 returned the last 26 rows, a
 | Filter (UI control) | Parameter | Accepted values | Combining several |
 | --- | --- | --- | --- |
 | Search box ("Search skills, titles, companies...") | `search` | Free text over titles, skills and companies. `search=frontend` returned 2,568. Parameters named `q`, `query`, `keyword` and `title` are ignored. | Not a list. A phrase narrows (`frontend engineer`: 2,734); `frontend OR react` works as an OR (4,159); `frontend,react` behaves as an AND-ish narrowing (96). |
-| Location (checkbox list) | `location` | A value from the site's own location list (about 10,850 entries: cities, countries, regions, street addresses, and emoji-flag variants such as `🇬🇧 <city>`). Matching is exact on the whole value but not case-sensitive (a city in lower case works). Any value not in the list gets `400 {"error":"Invalid location filter"}`: a shortened city name, `Greater <city>`, `Remote`, `Remote UK` all failed. | Comma-separated, OR. `<city>,Berlin` returned 3,659 against 2,514 for a large city alone. A repeated `location=` parameter is not combined. |
+| Location (checkbox list) | `location` | A value from the site's own location list (about 10,850 entries: cities, countries, regions, street addresses, and emoji-flag variants such as `🇬🇧 <city>`). Matching is exact on the whole value but not case-sensitive (a city in lower case works). Any value not in the list gets `400 {"error":"Invalid location filter"}`: a shortened city name, `Greater <city>`, `Remote`, `Remote UK` all failed. | Comma-separated, OR. `<city>,<city>` returned 3,659 against 2,514 for a large city alone. A repeated `location=` parameter is not combined. |
 | Remote (REMOTE button) | `remote` | `true`. The value `false` is the same as no filter. | n/a |
 | Tags (select, 54 values) | `tags` | `ai`, `airflow`, `angular`, `aws`, `azure`, `backend`, `data`, `devops`, `django`, `docker`, `elixir`, `embedded`, `entry level`, `fastapi`, `frontend`, `full stack`, `fullstack`, `gcp`, `golang`, `graphql`, `intern`, `java`, `javascript`, `junior`, `kafka`, `kotlin`, `kubernetes`, `llm`, `mobile`, `new grad`, `next.js`, `node`, `php`, `postgres`, `python`, `pytorch`, `qa`, `rails`, `react`, `ruby`, `rust`, `scala`, `security`, `snowflake`, `software engineer`, `solidity`, `spark`, `spring boot`, `svelte`, `tensorflow`, `terraform`, `typescript`, `vue`, `web3`. | Comma-separated, AND. `react,typescript` returned 1,672 against 2,646 for `react`. |
 | Employment type (select) | `employmentType` | `FullTime`, `Intern`, `Contract`, `PartTime`. | One value only. `FullTime,Contract` is ignored. Most listings have no type (the unfiltered `FullTime` count is 28,547 of 126,786). |
@@ -53,7 +53,7 @@ Backend-flavoured search in one city or its region, newest first, 100 a page:
 ```
 curl -s -G https://jobs.whatrunsindia.com/api/jobs \
   --data-urlencode 'search=backend' \
-  --data-urlencode 'location=Berlin,Europe' \
+  --data-urlencode 'location=<city>,Europe' \
   --data-urlencode 'sort=newest' \
   --data-urlencode 'limit=100' \
   --data-urlencode 'page=1'

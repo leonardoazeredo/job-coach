@@ -61,7 +61,7 @@ Also in the body: `language` (`gb` for this site), and several lists of saved, a
 
 ### City filter oddity
 
-`locationCityFilters: ["Manchester"]` with the default UK filter returned 113,571, far more than the whole UK set. Treat the city filter as unreliable for remote searches. With hybrid on and remote off, a single-city filter behaved sensibly (7,516 hybrid roles in a large city).
+`locationCityFilters: ["<city>"]` with the default UK filter returned 113,571, far more than the whole UK set. Treat the city filter as unreliable for remote searches. With hybrid on and remote off, a single-city filter behaved sensibly (7,516 hybrid roles in a large city).
 
 ## Salary and seniority in results
 
