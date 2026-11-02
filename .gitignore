@@ -14,4 +14,7 @@ node_modules/
 *.pdf
 !scripts/cv-pdf/verify/testdata/**/*.pdf
 
+# Each machine's own hook commands; lefthook reads it beside lefthook.yml
+lefthook-local.yml
+
 .DS_Store
