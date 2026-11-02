@@ -49,7 +49,7 @@ docs/cv-for-role.md        how per-role CVs are built, and the research behind i
 examples/                  a fictional user, for tests and for seeing finished files
 
 Created by onboarding and the coach:
-profile/                   coach, identity, search (tiers, fit thresholds, location rule), stack, history, wins, voice, standard answers, lessons
+profile/                   coach, identity, search (tiers, fit thresholds, location rule), stack, history, wins, voice, standard answers, lessons, glossary
 profile/history-private.yaml  private facts about past roles; read only by interview-prep and offer-review
 cv/master.json             CV source
 pipeline/<slug>/           one folder per tracked role (see pipeline/README.md)
