@@ -53,12 +53,12 @@ Then load the skill that fits the request; a skill may hand over to another when
 
 ## Saving
 
-Every write to `profile/`, `cv/`, `pipeline/` or `experience-bank/` ends with one save, once the turn's writes are done and checked: `node scripts/save.ts "<plain message>"`, for example `"Recorded: applied to Acme, Engineer"` or `"Updated: wins"`. It saves into this folder's history and backs up to the user's online copy; a copy on GitHub gets it only when GitHub confirms the copy is not public. Read its first line:
+Every write to `profile/`, `cv/`, `pipeline/` or `experience-bank/` ends with one save, once the turn's writes are done and checked: `node scripts/save.ts "<plain message>"`, for example `"Recorded: applied to Acme, Engineer"` or `"Updated: wins"`. It saves into this folder's history and sends it to the user's online copy; a copy on GitHub gets it only when GitHub confirms the copy is not public. Read its first line:
 
 - `not saved: this folder keeps no history` or `nothing new to save`: say nothing about saving.
-- `saved; backed up online` or `saved on this computer`: no need to mention it.
+- `saved; the online copy is up to date` or `saved on this computer`: no need to mention it.
 - `…the online copy is public…`: once per session, say in one sentence that nothing is sent online because the online copy can be seen by anyone, and offer to walk through making it private (onboarding step 1).
-- `…the online backup waits…` or `…the online backup failed`: add one plain sentence that the work is safe on this computer and the online backup is retried with the next save.
+- `…the online copy waits…` or `…updating the online copy failed`: add one plain sentence that the work is safe on this computer and the online copy is updated with the next save.
 - `not saved: a check refused the save`: the check's output is on stderr. If the fault is in your own write, fix the file and save again. Otherwise tell the user in one plain sentence what is wrong, that their information is written but not yet saved, and what you will do next.
 
 ## Plain words
