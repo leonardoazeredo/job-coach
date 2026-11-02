@@ -58,7 +58,7 @@ If either fails, undo the update with `git reset --keep "$BEFORE"`, and run `npm
 
 ### 6. Confirm
 
-Run `node scripts/save.ts "Updated the coach"`; this sends the update to a private online copy too. Confirm in one line: "The coach is updated." plus the most useful change from step 3.
+Run `node scripts/save.ts "Updated the coach"`; the merge is already committed, so there is nothing new to commit, and the save still sends the merge and the commits it brought to a private online copy. Read its first line as in Saving in CLAUDE.md: `nothing new to save` here means the online copy already had them. Confirm in one line: "The coach is updated." plus the most useful change from step 3.
 
 ## Without history
 
