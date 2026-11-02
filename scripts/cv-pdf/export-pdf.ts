@@ -15,8 +15,8 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { type CvData, CvDataSchema } from '../lib/cv-schema.ts'
+import { pdfFileName } from '../lib/identity.ts'
 import { findChrome } from './chrome.ts'
-import { outputName } from './outputName.ts'
 import { expectations } from './verify/expectations.ts'
 import {
   ensurePoppler,
@@ -296,7 +296,7 @@ const main = async (argv: string[]): Promise<void> => {
   // validation, and before the build: it should cost seconds.
   await ensurePoppler()
   const cv = readCv(cvJson)
-  const pdf = args[0] ?? outputName({ name: cv.name })
+  const pdf = args[0] ?? pdfFileName(cv.name)
 
   // Before the build, like poppler: a missing browser should cost seconds.
   const found = findChrome()
