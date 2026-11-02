@@ -1,4 +1,4 @@
-import type { PDFPage } from 'mupdf'
+import type { PDFObject, PDFPage } from 'mupdf'
 import { openMupdf, pdfjsItems, withPdfjs } from './extractors.ts'
 import { runInWorker } from './runInWorker.ts'
 import type { LinkTarget } from './types.ts'
@@ -36,31 +36,35 @@ export function linkTargets(pdf: string): Promise<LinkTarget[]> {
   return runInWorker('linkTargets', pdf)
 }
 
+// null means the annotation is not a link.
+function linkTarget(annot: PDFObject): LinkTarget | null {
+  if (!annot.get('Subtype').isName() || annot.get('Subtype').asName() !== 'Link') return null
+  const action = annot.get('A')
+  // No /A action: an internal jump, or a link with no target at all.
+  if (action.isNull()) return { jump: true }
+  const type = action.get('S')
+  const name = type.isName() ? type.asName() : '?'
+  const uri = action.get('URI')
+  if (name !== 'URI') return { action: name }
+  return uri.isString() ? { uri: uri.asString() } : { malformedUri: true }
+}
+
 export async function linkTargetsInProcess(pdf: string): Promise<LinkTarget[]> {
   const doc = await openMupdf(pdf)
   try {
     const links: LinkTarget[] = []
     const pages = doc.countPages()
     for (let n = 0; n < pages; n++) {
+      // biome-ignore lint/nursery/noUnsafeTypeAssertion: openMupdf opens a PDF, whose pages are PDFPage
       const page = doc.loadPage(n) as PDFPage
       try {
+        // biome-ignore lint/complexity/noForEach: PDFObject has forEach but is not iterable
         page
           .getObject()
           .get('Annots')
           .forEach((annot) => {
-            if (!annot.get('Subtype').isName() || annot.get('Subtype').asName() !== 'Link') return
-            const action = annot.get('A')
-            if (action.isNull()) {
-              // No /A action: an internal jump, or a link with no target at all.
-              links.push({ jump: true })
-              return
-            }
-            const type = action.get('S')
-            const name = type.isName() ? type.asName() : '?'
-            const uri = action.get('URI')
-            if (name !== 'URI') links.push({ action: name })
-            else if (uri.isString()) links.push({ uri: uri.asString() })
-            else links.push({ malformedUri: true })
+            const link = linkTarget(annot)
+            if (link) links.push(link)
           })
       } finally {
         page.destroy()

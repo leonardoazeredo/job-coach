@@ -89,7 +89,9 @@ describe('save', () => {
     expect(await save(work(), { message: 'x', probe: neverPublic })).toEqual({ kind: 'nothing' })
     expect(commits()).toBe(1)
   })
+})
 
+describe('save outside its own checkout', () => {
   it('saves nothing in a folder that is not its own checkout', async () => {
     mkdirSync(work())
     write('pipeline/acme/record.yaml', 'status: Applied\n')
@@ -130,88 +132,92 @@ describe('save', () => {
     expect(result).toEqual({ kind: 'refused', output: 'record.yaml: status is not a known status' })
     expect(commits()).toBe(1)
   })
+})
 
-  describe('online copy', () => {
-    const withOrigin = (url: string) => {
-      checkout()
-      git('remote', 'add', 'origin', url)
-      write('pipeline/acme/record.yaml', 'status: Applied\n')
+describe('save online copy', () => {
+  const withOrigin = (url: string) => {
+    checkout()
+    git('remote', 'add', 'origin', url)
+    write('pipeline/acme/record.yaml', 'status: Applied\n')
+  }
+
+  it('pushes to a private online copy', async () => {
+    execFileSync('git', ['init', '-q', '--bare', join(dir, 'online.git')])
+    withOrigin(join(dir, 'online.git'))
+    const result = await save(work(), { message: 'x', probe: neverPublic })
+    expect(result).toEqual({ kind: 'saved', online: 'pushed' })
+    expect(
+      execFileSync('git', ['-C', join(dir, 'online.git'), 'log', '-1', '--format=%s', 'main'], {
+        encoding: 'utf8',
+      }).trim(),
+    ).toBe('x')
+  })
+
+  it('never pushes to a copy GitHub reports as public', async () => {
+    withOrigin('git@github.com:someone/my-copy.git')
+    const asked: string[] = []
+    const probe = async (repo: string) => {
+      asked.push(repo)
+      return true
     }
-
-    it('pushes to a private online copy', async () => {
-      execFileSync('git', ['init', '-q', '--bare', join(dir, 'online.git')])
-      withOrigin(join(dir, 'online.git'))
-      const result = await save(work(), { message: 'x', probe: neverPublic })
-      expect(result).toEqual({ kind: 'saved', online: 'pushed' })
-      expect(
-        execFileSync('git', ['-C', join(dir, 'online.git'), 'log', '-1', '--format=%s', 'main'], {
-          encoding: 'utf8',
-        }).trim(),
-      ).toBe('x')
+    expect(await save(work(), { message: 'x', probe })).toEqual({
+      kind: 'saved',
+      online: 'public',
     })
+    expect(asked).toEqual(['someone/my-copy'])
+  })
 
-    it('never pushes to a copy GitHub reports as public', async () => {
-      withOrigin('git@github.com:someone/my-copy.git')
-      const asked: string[] = []
-      const probe = async (repo: string) => {
-        asked.push(repo)
-        return true
-      }
-      expect(await save(work(), { message: 'x', probe })).toEqual({
-        kind: 'saved',
-        online: 'public',
-      })
-      expect(asked).toEqual(['someone/my-copy'])
+  it('never pushes to the engine, without asking GitHub', async () => {
+    withOrigin('https://github.com/leonardoazeredo/job-coach.git')
+    const probe = async () => {
+      throw new Error('not asked')
+    }
+    expect(await save(work(), { message: 'x', probe })).toEqual({
+      kind: 'saved',
+      online: 'public',
     })
+  })
 
-    it('never pushes to the engine, without asking GitHub', async () => {
-      withOrigin('https://github.com/leonardoazeredo/job-coach.git')
-      const probe = async () => {
-        throw new Error('not asked')
-      }
-      expect(await save(work(), { message: 'x', probe })).toEqual({
-        kind: 'saved',
-        online: 'public',
-      })
-    })
+  it('holds the push when GitHub cannot say whether the copy is public', async () => {
+    execFileSync('git', ['init', '-q', '--bare', join(dir, 'online.git')])
+    withOrigin('git@github.com:someone/my-copy.git')
+    git('remote', 'set-url', '--push', 'origin', join(dir, 'online.git'))
+    const result = await save(work(), { message: 'x', probe: async () => undefined })
+    expect(result).toEqual({ kind: 'saved', online: 'unchecked' })
+    expect(
+      execFileSync('git', ['-C', join(dir, 'online.git'), 'rev-list', '--all'], {
+        encoding: 'utf8',
+      }),
+    ).toBe('')
+  })
 
-    it('holds the push when GitHub cannot say whether the copy is public', async () => {
-      execFileSync('git', ['init', '-q', '--bare', join(dir, 'online.git')])
-      withOrigin('git@github.com:someone/my-copy.git')
-      git('remote', 'set-url', '--push', 'origin', join(dir, 'online.git'))
-      const result = await save(work(), { message: 'x', probe: async () => undefined })
-      expect(result).toEqual({ kind: 'saved', online: 'unchecked' })
-      expect(
-        execFileSync('git', ['-C', join(dir, 'online.git'), 'rev-list', '--all'], {
-          encoding: 'utf8',
-        }),
-      ).toBe('')
+  it('never pushes to a GitHub address it cannot read', async () => {
+    withOrigin('https://github.com/someone')
+    const probe = async () => {
+      throw new Error('not asked')
+    }
+    expect(await save(work(), { message: 'x', probe })).toEqual({
+      kind: 'saved',
+      online: 'unchecked',
     })
+  })
 
-    it('never pushes to a GitHub address it cannot read', async () => {
-      withOrigin('https://github.com/someone')
-      const probe = async () => {
-        throw new Error('not asked')
-      }
-      expect(await save(work(), { message: 'x', probe })).toEqual({
-        kind: 'saved',
-        online: 'unchecked',
-      })
-    })
-
-    it('reports a failed push with its output, keeping the local save', async () => {
-      withOrigin(join(dir, 'missing.git'))
-      const result = await save(work(), { message: 'x', probe: neverPublic })
-      expect(result).toMatchObject({ kind: 'saved', online: 'failed' })
-      expect(commits()).toBe(2)
-    })
+  it('reports a failed push with its output, keeping the local save', async () => {
+    withOrigin(join(dir, 'missing.git'))
+    const result = await save(work(), { message: 'x', probe: neverPublic })
+    expect(result).toMatchObject({ kind: 'saved', online: 'failed' })
+    expect(commits()).toBe(2)
   })
 })
 
 describe('save command first line', () => {
+  // Silences the command's output so only its first line is inspected.
+  const noop = () => {
+    // intentionally empty
+  }
   const firstLine = async (deps: Parameters<typeof saveCommand>[2]) => {
-    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
-    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const log = vi.spyOn(console, 'log').mockImplementation(noop)
+    const err = vi.spyOn(console, 'error').mockImplementation(noop)
     try {
       await saveCommand(['x'], work(), deps)
       return String(log.mock.calls[0]?.[0])

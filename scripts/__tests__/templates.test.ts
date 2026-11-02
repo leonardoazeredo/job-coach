@@ -97,8 +97,8 @@ describe('templates', () => {
     'profile/identity.example.yaml',
     'profile/search.example.yaml',
     'profile/stack.example.yaml',
-  ])('%s has every key the example persona has', (name) => {
-    const persona = parse(text(join(PERSONA, targets[name as keyof typeof targets])))
+  ] as const)('%s has every key the example persona has', (name) => {
+    const persona = parse(text(join(PERSONA, targets[name])))
     const template = parse(text(join(TEMPLATES, name)))
     const shape = (v: Record<string, unknown>) =>
       Object.entries(v).flatMap(([k, inner]) =>

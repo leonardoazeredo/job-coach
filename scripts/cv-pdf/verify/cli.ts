@@ -82,6 +82,7 @@ if (dataArg) {
     fail(EXIT_DATA_FORMAT, `--data ${dataArg} should hold a JSON object`)
   }
   try {
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: parsed passed the object guard above, and expectations tolerates missing fields
     exp = expectations(parsed as Partial<CvData>)
   } catch (e) {
     fail(

@@ -77,6 +77,7 @@ describe('expectations', () => {
   })
 
   it('treats absent company/start fields as empty strings', () => {
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: deliberately partial fixture missing company/start
     const e = expectations({ work: [{ id: '', role: '', end: '', bullets: [] } as never] })
     assert.deepEqual(e.pairs, [['', '']])
   })
@@ -108,7 +109,9 @@ describe('constants', () => {
 
   it('maps U+FB00-FB06 to their ASCII expansions', () => {
     assert.equal(Object.keys(LIGATURES).length, 7)
+    // biome-ignore lint/complexity/useLiteralKeys: a ligature reads better as a string key
     assert.equal(LIGATURES['ﬃ'], 'ffi')
+    // biome-ignore lint/complexity/useLiteralKeys: a ligature reads better as a string key
     assert.equal(LIGATURES['ﬆ'], 'st')
   })
 

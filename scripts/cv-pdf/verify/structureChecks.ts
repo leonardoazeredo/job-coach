@@ -111,6 +111,20 @@ export function checkJobDates(popplerText: string, pairs: Array<[string, string]
   return { failures, lines }
 }
 
+function sizeProblems(smallest: number, body: number, largest: number): string[] {
+  const problems: string[] = []
+  if (smallest < BODY_PT_MIN - SIZE_TOLERANCE_PT) {
+    problems.push(`smallest ${smallest}pt is under ${BODY_PT_MIN}pt`)
+  }
+  if (!(BODY_PT_MIN - SIZE_TOLERANCE_PT <= body && body <= BODY_PT_MAX + SIZE_TOLERANCE_PT)) {
+    problems.push(`body ${body}pt is outside ${BODY_PT_MIN}-${BODY_PT_MAX}pt`)
+  }
+  if (largest > TEXT_PT_MAX + SIZE_TOLERANCE_PT) {
+    problems.push(`largest ${largest}pt is over ${TEXT_PT_MAX}pt`)
+  }
+  return problems
+}
+
 /**
  * `sizes` maps pt (rounded to 0.1) to glyph count; null means the glyph walk
  * itself failed. A partial count says nothing reliable, so this reports the
@@ -134,16 +148,7 @@ export function checkTextSizes(sizes: Map<number, number> | null, readError?: st
   for (const k of keys) if ((sizes.get(k) ?? 0) > (sizes.get(body) ?? 0)) body = k
 
   const lines = [`smallest ${smallest}pt, body ${body}pt, largest ${largest}pt`]
-  const problems: string[] = []
-  if (smallest < BODY_PT_MIN - SIZE_TOLERANCE_PT) {
-    problems.push(`smallest ${smallest}pt is under ${BODY_PT_MIN}pt`)
-  }
-  if (!(BODY_PT_MIN - SIZE_TOLERANCE_PT <= body && body <= BODY_PT_MAX + SIZE_TOLERANCE_PT)) {
-    problems.push(`body ${body}pt is outside ${BODY_PT_MIN}-${BODY_PT_MAX}pt`)
-  }
-  if (largest > TEXT_PT_MAX + SIZE_TOLERANCE_PT) {
-    problems.push(`largest ${largest}pt is over ${TEXT_PT_MAX}pt`)
-  }
+  const problems = sizeProblems(smallest, body, largest)
   if (problems.length === 0) {
     lines.push('ok   within the band')
     return { failures: 0, lines }

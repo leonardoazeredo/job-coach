@@ -65,24 +65,22 @@ function fontSize(item: TextItem): number {
   return Math.hypot(item.transform[2], item.transform[3])
 }
 
+// What goes between the text so far and the next item: a newline on a baseline
+// shift, a space on a gap, or nothing when the item continues the word.
+function separatorBefore(out: string, prev: TextItem, item: TextItem): string {
+  const em = fontSize(item) || fontSize(prev)
+  const rise = Math.abs(item.transform[5] - prev.transform[5])
+  const gap = item.transform[4] - (prev.transform[4] + prev.width)
+  if (rise > LINE_SHIFT_EM * em) return out.endsWith('\n') ? '' : '\n'
+  const wordBreak = gap > WORD_GAP_EM * em || gap < -BACKTRACK_EM * em
+  return wordBreak && !/\s$/.test(out) && !/^\s/.test(item.str) ? ' ' : ''
+}
+
 export function joinPdfjsItems(items: TextItem[]): string {
   let out = ''
   let prev: TextItem | null = null
   for (const item of items) {
-    if (prev && item.str) {
-      const em = fontSize(item) || fontSize(prev)
-      const rise = Math.abs(item.transform[5] - prev.transform[5])
-      const gap = item.transform[4] - (prev.transform[4] + prev.width)
-      if (rise > LINE_SHIFT_EM * em) {
-        if (!out.endsWith('\n')) out += '\n'
-      } else if (
-        (gap > WORD_GAP_EM * em || gap < -BACKTRACK_EM * em) &&
-        !/\s$/.test(out) &&
-        !/^\s/.test(item.str)
-      ) {
-        out += ' '
-      }
-    }
+    if (prev && item.str) out += separatorBefore(out, prev, item)
     out += item.str
     if (item.hasEOL) {
       out += '\n'
@@ -103,7 +101,7 @@ export function pdfjsTextInProcess(pdf: string): Promise<string> {
     let text = ''
     for (let n = 1; n <= doc.numPages; n++) {
       const page = joinPdfjsItems(await pdfjsItems(doc, n))
-      text += (page.endsWith('\n') ? page : `${page}\n`) + '\f'
+      text += `${page}${page.endsWith('\n') ? '' : '\n'}\f`
     }
     return text
   })
@@ -119,9 +117,10 @@ export function pdfjsTextInProcess(pdf: string): Promise<string> {
 // are its join rule.
 const MUPDF_STEXT = 'preserve-ligatures,preserve-whitespace,ignore-actualtext'
 
-// Keeps MuPDF's warnings out of the report; anything fatal still arrives as a
-// thrown error, and so as `<error ...>`.
-mupdf.setLog(() => {})
+mupdf.setLog(() => {
+  // Keeps MuPDF's warnings out of the report; anything fatal still arrives as a
+  // thrown error, and so as `<error ...>`.
+})
 
 export function mupdfText(pdf: string): Promise<string> {
   return runInWorker('mupdfText', pdf)

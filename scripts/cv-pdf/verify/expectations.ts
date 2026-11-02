@@ -1,9 +1,7 @@
 import type { CvData } from '../types.ts'
 import type { Expectations } from './types.ts'
 
-// `adKeywords` are the role ad's words that the CV claims; losing one in extraction is
-// what an ATS keyword match would miss, so they are checked like skills.
-export function expectations(data: Partial<CvData>, adKeywords: string[] = []): Expectations {
+function keywordsFor(data: Partial<CvData>, adKeywords: string[]): string[] {
   const keywords = (data.skills ?? []).filter((s) => s.length > 2)
   // Words that must survive extraction intact; ligature damage shows up here.
   const haystack = JSON.stringify(data).toLowerCase()
@@ -14,6 +12,13 @@ export function expectations(data: Partial<CvData>, adKeywords: string[] = []): 
     const known = keywords.some((x) => x.toLowerCase() === k.toLowerCase())
     if (k.length > 2 && !known) keywords.push(k)
   }
+  return keywords
+}
+
+// `adKeywords` are the role ad's words that the CV claims; losing one in extraction is
+// what an ATS keyword match would miss, so they are checked like skills.
+export function expectations(data: Partial<CvData>, adKeywords: string[] = []): Expectations {
+  const keywords = keywordsFor(data, adKeywords)
 
   const headings = ['SUMMARY', 'SKILLS', 'WORK EXPERIENCE']
   if (data.training?.length) headings.push('TRAINING')

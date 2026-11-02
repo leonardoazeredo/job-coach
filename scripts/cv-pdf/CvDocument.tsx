@@ -1,4 +1,3 @@
-import type { CSSProperties } from 'react'
 import { type FitResult, fitVars } from './fit.ts'
 import type { CvData } from './types.ts'
 
@@ -16,7 +15,7 @@ export function CvDocument({ data, fit }: { data: CvData; fit?: FitResult | null
     <article
       className="cv"
       lang="en"
-      style={fit ? (fitVars(fit.level) as CSSProperties) : undefined}
+      style={fit ? fitVars(fit.level) : undefined}
       data-fit-pages={fit?.pages}
       data-fit-level={fit?.index}
     >
@@ -107,10 +106,10 @@ export function CvDocument({ data, fit }: { data: CvData; fit?: FitResult | null
         </section>
       ) : null}
 
-      {data.education?.length > 0 ? (
+      {data.education.length > 0 ? (
         <section className="cv-section">
           <h2>EDUCATION</h2>
-          {data.education?.map((ed) => {
+          {data.education.map((ed) => {
             const line = [ed.institution, ed.location].filter(Boolean).join(', ')
             const dates = [ed.start, ed.end].filter(Boolean).join(' - ')
             return (

@@ -113,6 +113,7 @@ export const rocketshipBoard = ({
       const answer = await fetch(url, { headers: HEADERS })
         .then(
           async (r): Promise<Answer> =>
+            // biome-ignore lint/nursery/noUnsafeTypeAssertion: third-party payload; validating every card would let one odd card fail the whole pull
             r.ok ? { page: (await r.json()) as Page } : { status: r.status },
         )
         .catch(() => undefined)

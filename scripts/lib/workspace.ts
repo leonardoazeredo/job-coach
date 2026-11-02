@@ -151,6 +151,66 @@ const memo = <T>(load: () => T): (() => T) => {
   }
 }
 
+// A write needs the build, and there is no build without the variant, so a write asks
+// for the variant as a Problem, unlike the read paths. So does missing requirements:
+// keywords.txt would be empty, and the export's keyword check would pass with nothing
+// to check.
+const writeCvFiles = (
+  slug: string,
+  files: RoleCv['files'],
+  gate: Problem[],
+  cv: CheckedCv,
+): Problem[] => {
+  const problems = [...gate, ...cv.problems({ requirements: true, bullets: true })]
+  if (!cv.build || hasErrors(problems)) return problems
+  const cvJson = writeProblem(
+    slug,
+    files.cvJson,
+    `${JSON.stringify(cv.build.cv, null, 2)}\n`,
+    'cv/cv.json',
+  )
+  const keywords = writeProblem(
+    slug,
+    files.keywords,
+    cv.keywords.map((k) => `${k}\n`).join(''),
+    'cv/keywords.txt',
+  )
+  // When only cv.json was written, it may sit beside an earlier keywords.txt that no
+  // longer matches it.
+  const stale = cvJson.length > 0 ? '' : '; cv/cv.json was written'
+  problems.push(...cvJson, ...keywords.map((p) => ({ ...p, message: p.message + stale })))
+  return problems
+}
+
+// Without a given day, the day in the timezone and locale in profile/identity.yaml. With no
+// readable timezone or locale there is no safe today: the UTC date can differ from the local
+// date for hours every day, so falling back to it would be silently wrong.
+const todayOf = (
+  read: { identity: Identity | undefined; problems: Problem[] },
+  { given, now = new Date() }: Parameters<Workspace['today']>[0] = {},
+): ReturnType<Workspace['today']> => {
+  if (given !== undefined) return { today: given, problems: [] }
+  const file = 'profile/identity.yaml'
+  const { identity: id, problems } = read
+  if (!id) return { today: undefined, problems }
+  try {
+    Intl.getCanonicalLocales(id.locale)
+  } catch {
+    return {
+      today: undefined,
+      problems: [error(file, `locale "${id.locale}" is not a language tag`)],
+    }
+  }
+  try {
+    return { today: todayIn(id.location.timezone, now, id.locale), problems }
+  } catch {
+    return {
+      today: undefined,
+      problems: [error(file, `location.timezone "${id.location.timezone}" is not a timezone`)],
+    }
+  }
+}
+
 export const openWorkspace = (
   root = repoRoot(),
   probe: VisibilityProbe = repoVisibility,
@@ -226,30 +286,7 @@ export const openWorkspace = (
   const roleCv = (slug: string): RoleCv => {
     const { gate, cv } = openCv(slug)
     const files = paths(slug).files
-    // A write needs the build, and there is no build without the variant, so here a
-    // missing variant is a Problem. So is missing requirements: keywords.txt would be
-    // empty, and the export's keyword check would pass with nothing to check.
-    const write = (): Problem[] => {
-      const problems = [...gate, ...cv.problems({ requirements: true, bullets: true })]
-      if (!cv.build || hasErrors(problems)) return problems
-      const cvJson = writeProblem(
-        slug,
-        files.cvJson,
-        `${JSON.stringify(cv.build.cv, null, 2)}\n`,
-        'cv/cv.json',
-      )
-      const keywords = writeProblem(
-        slug,
-        files.keywords,
-        cv.keywords.map((k) => `${k}\n`).join(''),
-        'cv/keywords.txt',
-      )
-      // When only cv.json was written, it may sit beside an earlier keywords.txt that no
-      // longer matches it.
-      const stale = cvJson.length > 0 ? '' : '; cv/cv.json was written'
-      problems.push(...cvJson, ...keywords.map((p) => ({ ...p, message: p.message + stale })))
-      return problems
-    }
+    const write = () => writeCvFiles(slug, files, gate, cv)
     const evidence = () => {
       const found = cv.evidence()
       return { problems: [...gate, ...found.problems], evidence: found.evidence }
@@ -285,31 +322,7 @@ export const openWorkspace = (
     return { discovery: d, problems: d.problems }
   })
 
-  // Without a given day, the day in the timezone and locale in profile/identity.yaml. With no
-  // readable timezone or locale there is no today: the UTC day would be silently wrong for an hour
-  // every summer night.
-  const today: Workspace['today'] = ({ given, now = new Date() } = {}) => {
-    if (given !== undefined) return { today: given, problems: [] }
-    const file = 'profile/identity.yaml'
-    const { identity: id, problems } = identity()
-    if (!id) return { today: undefined, problems }
-    try {
-      Intl.getCanonicalLocales(id.locale)
-    } catch {
-      return {
-        today: undefined,
-        problems: [error(file, `locale "${id.locale}" is not a language tag`)],
-      }
-    }
-    try {
-      return { today: todayIn(id.location.timezone, now, id.locale), problems }
-    } catch {
-      return {
-        today: undefined,
-        problems: [error(file, `location.timezone "${id.location.timezone}" is not a timezone`)],
-      }
-    }
-  }
+  const today: Workspace['today'] = (when) => todayOf(identity(), when)
 
   const onboarding = () =>
     onboardingStatus(root, identity().identity?.competency_pack ?? DEFAULT_PACK)

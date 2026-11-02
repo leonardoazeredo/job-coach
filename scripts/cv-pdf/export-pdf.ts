@@ -10,10 +10,11 @@
 //
 // Usage: node scripts/cv-pdf/export-pdf.ts --data <cv.json> [--keywords <file>] [out.pdf]
 import { execFile, spawn } from 'node:child_process'
-import { copyFileSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { type CvData, CvDataSchema } from '../lib/cv-schema.ts'
 import { findChrome } from './chrome.ts'
 import { outputName } from './outputName.ts'
 import { expectations } from './verify/expectations.ts'
@@ -138,7 +139,7 @@ const printToPdf = async (chrome: string, url: string, out: string): Promise<num
 
 // Vite is loaded here so that importing this module (for its types or the CLI parsing)
 // does not pay for it.
-const buildAndServe = async (outDir: string, cvJson: string) => {
+const buildAndServe = async (outDir: string, cv: CvData) => {
   const [{ build, preview }, { default: react }] = await Promise.all([
     import('vite'),
     import('@vitejs/plugin-react'),
@@ -152,7 +153,8 @@ const buildAndServe = async (outDir: string, cvJson: string) => {
     build: { outDir, emptyOutDir: true },
   } as const
   await build({ ...shared, plugins: [react()] })
-  copyFileSync(cvJson, join(outDir, 'cv.json'))
+  // The validated copy, not the raw file: the page trusts this shape without checking it.
+  writeFileSync(join(outDir, 'cv.json'), JSON.stringify(cv))
   const server = await preview({
     ...shared,
     // localhost, not 127.0.0.1: vite preview can bind [::1] only
@@ -172,17 +174,21 @@ const buildAndServe = async (outDir: string, cvJson: string) => {
   return { url, close: () => server.close() }
 }
 
-const readCv = (path: string): Record<string, unknown> => {
+export const readCv = (path: string): CvData => {
   let parsed: unknown
   try {
     parsed = JSON.parse(readFileSync(path, 'utf8'))
   } catch (e) {
     throw new ExportError(`could not read ${path}: ${e instanceof Error ? e.message : String(e)}`)
   }
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new ExportError(`${path} should hold a JSON object`)
+  const result = CvDataSchema.safeParse(parsed)
+  if (!result.success) {
+    const issues = result.error.issues
+      .map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`)
+      .join('; ')
+    throw new ExportError(`${path} is not a valid CV: ${issues}`)
   }
-  return parsed as Record<string, unknown>
+  return result.data
 }
 
 const readKeywords = (path: string | undefined): string[] =>
@@ -208,7 +214,7 @@ export const exportPdf = async (opts: ExportOptions): Promise<void> => {
   const work = mkdtempSync(join(tmpdir(), 'cv-pdf-build-'))
   try {
     log('  [1/4] building')
-    const site = await buildAndServe(work, opts.cvJson)
+    const site = await buildAndServe(work, cv)
     try {
       log(`  [2/4] serving the build on ${site.url}`)
       if (!(await waitForServer(site.url))) {
@@ -286,11 +292,13 @@ const main = async (argv: string[]): Promise<void> => {
     console.error(usage)
     process.exit(64)
   }
+  // Before reading the CV, so a missing verifier is reported even for a CV that would fail
+  // validation, and before the build: it should cost seconds.
+  await ensurePoppler()
   const cv = readCv(cvJson)
-  const pdf = args[0] ?? outputName({ name: typeof cv.name === 'string' ? cv.name : '' })
+  const pdf = args[0] ?? outputName({ name: cv.name })
 
   // Before the build, like poppler: a missing browser should cost seconds.
-  await ensurePoppler()
   const found = findChrome()
   if ('error' in found) throw new ExportError(found.error)
   await exportPdf({

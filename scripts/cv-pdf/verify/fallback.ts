@@ -1,16 +1,12 @@
 import type { Expectations } from './types.ts'
 
-const CONTACT = [
-  'sam@example.com',
-  '+1 555 010 0199',
-  'Springfield',
-  'linkedin.com/in/',
-  'github.com/',
-]
+const EMAIL = 'sam@example.com'
+
+const CONTACT = [EMAIL, '+1 555 010 0199', 'Springfield', 'linkedin.com/in/', 'github.com/']
 
 // Used only when no --data file is supplied.
 export const FALLBACK_EXPECTATIONS: Expectations = {
-  email: CONTACT[0] ?? null,
+  email: EMAIL,
   keywords: [
     'JavaScript',
     'TypeScript',

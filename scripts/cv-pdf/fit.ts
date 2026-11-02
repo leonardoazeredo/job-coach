@@ -45,14 +45,17 @@ export const MIN_LAST_FILL = 0.5
 
 const STEPS = 16
 
-export const FIT_LEVELS: readonly FitLevel[] = Array.from({ length: STEPS + 1 }, (_, i) => {
-  const t = i / STEPS
-  return {
-    fontPt: MIN_PT + (MAX_PT - MIN_PT) * t,
-    leading: 1.1 + 0.25 * t,
-    gap: 0.8 + 0.6 * t,
-  }
+const levelAt = (t: number): FitLevel => ({
+  fontPt: MIN_PT + (MAX_PT - MIN_PT) * t,
+  leading: 1.1 + 0.25 * t,
+  gap: 0.8 + 0.6 * t,
 })
+
+export const FIT_LEVELS: readonly FitLevel[] = Array.from({ length: STEPS + 1 }, (_, i) =>
+  levelAt(i / STEPS),
+)
+
+const TIGHTEST = levelAt(0)
 
 /** floor of both page-target modes, not only one-page */
 export const ONE_PAGE_MIN_PT = 9
@@ -62,15 +65,65 @@ const COMPACT_STEPS = 8
 /** Under the band, smallest first: squeezeTo takes the last level within its
  *  page target as the largest. COMPACT_STEPS keeps the step equal to FIT_LEVELS',
  *  which the negative index of a squeezed result relies on. Line height and
- *  gap stay at FIT_LEVELS[0]'s, the tightest the band uses. */
+ *  gap stay at the band's tightest. */
 export const COMPACT_LEVELS: readonly FitLevel[] = Array.from(
   { length: COMPACT_STEPS },
   (_, i) => ({
     fontPt: ONE_PAGE_MIN_PT + ((MIN_PT - ONE_PAGE_MIN_PT) * i) / COMPACT_STEPS,
-    leading: FIT_LEVELS[0]!.leading,
-    gap: FIT_LEVELS[0]!.gap,
+    leading: TIGHTEST.leading,
+    gap: TIGHTEST.gap,
   }),
 )
+
+interface Row extends PageMeasure {
+  index: number
+  level: FitLevel
+}
+
+const measureAll = (
+  levels: readonly FitLevel[],
+  measure: (level: FitLevel, index: number) => PageMeasure,
+): Row[] => levels.map((level, index) => ({ index, level, ...measure(level, index) }))
+
+const toResult = (row: Row, status: FitStatus): FitResult => ({
+  index: row.index,
+  level: row.level,
+  pages: row.pages,
+  lastFill: row.lastFill,
+  status,
+})
+
+function onePageChoice(rows: readonly Row[]): FitResult | undefined {
+  const best = rows.filter((r) => r.pages === 1).at(-1)
+  return best && toResult(best, best.lastFill < MIN_LAST_FILL ? 'sparse' : 'one-page')
+}
+
+/** The fewest pages whose last page is full enough; among its levels, the one
+ *  closest to nominalIndex. */
+function balancedChoice(rows: readonly Row[], nominalIndex: number): FitResult | undefined {
+  const pageCounts = rows.map((r) => r.pages)
+  const maxPages = Math.max(...pageCounts)
+  for (let n = Math.min(...pageCounts); n <= maxPages; n++) {
+    const pool = rows.filter((r) => r.pages === n && r.lastFill >= MIN_LAST_FILL)
+    if (pool.length === 0) continue
+    const best = pool.reduce((cur, r) => {
+      const d = Math.abs(r.index - nominalIndex)
+      const cd = Math.abs(cur.index - nominalIndex)
+      // equidistant levels: take the larger text, which reads better
+      return d < cd || (d === cd && r.index > cur.index) ? r : cur
+    })
+    return toResult(best, 'balanced')
+  }
+  return undefined
+}
+
+function stubChoice(rows: readonly Row[]): FitResult {
+  const minPages = Math.min(...rows.map((r) => r.pages))
+  const best = rows
+    .filter((r) => r.pages === minPages)
+    .reduce((cur, r) => (r.lastFill >= cur.lastFill ? r : cur))
+  return toResult(best, 'stub')
+}
 
 export function chooseFit(
   levels: readonly FitLevel[],
@@ -79,43 +132,9 @@ export function chooseFit(
 ): FitResult {
   // every level is measured: last-page fill is not monotonic in font size
   // (whole jobs jump pages), so a bisection could settle on a worse level
-  const rows = levels.map((level, index) => ({ index, ...measure(level, index) }))
-  const done = (index: number, status: FitStatus): FitResult => ({
-    index,
-    level: levels[index]!,
-    pages: rows[index]!.pages,
-    lastFill: rows[index]!.lastFill,
-    status,
-  })
+  const rows = measureAll(levels, measure)
   if (rows.length === 0) throw new Error('chooseFit needs at least one level')
-
-  const minPages = Math.min(...rows.map((r) => r.pages))
-  const maxPages = Math.max(...rows.map((r) => r.pages))
-
-  if (minPages === 1) {
-    const best = rows.filter((r) => r.pages === 1).at(-1)!
-    return done(best.index, best.lastFill < MIN_LAST_FILL ? 'sparse' : 'one-page')
-  }
-
-  for (let n = minPages; n <= maxPages; n++) {
-    const pool = rows.filter((r) => r.pages === n && r.lastFill >= MIN_LAST_FILL)
-    if (pool.length === 0) continue
-    let best = pool[0]!
-    for (const r of pool) {
-      const d = Math.abs(r.index - nominalIndex)
-      const bd = Math.abs(best.index - nominalIndex)
-      // equidistant levels: take the larger text, which reads better
-      if (d < bd || (d === bd && r.index > best.index)) best = r
-    }
-    return done(best.index, 'balanced')
-  }
-
-  let best = rows.filter((r) => r.pages === minPages)[0]!
-  for (const r of rows) {
-    if (r.pages !== minPages) continue
-    if (r.lastFill >= best.lastFill) best = r
-  }
-  return done(best.index, 'stub')
+  return onePageChoice(rows) ?? balancedChoice(rows, nominalIndex) ?? stubChoice(rows)
 }
 
 /** The pass under the band that the page-target modes share: the largest
@@ -131,18 +150,15 @@ function squeezeTo(
   // count is not assumed to be monotonic in font size and a bisection, or
   // stopping at the first level that overflows, could miss the largest
   // level that fits
-  const rows = compact.map((level, index) => ({ index, ...measure(level, index) }))
+  const rows = measureAll(compact, measure)
   const best = rows.filter((r) => r.pages <= target).at(-1)
   if (!best) return { ...auto, missedPages: target }
   return {
+    ...toResult(best, 'squeezed'),
     // negative so it can never collide with a FIT_LEVELS index; offset by the
     // length so that COMPACT_LEVELS continues the FIT_LEVELS scale downwards
     // (-1 is one step under MIN_PT)
     index: best.index - compact.length,
-    level: compact[best.index]!,
-    pages: best.pages,
-    lastFill: best.lastFill,
-    status: 'squeezed',
   }
 }
 
@@ -166,16 +182,11 @@ export function chooseTwoPageFit(
   // the band is searched even when auto is more than two pages: chooseFit adds
   // a page rather than leave the last one under MIN_LAST_FILL, so two-page
   // levels can exist that it passed over
-  const rows = band.map((level, index) => ({ index, ...measure(level, index) }))
-  const best = rows.filter((r) => r.pages <= 2).at(-1)
+  const best = measureAll(band, measure)
+    .filter((r) => r.pages <= 2)
+    .at(-1)
   if (!best) return squeezeTo(2, auto, compact, measure)
-  return {
-    index: best.index,
-    level: band[best.index]!,
-    pages: best.pages,
-    lastFill: best.lastFill,
-    status: best.lastFill < MIN_LAST_FILL ? 'stub' : 'balanced',
-  }
+  return toResult(best, best.lastFill < MIN_LAST_FILL ? 'stub' : 'balanced')
 }
 
 export function pageMeasure(
@@ -207,7 +218,7 @@ export function pageMeasure(
 // rounding keeps float noise (1.2250000000000001) out of the stylesheet
 const num = (n: number) => String(Math.round(n * 1000) / 1000)
 
-export function fitVars(level: FitLevel) {
+export function fitVars(level: FitLevel): Record<string, string> {
   return {
     '--cv-font': `${num(level.fontPt / 0.75)}px`,
     '--cv-leading': num(level.leading),

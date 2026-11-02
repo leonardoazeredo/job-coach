@@ -41,6 +41,7 @@ export function runInWorker<T>(
     )
     worker.once('message', (reply: Reply) =>
       finish(() => {
+        // biome-ignore lint/nursery/noUnsafeTypeAssertion: worker.ts returns the value of the task the caller named, whose type T the caller chose
         if (reply.ok) return resolve(reply.value as T)
         const err = new Error(reply.message)
         err.name = reply.name

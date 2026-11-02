@@ -60,6 +60,7 @@ const unknownStatuses = (rules: Rules): string[] => {
 }
 
 export const statusRules = (rules: Rules): StatusRules => {
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: Object.entries widens keys to string; they are BoardGroup by schema
   const groups = Object.entries(rules.board_groups) as [BoardGroup, string[]][]
   const { staleness } = rules
   return {
