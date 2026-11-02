@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { EXIT } from '../lib/problem.ts'
 import { repoRoot } from '../lib/workspace.ts'
 
+// Runs the entry files as separate processes; the unit tests import modules and would miss a broken entry file.
 const exitCode = (script: string, args: string[]): Promise<number | null> =>
   new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [join(repoRoot(), 'scripts', script), ...args], {

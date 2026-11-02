@@ -18,7 +18,7 @@ node scripts/discovery/shortlist.ts listings.json... [--today=YYYY-MM-DD]
                                      # shortlist saved pulls, writes shortlist.json beside the first
 ```
 
-Tests run against the fictional persona in `examples/austin-backend`, never against a real user's data.
+Tests run against the fictional persona in `examples/austin-backend`, never against a real user's data. A test reads engine files outside its own fixture only to guard drift (a shipped copy must match the engine's) or to exercise an engine entry point or stylesheet, and says which in a comment where it reads them.
 
 ## For maintainers: agent skills
 

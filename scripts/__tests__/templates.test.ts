@@ -119,6 +119,8 @@ describe('templates, filled in', () => {
   let repo: TempRepo
   beforeEach(() => {
     repo = tempRepo()
+    // The template profile names the frontend pack and the record check loads it from the engine,
+    // so the test repo needs the engine's copy.
     for (const [name, target] of Object.entries(targets))
       repo.write(target, filled(text(join(TEMPLATES, name))))
     repo.write(

@@ -2,7 +2,7 @@
 
 Observed 2026-10-27 in a logged-out browser session and with plain `curl`. Nothing here needs an account, except the paging limit described below.
 
-The counts below were measured on the UK site with UK and London filters. They show how each filter behaves, not what to search for: the adapter takes its titles from `discovery.search_titles` and `discovery.title_expansion`, and its locations, seniority, stack, employment type and hybrid switch from `discovery.search`, all in `profile/search.yaml`.
+The counts below were measured on the UK site with UK and city filters. They show how each filter behaves, not what to search for: the adapter takes its titles from `discovery.search_titles` and `discovery.title_expansion`, and its locations, seniority, stack, employment type and hybrid switch from `discovery.search`, all in `profile/search.yaml`.
 
 ## Two ways in
 
@@ -37,8 +37,8 @@ POST body, with the fields the site sends. Every field below can be omitted; a b
 | Keywords | `keywordFilters: string[]` | `keywords` | Free text, for example `react` (209), `frontend` (145). | OR (`["react","typescript"]` returned 314, more than either). |
 | Excluded keywords | `excludedKeywordFilters: string[]` | `excludedKeywords` | Free text. `senior` removed about 70% of UK remote. | n/a |
 | Country or region | `locationFilters: string[]` | `locations` | Country names (`United Kingdom`, `Germany`, `Ireland`, `United States`) and `Europe`. `Worldwide` selects the worldwide-remote set (1,474). | OR. `["United Kingdom","Germany"]` returned 18,775. |
-| City | `locationCityFilters: string[]` | `locationCity` | `London`. See the oddity below. | OR with the country filter, not an AND. |
-| Work mode | `showRemoteJobs`, `showHybridJobs`, `showOnsiteJobs` (booleans) | `showHybridJobs=true`, `showOnsiteJobs=true` (remote is on by default) | Each switch adds that mode. Remote off with hybrid on gave hybrid only (UK: 14,540; London: 7,516). Onsite is reported as `locationType: "office"`. | Additive. |
+| City | `locationCityFilters: string[]` | `locationCity` | A city name from the site's list. See the oddity below. | OR with the country filter, not an AND. |
+| Work mode | `showRemoteJobs`, `showHybridJobs`, `showOnsiteJobs` (booleans) | `showHybridJobs=true`, `showOnsiteJobs=true` (remote is on by default) | Each switch adds that mode. Remote off with hybrid on gave hybrid only (UK: 14,540; a large city: 7,516). Onsite is reported as `locationType: "office"`. | Additive. |
 | Seniority | `seniorityFilters: string[]` | `seniority` | `entry-level`, `junior`, `mid-level`, `senior`, `expert` (the UI's "Leadership positions"). `lead` and other unknown values are ignored and return everything. | OR. `senior,expert` returned 9,174 against 8,122 for `senior`. |
 | Tech stack | `techStackFilters: string[]` | `techStack` | Canonical, case-sensitive names: `React`, `TypeScript`, `JavaScript`, `.NET`, `AWS`, and so on. `react` or an unknown name is silently ignored and returns everything. | OR. `["React","TypeScript"]` returned 498 against 302 for React alone. It is a wide net, not a requirement. |
 | Employment type | `employmentTypeFilters: string[]` | `employmentType` | `full-time`, `part-time`, `contract` (UI: Contract/Temporary), `internship`. Only `full-time` and `contract` were confirmed from the UI or responses. | OR assumed, not tested. |
@@ -61,7 +61,7 @@ Also in the body: `language` (`gb` for this site), and several lists of saved, a
 
 ### City filter oddity
 
-`locationCityFilters: ["Manchester"]` with the default UK filter returned 113,571, far more than the whole UK set. Treat the city filter as unreliable for remote searches. With hybrid on and remote off, `["London"]` behaved sensibly (7,516 London hybrid roles).
+`locationCityFilters: ["Manchester"]` with the default UK filter returned 113,571, far more than the whole UK set. Treat the city filter as unreliable for remote searches. With hybrid on and remote off, a single-city filter behaved sensibly (7,516 hybrid roles in a large city).
 
 ## Salary and seniority in results
 
