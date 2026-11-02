@@ -71,6 +71,8 @@ export function findPoppler(pathEnv: string = process.env.PATH ?? ''): FindResul
     if (hit) found[tool] = hit
     else missing.push(tool)
   }
+  // missing is empty only when every tool in TOOLS was assigned above
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: found holds every tool whenever missing is empty
   return missing.length > 0 ? { missing } : (found as PopplerPaths)
 }
 
@@ -145,6 +147,7 @@ async function poppler(tool: string, args: string[]): Promise<string> {
   } catch (e) {
     // execFile's message is "Command failed: <argv>" followed by all of stderr;
     // poppler's reason is its last stderr line, so take that from err.stderr.
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: a caught execFile rejection; every field is read defensively
     const err = e as { code?: unknown; killed?: boolean; stderr?: string }
     // ENOENT means the binary left PATH after ensurePoppler found it. Throwing
     // PopplerMissingError rather than a poppler failure lets the callers rethrow

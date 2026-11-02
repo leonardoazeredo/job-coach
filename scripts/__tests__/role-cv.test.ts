@@ -92,6 +92,7 @@ describe('line provenance and claims', () => {
   it('no longer accepts a confirmation that names a person', () => {
     const v = withBullet('brightwell', 'Led the dock-booking API.', ['win:bw-dock-scheduling'])
     const bullet = v.jobs.find((j) => j.id === 'brightwell')?.bullets[0]
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: deliberately writes a field the type forbids
     if (bullet) (bullet as { strength_ok_by?: string }).strength_ok_by = 'someone-else'
     expect(errorsFor(v)).toEqual([expect.stringContaining('strength_ok_by')])
   })

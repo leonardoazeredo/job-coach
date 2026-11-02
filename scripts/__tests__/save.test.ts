@@ -209,9 +209,13 @@ describe('save', () => {
 })
 
 describe('save command first line', () => {
+  // Silences the command's output so only its first line is inspected.
+  const noop = () => {
+    // intentionally empty
+  }
   const firstLine = async (deps: Parameters<typeof saveCommand>[2]) => {
-    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
-    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const log = vi.spyOn(console, 'log').mockImplementation(noop)
+    const err = vi.spyOn(console, 'error').mockImplementation(noop)
     try {
       await saveCommand(['x'], work(), deps)
       return String(log.mock.calls[0]?.[0])

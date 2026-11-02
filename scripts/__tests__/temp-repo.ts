@@ -98,7 +98,9 @@ const capture = async (body: () => number | Promise<number>): Promise<Run> => {
   }
   console.log = line(out)
   console.error = line(err)
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: test stub of process.stdout.write that ignores encoding and callback
   process.stdout.write = chunk(out) as typeof process.stdout.write
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: test stub of process.stderr.write that ignores encoding and callback
   process.stderr.write = chunk(err) as typeof process.stderr.write
   try {
     const code = await body()

@@ -172,6 +172,9 @@ const buildAndServe = async (outDir: string, cvJson: string) => {
   return { url, close: () => server.close() }
 }
 
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v)
+
 const readCv = (path: string): Record<string, unknown> => {
   let parsed: unknown
   try {
@@ -179,10 +182,10 @@ const readCv = (path: string): Record<string, unknown> => {
   } catch (e) {
     throw new ExportError(`could not read ${path}: ${e instanceof Error ? e.message : String(e)}`)
   }
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+  if (!isRecord(parsed)) {
     throw new ExportError(`${path} should hold a JSON object`)
   }
-  return parsed as Record<string, unknown>
+  return parsed
 }
 
 const readKeywords = (path: string | undefined): string[] =>

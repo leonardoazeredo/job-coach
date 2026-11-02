@@ -18,6 +18,7 @@ const OWN_DATA = new Set(['stranded-heading', 'stub-last-page'])
 
 function expectationsFor(name: string): Expectations {
   const file = OWN_DATA.has(name) ? `${name}.json` : 'cv.json'
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: JSON test fixture whose shape is Partial<CvData>
   return expectations(JSON.parse(readFileSync(join(BAD, file), 'utf8')) as Partial<CvData>)
 }
 vi.setConfig({ testTimeout: 60_000 })
@@ -33,30 +34,37 @@ interface Report {
 
 const reports = new Map<string, Promise<Report>>()
 
+/** Groups the verifier's output lines under their numbered check. */
+function sectionsOf(lines: string[]): Map<number, string[]> {
+  const sections = new Map<number, string[]>()
+  let current: string[] | null = null
+  for (const line of lines) {
+    const head = /^ {2}\[(\d+)\] /.exec(line)
+    if (head) {
+      current = []
+      sections.set(Number(head[1]), current)
+    } else if (line.startsWith('  RESULT:')) {
+      current = null
+    } else if (current && line.trim()) {
+      current.push(line.trim())
+    }
+  }
+  return sections
+}
+
+async function collect(name: string): Promise<Report> {
+  const lines: string[] = []
+  const failures = await verifyPdf(join(BAD, `${name}.pdf`), expectationsFor(name), (l) =>
+    lines.push(...l.split('\n')),
+  )
+  return { failures, sections: sectionsOf(lines) }
+}
+
 // Each PDF is verified once and shared by the tests that read its report.
 function report(name: string): Promise<Report> {
   let r = reports.get(name)
   if (!r) {
-    r = (async () => {
-      const lines: string[] = []
-      const failures = await verifyPdf(join(BAD, `${name}.pdf`), expectationsFor(name), (l) =>
-        lines.push(...l.split('\n')),
-      )
-      const sections = new Map<number, string[]>()
-      let current: string[] | null = null
-      for (const line of lines) {
-        const head = /^ {2}\[(\d+)\] /.exec(line)
-        if (head) {
-          current = []
-          sections.set(Number(head[1]), current)
-        } else if (line.startsWith('  RESULT:')) {
-          current = null
-        } else if (current && line.trim()) {
-          current.push(line.trim())
-        }
-      }
-      return { failures, sections }
-    })()
+    r = collect(name)
     reports.set(name, r)
   }
   return r
@@ -73,6 +81,7 @@ function failingEngines(r: Report, check: number): Engine[] {
   const failing: Engine[] = []
   for (const line of r.sections.get(check) ?? []) {
     const m = ENGINE_LINE.exec(line)
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: ENGINE_LINE's alternation lists exactly the Engine names
     if (m && m[1] === 'FAIL') failing.push(m[2] as Engine)
   }
   return failing.sort()

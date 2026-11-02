@@ -20,7 +20,11 @@ const FOUND = { pdftotext: '/x/pdftotext', pdfinfo: '/x/pdfinfo' }
 function fake(
   over: Partial<PopplerDeps> & { finds: FindResult[]; answer?: boolean; exitCode?: number },
 ) {
-  const calls = { asked: [] as string[], installed: [] as string[][], logs: [] as string[] }
+  const calls: { asked: string[]; installed: string[][]; logs: string[] } = {
+    asked: [],
+    installed: [],
+    logs: [],
+  }
   const finds = [...over.finds]
   const deps: PopplerDeps = {
     find: () => {

@@ -14,7 +14,8 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative } from 'node:path'
-import { ENGINE, gitIn } from './history.ts'
+import { z } from 'zod'
+import { ENGINE, type Git, gitIn } from './history.ts'
 
 // Ignored by git and Biome: the last check date and the backups of replaced files.
 export const LOCAL_DIR = '.coach'
@@ -37,17 +38,22 @@ const api = async (path: string): Promise<unknown> => {
   return res.ok ? res.json() : undefined
 }
 
+const CommitSchema = z.object({ sha: z.string().optional() })
+const TreeSchema = z.object({
+  tree: z.array(z.object({ path: z.string(), type: z.string(), sha: z.string() })).optional(),
+})
+
 export const gitHubEngine: EngineSource = {
   latestCommit: async () => {
-    const body = (await api('commits/main').catch(() => undefined)) as { sha?: string } | undefined
-    return body?.sha
+    const body = CommitSchema.safeParse(await api('commits/main').catch(() => undefined))
+    return body.data?.sha
   },
   latestFiles: async () => {
-    const body = (await api('git/trees/main?recursive=1').catch(() => undefined)) as
-      | { tree?: { path: string; type: string; sha: string }[] }
-      | undefined
-    if (!body?.tree) return
-    return new Map(body.tree.filter((e) => e.type === 'blob').map((e) => [e.path, e.sha]))
+    const body = TreeSchema.safeParse(
+      await api('git/trees/main?recursive=1').catch(() => undefined),
+    )
+    if (!body.data?.tree) return
+    return new Map(body.data.tree.filter((e) => e.type === 'blob').map((e) => [e.path, e.sha]))
   },
   download: async (dest) => {
     const res = await fetch(`https://codeload.github.com/${ENGINE}/tar.gz/refs/heads/main`, {
@@ -80,11 +86,13 @@ export const isEngineFile = (rel: string): boolean => {
 const blobId = (bytes: Buffer): string =>
   createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex')
 
-type State = { lastUpdateCheck?: string }
+const StateSchema = z.object({ lastUpdateCheck: z.string().optional() })
+type State = z.infer<typeof StateSchema>
 
 const readState = (root: string): State => {
   try {
-    return JSON.parse(readFileSync(join(root, STATE_FILE), 'utf8')) as State
+    const parsed = StateSchema.safeParse(JSON.parse(readFileSync(join(root, STATE_FILE), 'utf8')))
+    return parsed.success ? parsed.data : {}
   } catch {
     return {}
   }
@@ -111,15 +119,20 @@ export const checkForUpdate = async (root: string, opts: CheckOptions): Promise<
   if (!opts.force && last && opts.now.getTime() - Date.parse(last) < WEEK_MS) return 'not-due'
   writeState(root, { ...readState(root), lastUpdateCheck: opts.now.toISOString() })
   const git = gitIn(root, opts.path)
-  if (git) {
-    const sha = await opts.source.latestCommit()
-    if (!sha) return 'unknown'
-    // A commit this folder does not have cannot be confirmed as in HEAD's history: the folder is
-    // behind it, has diverged, or is a shallow clone. All are reported as available.
-    if (git(['cat-file', '-e', `${sha}^{commit}`]).status !== 0) return 'available'
-    return git(['merge-base', '--is-ancestor', sha, 'HEAD']).status === 0 ? 'latest' : 'available'
-  }
-  const files = await opts.source.latestFiles()
+  return git ? checkClone(git, opts.source) : checkCopy(root, opts.source)
+}
+
+const checkClone = async (git: Git, source: EngineSource): Promise<CheckResult> => {
+  const sha = await source.latestCommit()
+  if (!sha) return 'unknown'
+  // A commit this folder does not have cannot be confirmed as in HEAD's history: the folder is
+  // behind it, has diverged, or is a shallow clone. All are reported as available.
+  if (git(['cat-file', '-e', `${sha}^{commit}`]).status !== 0) return 'available'
+  return git(['merge-base', '--is-ancestor', sha, 'HEAD']).status === 0 ? 'latest' : 'available'
+}
+
+const checkCopy = async (root: string, source: EngineSource): Promise<CheckResult> => {
+  const files = await source.latestFiles()
   if (!files) return 'unknown'
   for (const [rel, id] of files) {
     if (!isEngineFile(rel)) continue

@@ -161,7 +161,12 @@ describe('raw characters survive', () => {
 })
 
 // A 12pt run on baseline y; width is the advance pdf.js would report.
-function run(str: string, x: number, width: number, y = 700, hasEOL = false): TextItem {
+function run(
+  str: string,
+  x: number,
+  width: number,
+  { y = 700, hasEOL = false }: { y?: number; hasEOL?: boolean } = {},
+): TextItem {
   return {
     str,
     dir: 'ltr',
@@ -192,9 +197,9 @@ describe('joinPdfjsItems', () => {
   it('breaks the line on hasEOL and on a baseline shift without it', () => {
     assert.equal(
       joinPdfjsItems([
-        run('one', 0, 20, 700, true),
-        run('two', 0, 20, 686),
-        run('three', 0, 30, 672),
+        run('one', 0, 20, { y: 700, hasEOL: true }),
+        run('two', 0, 20, { y: 686 }),
+        run('three', 0, 30, { y: 672 }),
       ]),
       'one\ntwo\nthree',
     )

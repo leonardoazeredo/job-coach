@@ -212,7 +212,14 @@ describe('verifyPdf', () => {
       throw new PopplerMissingError(['pdftotext'], 'brew install poppler')
     }
     await assert.rejects(
-      verifyEach(['a.pdf'], FALLBACK_EXPECTATIONS, () => {}, verify),
+      verifyEach(
+        ['a.pdf'],
+        FALLBACK_EXPECTATIONS,
+        () => {
+          // output is irrelevant: the error must escape before any report
+        },
+        verify,
+      ),
       PopplerMissingError,
     )
   })

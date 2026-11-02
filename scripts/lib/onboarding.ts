@@ -98,10 +98,15 @@ export const boardInputsMissing = (sections: OnboardingSection[]): boolean =>
     s.missing.some((f) => f === 'profile/identity.yaml' || f === 'profile/search.yaml'),
   )
 
+const sectionTag = (s: OnboardingSection): string => {
+  if (s.required) return 'required'
+  return s.optIn ? 'optional' : 'can wait'
+}
+
 export const renderOnboarding = (sections: OnboardingSection[]): string => {
   const lines = ['## Onboarding unfinished']
   for (const s of sections) {
-    const tag = s.required ? 'required' : s.optIn ? 'optional' : 'can wait'
+    const tag = sectionTag(s)
     const left = [
       ...s.missing.map((f) => `${f} missing`),
       ...s.placeholders.map((f) => `${f} still has ${PLACEHOLDER}`),

@@ -78,7 +78,7 @@ const TEN_JOBS = [
   [4, 0.333],
 ]
 
-function fit(rows: number[][], nominalIndex?: number) {
+function fitRows(rows: number[][], nominalIndex?: number) {
   return chooseFit(
     FIT_LEVELS.slice(0, rows.length),
     (_, i) => ({ pages: rows[i][0], lastFill: rows[i][1] }),
@@ -105,27 +105,27 @@ test('levels span the band', () => {
 })
 
 test('one page wins and is filled', () => {
-  const r = fit(TWO_JOBS)
+  const r = fitRows(TWO_JOBS)
   assert.equal(r.index, 6)
   assert.equal(r.pages, 1)
   assert.equal(r.status, 'one-page')
 })
 
 test('content that cannot fit one page is balanced near nominal', () => {
-  const r = fit(SEED)
+  const r = fitRows(SEED)
   assert.equal(r.index, 8)
   assert.equal(r.pages, 2)
   assert.equal(r.status, 'balanced')
 })
 
 test('fewest pages first', () => {
-  const r = fit(TEN_JOBS)
+  const r = fitRows(TEN_JOBS)
   assert.equal(r.index, 3)
   assert.equal(r.pages, 2)
 })
 
 test('adds a page rather than leave a stub', () => {
-  const r = fit(
+  const r = fitRows(
     [
       [2, 0.2],
       [2, 0.3],
@@ -143,7 +143,7 @@ test('adds a page rather than leave a stub', () => {
 
 test('tie goes to the larger text size', () => {
   assert.equal(
-    fit(
+    fitRows(
       [
         [2, 0.6],
         [2, 0.1],
@@ -158,7 +158,7 @@ test('tie goes to the larger text size', () => {
 })
 
 test('stub when nothing reaches half', () => {
-  const r = fit([
+  const r = fitRows([
     [2, 0.1],
     [2, 0.2],
     [2, 0.4],
@@ -168,13 +168,13 @@ test('stub when nothing reaches half', () => {
 })
 
 test('sparse when one page stays empty', () => {
-  const r = fit(Array.from({ length: 17 }, () => [1, 0.3]))
+  const r = fitRows(Array.from({ length: 17 }, () => [1, 0.3]))
   assert.equal(r.index, 16)
   assert.equal(r.status, 'sparse')
 })
 
 test('an empty document does not throw', () => {
-  const r = fit(Array.from({ length: 17 }, () => [1, 0]))
+  const r = fitRows(Array.from({ length: 17 }, () => [1, 0]))
   assert.equal(r.index, 16)
   assert.equal(r.status, 'sparse')
 })
@@ -278,7 +278,7 @@ const COMPACT_SEED = [
   [2, 0.04],
   [2, 0.107],
 ]
-const AUTO_SEED = fit(SEED)
+const AUTO_SEED = fitRows(SEED)
 
 function onePage(auto: FitResult, rows: number[][]) {
   return chooseOnePageFit(auto, COMPACT_LEVELS, (_, i) => ({
@@ -328,7 +328,7 @@ test('one-page mode does not assume fit is monotonic', () => {
 })
 
 test('one-page mode leaves a one-page fit alone', () => {
-  const auto = fit(TWO_JOBS)
+  const auto = fitRows(TWO_JOBS)
   const r = chooseOnePageFit(auto, COMPACT_LEVELS, () => {
     throw new Error('measured a level although the automatic fit is one page')
   })
@@ -416,7 +416,7 @@ function twoPages(auto: FitResult, bandRows: number[][], compactRows: number[][]
 }
 
 test('two-pages mode fills the two pages', () => {
-  const r = twoPages(fit(SEED), SEED).result
+  const r = twoPages(fitRows(SEED), SEED).result
   assert.equal(r.index, 16)
   assert.equal(r.level.fontPt, 12)
   assert.equal(r.pages, 2)
@@ -426,7 +426,7 @@ test('two-pages mode fills the two pages', () => {
 })
 
 test('two-pages mode keeps a level that is already the largest', () => {
-  const r = twoPages(fit(TEN_JOBS), TEN_JOBS).result
+  const r = twoPages(fitRows(TEN_JOBS), TEN_JOBS).result
   assert.equal(r.index, 3)
   assert.equal(r.pages, 2)
   assert.equal(r.lastFill, 0.928)
@@ -434,7 +434,7 @@ test('two-pages mode keeps a level that is already the largest', () => {
 })
 
 test('two-pages mode leaves a one-page fit alone', () => {
-  const auto = fit(TWO_JOBS)
+  const auto = fitRows(TWO_JOBS)
   const r = chooseTwoPageFit(auto, FIT_LEVELS, COMPACT_LEVELS, () => {
     throw new Error('measured a level although the automatic fit is one page')
   })
@@ -442,7 +442,7 @@ test('two-pages mode leaves a one-page fit alone', () => {
 })
 
 test('two-pages mode takes an in-band two-page level over a third page', () => {
-  const auto = fit(STUB_BAND, 1)
+  const auto = fitRows(STUB_BAND, 1)
   assert.equal(auto.pages, 3)
   const { result, seen } = twoPages(auto, STUB_BAND)
   assert.equal(result.index, 2)
@@ -453,7 +453,7 @@ test('two-pages mode takes an in-band two-page level over a third page', () => {
 })
 
 test('two-pages mode goes under the band only when the band needs a third page', () => {
-  const { result, seen } = twoPages(fit(THREE_PAGES), THREE_PAGES, [
+  const { result, seen } = twoPages(fitRows(THREE_PAGES), THREE_PAGES, [
     [2, 0.9],
     [2, 0.95],
     [2, 0.99],
@@ -476,7 +476,7 @@ test('two-pages mode goes under the band only when the band needs a third page',
 })
 
 test('two-pages mode does not assume fit is monotonic', () => {
-  const r = twoPages(fit(THREE_PAGES), THREE_PAGES, [
+  const r = twoPages(fitRows(THREE_PAGES), THREE_PAGES, [
     [2, 0.9],
     [3, 0.02],
     [2, 0.99],
@@ -497,7 +497,7 @@ test('two-pages mode takes the largest two-page band level, not the first run or
     [2, 0.6],
     [3, 0.3],
   ]
-  const { result, seen } = twoPages(fit(rows), rows)
+  const { result, seen } = twoPages(fitRows(rows), rows)
   assert.equal(result.index, 3)
   assert.equal(result.lastFill, 0.6)
   assert.equal(result.status, 'balanced')
@@ -505,7 +505,7 @@ test('two-pages mode takes the largest two-page band level, not the first run or
 })
 
 test('falls back to the automatic fit when 9pt is not enough for two pages', () => {
-  const auto = fit(THREE_PAGES)
+  const auto = fitRows(THREE_PAGES)
   const r = twoPages(
     auto,
     THREE_PAGES,
