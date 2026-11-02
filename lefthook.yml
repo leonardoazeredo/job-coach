@@ -16,4 +16,7 @@ pre-commit:
 pre-push:
   jobs:
     - name: ci
-      run: npm run ci
+      # Without node_modules, `npm run ci` dies with a bare "biome: command not found".
+      run: |
+        [ -d node_modules ] || { echo "node_modules is missing: run npm ci, then push again." >&2; exit 1; }
+        npm run ci
