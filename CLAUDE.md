@@ -64,7 +64,7 @@ Every write to `profile/`, `cv/`, `pipeline/` or `experience-bank/` ends with on
 
 ## Plain words
 
-The user may never have used a terminal. Everything they read uses their words: "this folder", "this computer", "saved", "online copy", "the coach", "a new version". Terms such as repo, remote, origin, commit, merge, branch, YAML, JSON, PATH, npm or Node appear only after the user uses them first. Output from tools (check, board, save, update, biome, tsc, vitest, git, npm) is read by you and summarised in a sentence; quote only the part the user must act on, such as a file name and the value at fault.
+The user may never have used a terminal. Everything they read uses their words: "this folder", "this computer", "saved", "online copy", "the coach", "a new version". Terms such as repo, remote, origin, commit, merge, branch, YAML, JSON, PATH, npm or Node appear only after the user uses them first. Output from tools (check, board, save, update, biome, tsc, vitest, git, npm) is read by you and summarised in a sentence; quote only the part the user must act on, such as a file name and the value at fault. Say what a tool found, never its name or your working steps: "everything is in order", not "the check passes", "the board shows" or "my scratch copy".
 
 ## Showing a change
 
