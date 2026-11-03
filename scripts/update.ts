@@ -15,6 +15,7 @@
 import { gitIn } from './lib/history.ts'
 import { EXIT } from './lib/problem.ts'
 import {
+  type CheckOptions,
   checkForUpdate,
   type EngineSource,
   gitHubEngine,
@@ -38,6 +39,20 @@ const NO_ANSWER: Record<UnknownReason, string> = {
 const STATE_RESET =
   "The coach's record of when it last looked for a new version was damaged, so it was reset."
 
+const printCheck = async (root: string, opts: CheckOptions) => {
+  let reset = false
+  const result = await checkForUpdate(root, {
+    ...opts,
+    onStateReset: () => {
+      reset = true
+    },
+  })
+  // One line at most, so the coach can act on it: the reset notice only fills a silence.
+  if (typeof result === 'object') console.log(NO_ANSWER[result.reason])
+  else if (result === 'available' || opts.force) console.log(result)
+  else if (reset) console.log(STATE_RESET)
+}
+
 export type UpdateDeps = { now?: Date; source?: EngineSource; path?: string; run?: Run }
 
 export const updateCommand = async (
@@ -49,16 +64,7 @@ export const updateCommand = async (
   const source = deps.source ?? gitHubEngine
   const [sub, ...rest] = args
   if (sub === 'check' && rest.every((a) => a === '--now')) {
-    const force = rest.includes('--now')
-    const result = await checkForUpdate(root, {
-      now,
-      source,
-      force,
-      path: deps.path,
-      onStateReset: () => console.log(STATE_RESET),
-    })
-    if (typeof result === 'object') console.log(NO_ANSWER[result.reason])
-    else if (result === 'available' || force) console.log(result)
+    await printCheck(root, { now, source, force: rest.includes('--now'), path: deps.path })
     return 0
   }
   if (sub !== 'zip' || rest.length > 0) {

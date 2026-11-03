@@ -2,7 +2,7 @@ import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } f
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach } from 'vitest'
-import type { EngineSource, Run } from '../lib/update.ts'
+import { type EngineSource, type Run, SourceFault } from '../lib/update.ts'
 
 // The hooks register in whichever test file imports this module, so every file gets a fresh
 // temp directory and a git environment cut off from the machine's own.
@@ -59,8 +59,12 @@ export const NEW_ENGINE = {
 }
 
 export const source = (latest: Partial<EngineSource> = {}): EngineSource => ({
-  latestCommit: async () => undefined,
-  latestFiles: async () => undefined,
+  latestCommit: async () => {
+    throw new SourceFault('unexpected')
+  },
+  latestFiles: async () => {
+    throw new SourceFault('unexpected')
+  },
   download: async (dest) => {
     cpSync(upstream(), join(dest, 'job-coach-main'), { recursive: true })
     return join(dest, 'job-coach-main')

@@ -34,12 +34,12 @@ export class SourceFault extends Error {
 }
 
 // latestCommit and latestFiles throw SourceFault when GitHub cannot be reached or read, so a
-// failure is never mistaken for "nothing new"; undefined means a reply of the wrong shape.
+// failure is never mistaken for "nothing new".
 export type EngineSource = {
   // The newest commit on the engine's main branch.
-  latestCommit: () => Promise<string | undefined>
+  latestCommit: () => Promise<string>
   // The git blob id of every file on the engine's main branch, by path.
-  latestFiles: () => Promise<Map<string, string> | undefined>
+  latestFiles: () => Promise<Map<string, string>>
   // Unpacks the newest engine into dest and returns the folder that holds it.
   download: (dest: string) => Promise<string>
 }
@@ -196,11 +196,8 @@ export const checkForUpdate = async (root: string, opts: CheckOptions): Promise<
   return result
 }
 
-const UNREAD: CheckResult = { kind: 'unknown', reason: 'unexpected' }
-
 const checkClone = async (git: Git, source: EngineSource): Promise<CheckResult> => {
   const sha = await source.latestCommit()
-  if (!sha) return UNREAD
   // A commit this folder does not have cannot be confirmed as in HEAD's history: the folder is
   // behind it, has diverged, or is a shallow clone. All are reported as available.
   if (git(['cat-file', '-e', `${sha}^{commit}`]).status !== 0) return 'available'
@@ -209,7 +206,6 @@ const checkClone = async (git: Git, source: EngineSource): Promise<CheckResult> 
 
 const checkCopy = async (root: string, source: EngineSource): Promise<CheckResult> => {
   const files = await source.latestFiles()
-  if (!files) return UNREAD
   for (const [rel, id] of files) {
     if (!isEngineFile(rel)) continue
     const local = join(root, rel)

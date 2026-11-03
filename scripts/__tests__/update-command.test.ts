@@ -84,4 +84,35 @@ describe('updateCommand check', () => {
     expect(lines).toHaveLength(1)
     expect(lines[0]).toMatch(/damaged/)
   })
+
+  describe('with a damaged state file', () => {
+    const damage = () => {
+      mkdirSync(join(work(), '.coach'), { recursive: true })
+      writeFileSync(join(work(), '.coach/state.json'), '{not json')
+    }
+
+    it('prints only available when an update exists', async () => {
+      put(work(), OLD_ENGINE)
+      damage()
+      const newer = source({ latestFiles: async () => new Map([['CLAUDE.md', '0'.repeat(40)]]) })
+      expect((await printed(['check'], { now, source: newer })).lines).toEqual(['available'])
+    })
+
+    it('prints only the failure sentence when the source fails', async () => {
+      mkdirSync(work())
+      damage()
+      const { lines } = await printed(['check'], { now, source: source() })
+      expect(lines).toHaveLength(1)
+      expect(lines[0]).toMatch(/read the answer/)
+    })
+
+    it('prints the reset sentence when the answer is latest without --now', async () => {
+      mkdirSync(work())
+      damage()
+      const same = source({ latestFiles: async () => new Map() })
+      const { lines } = await printed(['check'], { now, source: same })
+      expect(lines).toHaveLength(1)
+      expect(lines[0]).toMatch(/damaged/)
+    })
+  })
 })
