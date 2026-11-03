@@ -73,13 +73,35 @@ Draft, from that source only, then summarise and write one file at a time:
 1. `profile/history.yaml` from `templates/profile/history.example.yaml`: one entry per role, newest first, with `id`, `company` and the `public` block. Titles, dates and employment type are the public labels. Ask about one unclear date or title per reply.
 2. `profile/stack.yaml`: core, secondary, past and tools, sorted by depth. Technologies the CV shows only briefly go to `secondary` or `past` with `roles` and `claim_as` limits. Ask one thing for `do_not_claim`: "What work would a recruiter for your kind of role assume you have done, that you have not?" Where the source names a tool only generically ("the route-planning package"), ask its name, one tool per reply; a name the user cannot give stays generic in the file, and you say so.
 3. `cv/master.json` from `templates/cv/master.example.json` (create `cv/` if needed): bullets reworded only from what the source says, metrics exactly as in the source.
-4. `profile/wins.yaml` from `templates/profile/wins.example.yaml`: candidate wins from the bullets, each `status: proposed`, `metric: "Not specified"` unless the source states one, with `# CHANGE_ME: metrics unconfirmed, finish onboarding step 4` as the first line. `check.ts` needs this file to exist, and the marker keeps the board listing step 4 until it is done.
+4. `profile/wins.yaml` from `templates/profile/wins.example.yaml`: candidate wins from the bullets, each `status: proposed`, `metric: "Not specified"` unless the source states one, with `# CHANGE_ME: metrics unconfirmed, finish onboarding step 4` as the first line. `check.ts` needs this file to exist, and the marker keeps the board listing step 4 until it is done. The marker is for you alone: never mention it, or a reminder it stands for, to the user.
 
 Done when the four files exist and each person-fact in them traces to the pasted source or an answer.
 
 ### 3. Identity and targets
 
-Ask one thing per reply, in this order, skipping what the source already gives: name and pronouns; locale and spelling (`en-GB`, `en-US`) and the language to be coached in; city, timezone and since when; right to work by country; years of professional experience; roles, seniority and discipline; salary floor, currency and levels; remote or hybrid and office days; what a good role has; what would rule a role out, with examples from any field such as hours, travel or employers to avoid; where to look (regions, titles).
+Ask these in this order, skipping what the source already gives. Each item is one question and one reply; never put two items in one question.
+
+1. Name.
+2. Pronouns.
+3. Spelling (`en-GB`, `en-US`).
+4. Language to be coached in.
+5. City.
+6. Timezone.
+7. Since when they have lived there.
+8. Right to work, one country per reply.
+9. Years of professional experience.
+10. Roles they want.
+11. Seniority.
+12. Discipline.
+13. Salary floor.
+14. Currency.
+15. Levels.
+16. Remote or hybrid.
+17. Office days, if hybrid.
+18. What a good role has.
+19. What would rule a role out, with examples from any field such as hours, travel or employers to avoid.
+20. Regions to look in.
+21. Job titles to look for.
 
 Write, from the templates:
 
@@ -93,13 +115,13 @@ Done when the three files exist, `timezone` is an IANA name and `locale` a langu
 
 ### 4. Wins
 
-Take the wins in `profile/wins.yaml` one by one. For each: show the action and the metric, then ask "Is this number right, and is that exactly how you would say it?" Write the metric word for word as the user answers, qualifiers included ("contributed to", "up to"). Ask for `never_say` inflations: the stronger version of the claim that a draft might drift into. A win the user cannot put a metric on keeps `Not specified`. Set `status: approved` only on the user's yes to that win. Add wins the user raises, with `role` matching a `history.yaml` id. When the last win is settled, remove the `CHANGE_ME` marker line.
+Take the wins in `profile/wins.yaml` one by one. For each: show the action and the metric, then ask only "Is this exactly how you would say it?" and wait. The reply is the whole ask: request no further figure or detail in it. The metric is written word for word as the user says it, qualifiers included ("contributed to", "up to"); a correction replaces the wording, and a win left at `Not specified` gets its own ask for a number in the next reply. Ask for `never_say` inflations: the stronger version of the claim that a draft might drift into. A win the user cannot put a metric on keeps `Not specified`. Set `status: approved` only on the user's yes to that win. Add wins the user raises, with `role` matching a `history.yaml` id. When the last win is settled, remove the `CHANGE_ME` marker line.
 
 Done when no win is `proposed` without the user's say-so and the marker is gone.
 
 ### 5. Voice
 
-Ask for two or three samples of the user's own writing (an email, a post, a cover note) and, if they like, a spoken answer typed out. Draft `profile/voice.md` from `templates/profile/voice.example.md`: traits seen in the samples, written and spoken registers, words and habits to avoid. Quote a phrase from a sample for each trait so the user can check it.
+Ask for two or three samples of the user's own writing (an email, a post, a cover note) Once those are in, ask in a reply of its own for a spoken answer typed out, which the user may skip. Draft `profile/voice.md` from `templates/profile/voice.example.md`: traits seen in the samples, written and spoken registers, words and habits to avoid. Quote a phrase from a sample for each trait so the user can check it.
 
 Done when every trait in the file traces to a sample.
 
