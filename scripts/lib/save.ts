@@ -4,7 +4,11 @@ import { join } from 'node:path'
 import { ENGINE, type Git, gitHubRepo, gitIn, output } from './history.ts'
 import { visibilityOfRepo } from './repo-visibility.ts'
 
-export const DATA_FOLDERS = ['profile', 'cv', 'pipeline', 'experience-bank']
+// User data: the folders a save commits. Not the same set as what a Coach update leaves alone
+// (`isEngineFile` in update.ts): that also protects Local work files such as discovery/, which are
+// neither saved nor replaced, while it does replace the engine files inside pipeline/ and
+// experience-bank/, which a save commits along with the rest of those folders.
+export const USER_DATA_FOLDERS = ['profile', 'cv', 'pipeline', 'experience-bank']
 
 export type Online = 'pushed' | 'no-copy' | 'public' | 'unchecked' | 'failed'
 
@@ -41,7 +45,7 @@ const identity = (git: Git): string[] =>
     : ['-c', 'user.name=Job coach', '-c', 'user.email=job-coach@localhost']
 
 const pathsToSave = (root: string, git: Git): string[] =>
-  DATA_FOLDERS.filter(
+  USER_DATA_FOLDERS.filter(
     (dir) => existsSync(join(root, dir)) || git(['ls-files', '--', dir]).stdout.trim() !== '',
   )
 
