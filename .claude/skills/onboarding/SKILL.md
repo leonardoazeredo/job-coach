@@ -71,7 +71,7 @@ Ask: "Paste your CV or LinkedIn text, or give me a PDF path." For a PDF, read it
 Draft, from that source only, then summarise and write one file at a time:
 
 1. `profile/history.yaml` from `templates/profile/history.example.yaml`: one entry per role, newest first, with `id`, `company` and the `public` block. Titles, dates and employment type are the public labels. Ask about one unclear date or title per reply.
-2. `profile/stack.yaml`: core, secondary, past and tools, sorted by depth. Technologies the CV shows only briefly go to `secondary` or `past` with `roles` and `claim_as` limits. Ask whether anything in `do_not_claim` applies: things a recruiter would assume the user does that they do not.
+2. `profile/stack.yaml`: core, secondary, past and tools, sorted by depth. Technologies the CV shows only briefly go to `secondary` or `past` with `roles` and `claim_as` limits. Ask one thing for `do_not_claim`: "What work would a recruiter for your kind of role assume you have done, that you have not?" Where the source names a tool only generically ("the route-planning package"), ask its name, one tool per reply; a name the user cannot give stays generic in the file, and you say so.
 3. `cv/master.json` from `templates/cv/master.example.json` (create `cv/` if needed): bullets reworded only from what the source says, metrics exactly as in the source.
 4. `profile/wins.yaml` from `templates/profile/wins.example.yaml`: candidate wins from the bullets, each `status: proposed`, `metric: "Not specified"` unless the source states one, with `# CHANGE_ME: metrics unconfirmed, finish onboarding step 4` as the first line. `check.ts` needs this file to exist, and the marker keeps the board listing step 4 until it is done.
 
@@ -79,12 +79,12 @@ Done when the four files exist and each person-fact in them traces to the pasted
 
 ### 3. Identity and targets
 
-Ask one thing per reply, in this order, skipping what the source already gives: name and pronouns; locale and spelling (`en-GB`, `en-US`) and the language to be coached in; city, timezone and since when; right to work by country; years of professional experience; roles, seniority and discipline; salary floor, currency and levels; remote or hybrid and office days; what a good role has; where to look (regions, titles).
+Ask one thing per reply, in this order, skipping what the source already gives: name and pronouns; locale and spelling (`en-GB`, `en-US`) and the language to be coached in; city, timezone and since when; right to work by country; years of professional experience; roles, seniority and discipline; salary floor, currency and levels; remote or hybrid and office days; what a good role has; what would rule a role out, with examples from any field such as hours, travel or employers to avoid; where to look (regions, titles).
 
 Write, from the templates:
 
 1. `profile/identity.yaml`. Leave `competency_pack` unset; step 6 sets it.
-2. `profile/search.yaml`: three tiers worded with the user's own criteria and currency, a `min_stack_overlap_pct`, a location rule in prose, and the discovery titles and search. The salary floor lives in `identity.yaml` only.
+2. `profile/search.yaml`: three tiers worded with the user's own criteria and currency, a `min_stack_overlap_pct`, a location rule in prose, `fit.hard_limits` (one plain sentence per limit the user named; an empty list if they named none, and say that plainly), and the discovery titles and search. The salary floor lives in `identity.yaml` only.
 3. `profile/coach.md`: the four bullets, in the user's language and tone. This file is the gate CLAUDE.md checks, so write it last.
 
 Done when the three files exist, `timezone` is an IANA name and `locale` a language tag (the scripts reject others).
@@ -113,8 +113,8 @@ This step is required: do not finish onboarding until `competency_pack` is set. 
 
 Offer each in one sentence on why it exists, and write it only if the user opts in:
 
-- `profile/history-private.yaml`: facts about past roles that must never reach outward material, such as a payroll title that differs from the public one or a background-check risk. Only interview-prep and offer-review read it.
-- `profile/standard-answers.yaml`: answers to the questions every application form asks, so application-writer reuses the user's wording. Salary answers come from `identity.yaml` levels.
+- `profile/history-private.yaml`: facts about past roles that must never reach outward material, such as a payroll title that differs from the public one or a background-check risk. Only interview-prep and offer-review read it. After the opt-in, ask for each role in `history.yaml`, one per reply, whether the contract title differs from the public one. A title that differs goes in that role's `payroll_title`; otherwise leave the key out.
+- `profile/standard-answers.yaml`: answers to the questions every application form asks, so application-writer reuses the user's wording. Ask the earliest start date as its own question for `earliest_start`. Salary answers come from `identity.yaml` levels.
 - Salary history: kept in `history-private.yaml` per role under `salary_history`, only on request.
 
 Done when each of the three is written or declined.

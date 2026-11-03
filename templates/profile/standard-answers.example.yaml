@@ -8,6 +8,7 @@ work_authorization: "CHANGE_ME Yes, I can work in X without sponsorship."
 sponsorship_required: "CHANGE_ME No"
 based_in: "CHANGE_ME City, Country."
 notice_period: "CHANGE_ME Two weeks."
+earliest_start: "CHANGE_ME The first date you could start, or how long after an offer, as you would put it on a form."
 years_experience: "CHANGE_ME 8 years."
 salary_expectation:             # pick by the role's level (identity.yaml compensation.by_level)
   mid: "CHANGE_ME Amount range in your currency, depending on the full package."

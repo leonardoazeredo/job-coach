@@ -22,6 +22,9 @@ fit:
   location_rule: >
     She stays in Austin. Fully remote within the US works, as does hybrid in Austin with no more
     than 2 office days a week. Any role that needs a move is Not a fit.
+  hard_limits:
+    - No night or on-call shifts
+    - No employer in gambling or weapons
 
 discovery:
   agentic_keywords: [Agent, LLM orchestration, Generative, AI-native]

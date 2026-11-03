@@ -22,6 +22,7 @@ fit:
   location_rule: >             # prose the skills read; no script does
     CHANGE_ME Where you can work: remote where, hybrid with how many office days in which city,
     and whether relocation is ever acceptable.
+  hard_limits: []              # plain-language limits that rule a role out, such as hours, travel or employers to avoid; job-intake and role-triage read them. An empty list is fine
 
 discovery:
   agentic_keywords: [Agent, LLM orchestration]   # words that flag an AI-heavy ad; an empty list is fine

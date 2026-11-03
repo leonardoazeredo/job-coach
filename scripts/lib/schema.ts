@@ -11,7 +11,11 @@ const strList = z.array(str).default([])
 // engine defaults and profile/search.yaml what is personal to the user. The merged
 // shape that loadRules (lib/rules.ts) returns is `Rules`, below.
 const engineFit = z.object({ statuses: z.array(str), untiered: z.array(str) })
-const searchFit = z.object({ min_stack_overlap_pct: z.number() })
+// hard_limits is prose for the skills; it is optional so a copy made before it existed still loads.
+const searchFit = z.object({
+  min_stack_overlap_pct: z.number(),
+  hard_limits: z.array(str).optional(),
+})
 const engineDiscovery = z.object({ fresh_days: z.number().int() })
 const searchDiscovery = z.object({
   search_titles: z.array(str),
