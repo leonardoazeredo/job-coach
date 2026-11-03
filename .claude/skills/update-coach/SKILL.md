@@ -7,6 +7,8 @@ description: Update the coach itself (its scripts, skills and default settings) 
 
 Bring this folder's engine up to the newest `leonardoazeredo/job-coach` while the user's data stays exactly as it is. The user hears plain words only (see Plain words in CLAUDE.md): "a new version of the coach", "your settings", "saved". Every command's output is read here and summarised.
 
+When the user asks whether a new version exists, run `node scripts/update.ts check --now`. It prints `available`, `latest`, or one plain sentence when the coach could not get an answer (no internet, the update service busy, or an unreadable reply); say that sentence in one line and offer to try again later. Updating is never started from a sentence.
+
 ## 1. Save first, and learn which path this folder takes
 
 Run `node scripts/save.ts --everything "Saved before updating the coach"`.

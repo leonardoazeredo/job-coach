@@ -15,44 +15,70 @@ import {
 import { tmpdir } from 'node:os'
 import { dirname, join, relative } from 'node:path'
 import { z } from 'zod'
-import { ENGINE, type Git, gitIn } from './history.ts'
+import { ENGINE, type Git, gitIn, output } from './history.ts'
 
 // Ignored by git and Biome: the last check date and the backups of replaced files.
 export const LOCAL_DIR = '.coach'
 const STATE_FILE = join(LOCAL_DIR, 'state.json')
 export const WEEK_MS = 7 * 24 * 60 * 60 * 1000
+export const DAY_MS = 24 * 60 * 60 * 1000
 
+export type UnknownReason = 'offline' | 'rate-limited' | 'unexpected'
+
+export class SourceFault extends Error {
+  readonly reason: UnknownReason
+  constructor(reason: UnknownReason) {
+    super(reason)
+    this.reason = reason
+  }
+}
+
+// latestCommit and latestFiles throw SourceFault when GitHub cannot be reached or read, so a
+// failure is never mistaken for "nothing new".
 export type EngineSource = {
   // The newest commit on the engine's main branch.
-  latestCommit: () => Promise<string | undefined>
+  latestCommit: () => Promise<string>
   // The git blob id of every file on the engine's main branch, by path.
-  latestFiles: () => Promise<Map<string, string> | undefined>
+  latestFiles: () => Promise<Map<string, string>>
   // Unpacks the newest engine into dest and returns the folder that holds it.
   download: (dest: string) => Promise<string>
 }
 
 const api = async (path: string): Promise<unknown> => {
-  const res = await fetch(`https://api.github.com/repos/${ENGINE}/${path}`, {
-    signal: AbortSignal.timeout(15_000),
-  })
-  return res.ok ? res.json() : undefined
+  let res: Response
+  try {
+    res = await fetch(`https://api.github.com/repos/${ENGINE}/${path}`, {
+      signal: AbortSignal.timeout(15_000),
+    })
+  } catch {
+    // DNS failure, no connection and the timeout all land here.
+    throw new SourceFault('offline')
+  }
+  // GitHub answers an exhausted anonymous quota with 403 and the remaining count at 0.
+  const exhausted = res.status === 403 && res.headers.get('x-ratelimit-remaining') === '0'
+  if (res.status === 429 || exhausted) throw new SourceFault('rate-limited')
+  if (!res.ok) throw new SourceFault('unexpected')
+  try {
+    return await res.json()
+  } catch {
+    throw new SourceFault('unexpected')
+  }
 }
 
-const CommitSchema = z.object({ sha: z.string().optional() })
+const CommitSchema = z.object({ sha: z.string() })
 const TreeSchema = z.object({
-  tree: z.array(z.object({ path: z.string(), type: z.string(), sha: z.string() })).optional(),
+  tree: z.array(z.object({ path: z.string(), type: z.string(), sha: z.string() })),
 })
 
 export const gitHubEngine: EngineSource = {
   latestCommit: async () => {
-    const body = CommitSchema.safeParse(await api('commits/main').catch(() => undefined))
-    return body.data?.sha
+    const body = CommitSchema.safeParse(await api('commits/main'))
+    if (!body.success) throw new SourceFault('unexpected')
+    return body.data.sha
   },
   latestFiles: async () => {
-    const body = TreeSchema.safeParse(
-      await api('git/trees/main?recursive=1').catch(() => undefined),
-    )
-    if (!body.data?.tree) return
+    const body = TreeSchema.safeParse(await api('git/trees/main?recursive=1'))
+    if (!body.success) throw new SourceFault('unexpected')
     return new Map(body.data.tree.filter((e) => e.type === 'blob').map((e) => [e.path, e.sha]))
   },
   download: async (dest) => {
@@ -72,6 +98,8 @@ export const gitHubEngine: EngineSource = {
   },
 }
 
+// What a Coach update may replace. Not the same set as the folders a save commits
+// (`USER_DATA_FOLDERS` in save.ts): Local work files (discovery/, .coach/) are kept but never saved.
 // Paths under profile/, cv/, discovery/ and .coach/ are the user's and never copied, nor are
 // installed packages or git's own folder. In pipeline/ only README.md and _templates/ are engine
 // files, and in experience-bank/ only README.md; the rest of those two folders is user data.
@@ -86,45 +114,92 @@ export const isEngineFile = (rel: string): boolean => {
 const blobId = (bytes: Buffer): string =>
   createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex')
 
-const StateSchema = z.looseObject({ lastUpdateCheck: z.string().optional() })
-type State = z.infer<typeof StateSchema>
+type State = Record<string, unknown>
 
-const readState = (root: string): State => {
+// lastUpdateCheck is the last definite answer; lastUpdateAttempt is the last failed try, kept
+// apart so a failure neither counts as a completed weekly check nor is retried every session.
+const DATE_KEYS = ['lastUpdateCheck', 'lastUpdateAttempt']
+
+// A missing file is a first run. Anything else unreadable is damage, which the caller reports.
+const readState = (root: string): { state: State; damaged: boolean } => {
+  let text: string
   try {
-    const parsed = StateSchema.safeParse(JSON.parse(readFileSync(join(root, STATE_FILE), 'utf8')))
-    return parsed.success ? parsed.data : {}
+    text = readFileSync(join(root, STATE_FILE), 'utf8')
+  } catch (error) {
+    const missing = error instanceof Error && 'code' in error && error.code === 'ENOENT'
+    return { state: {}, damaged: !missing }
+  }
+  try {
+    const parsed: unknown = JSON.parse(text)
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed))
+      return { state: {}, damaged: true }
+    // A wrongly typed date counts as not yet checked; the other keys stay.
+    const state: State = { ...parsed }
+    for (const key of DATE_KEYS) if (typeof state[key] !== 'string') delete state[key]
+    return { state, damaged: false }
   } catch {
-    return {}
+    return { state: {}, damaged: true }
   }
 }
 
+// A state file that cannot be written must not stop the session; the next check just asks again.
 const writeState = (root: string, state: State) => {
-  mkdirSync(join(root, LOCAL_DIR), { recursive: true })
-  writeFileSync(join(root, STATE_FILE), `${JSON.stringify(state, null, 2)}\n`)
+  try {
+    mkdirSync(join(root, LOCAL_DIR), { recursive: true })
+    writeFileSync(join(root, STATE_FILE), `${JSON.stringify(state, null, 2)}\n`)
+  } catch {
+    // Left unsaved on purpose; see above.
+  }
 }
 
-export type CheckResult = 'not-due' | 'unknown' | 'latest' | 'available'
+export type CheckResult =
+  | 'not-due'
+  | 'latest'
+  | 'available'
+  | { kind: 'unknown'; reason: UnknownReason }
 
 export type CheckOptions = {
   now: Date
   source: EngineSource
   force?: boolean
   path?: string | undefined
+  // Called once when the state file was unreadable and has been replaced.
+  onStateReset?: () => void
 }
 
-// One read-only call to GitHub, at most once a week unless forced. The date is recorded even
-// when the call fails, so an offline computer is not asked again every session.
+const recent = (stamp: unknown, now: Date, span: number): boolean =>
+  typeof stamp === 'string' && now.getTime() - Date.parse(stamp) < span
+
+// One read-only call to GitHub, at most once a week unless forced. Only a definite answer
+// counts as the weekly check; after a failure the next try waits a day.
 export const checkForUpdate = async (root: string, opts: CheckOptions): Promise<CheckResult> => {
-  const last = readState(root).lastUpdateCheck
-  if (!opts.force && last && opts.now.getTime() - Date.parse(last) < WEEK_MS) return 'not-due'
-  writeState(root, { ...readState(root), lastUpdateCheck: opts.now.toISOString() })
+  const { state, damaged } = readState(root)
+  if (damaged) opts.onStateReset?.()
+  if (
+    !opts.force &&
+    (recent(state.lastUpdateCheck, opts.now, WEEK_MS) ||
+      recent(state.lastUpdateAttempt, opts.now, DAY_MS))
+  )
+    return 'not-due'
   const git = gitIn(root, opts.path)
-  return git ? checkClone(git, opts.source) : checkCopy(root, opts.source)
+  let result: CheckResult
+  try {
+    result = await (git ? checkClone(git, opts.source) : checkCopy(root, opts.source))
+  } catch (error) {
+    const reason = error instanceof SourceFault ? error.reason : 'unexpected'
+    result = { kind: 'unknown', reason }
+  }
+  if (typeof result === 'object') {
+    writeState(root, { ...state, lastUpdateAttempt: opts.now.toISOString() })
+  } else {
+    const { lastUpdateAttempt: _failed, ...kept } = state
+    writeState(root, { ...kept, lastUpdateCheck: opts.now.toISOString() })
+  }
+  return result
 }
 
 const checkClone = async (git: Git, source: EngineSource): Promise<CheckResult> => {
   const sha = await source.latestCommit()
-  if (!sha) return 'unknown'
   // A commit this folder does not have cannot be confirmed as in HEAD's history: the folder is
   // behind it, has diverged, or is a shallow clone. All are reported as available.
   if (git(['cat-file', '-e', `${sha}^{commit}`]).status !== 0) return 'available'
@@ -133,7 +208,6 @@ const checkClone = async (git: Git, source: EngineSource): Promise<CheckResult> 
 
 const checkCopy = async (root: string, source: EngineSource): Promise<CheckResult> => {
   const files = await source.latestFiles()
-  if (!files) return 'unknown'
   for (const [rel, id] of files) {
     if (!isEngineFile(rel)) continue
     const local = join(root, rel)
@@ -155,7 +229,7 @@ export const runIn =
   (root: string): Run =>
   (cmd, args) => {
     const run = spawnSync(cmd, args, { cwd: root, encoding: 'utf8', timeout: 600_000 })
-    return { ok: run.status === 0, output: `${run.stdout ?? ''}${run.stderr ?? ''}`.trim() }
+    return { ok: run.status === 0, output: output(run) }
   }
 
 // The record check once onboarding has made a profile, else the same check on the example.

@@ -1,99 +1,23 @@
 import { execFileSync } from 'node:child_process'
-import {
-  cpSync,
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs'
-import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { existsSync, mkdirSync, rmSync } from 'node:fs'
+import { join } from 'node:path'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { EXIT } from '../lib/problem.ts'
-import {
-  checkForUpdate,
-  type EngineSource,
-  isEngineFile,
-  type Run,
-  updateFromArchive,
-} from '../lib/update.ts'
+import { isEngineFile, type Run, updateFromArchive } from '../lib/update.ts'
 import { updateCommand } from '../update.ts'
-
-let dir: string
-let savedEnv: NodeJS.ProcessEnv
-beforeEach(() => {
-  savedEnv = { ...process.env }
-  // A git hook exports GIT_DIR and friends, which would point every git call here at the
-  // repo being pushed instead of the temp one; the machine's own config could add hooks.
-  for (const key of Object.keys(process.env)) if (key.startsWith('GIT_')) delete process.env[key]
-  process.env.GIT_CONFIG_GLOBAL = '/dev/null'
-  process.env.GIT_CONFIG_NOSYSTEM = '1'
-  dir = mkdtempSync(join(tmpdir(), 'update-'))
-})
-afterEach(() => {
-  process.env = savedEnv
-  rmSync(dir, { recursive: true, force: true })
-})
-
-const put = (base: string, files: Record<string, string>) => {
-  for (const [rel, text] of Object.entries(files)) {
-    mkdirSync(dirname(join(base, rel)), { recursive: true })
-    writeFileSync(join(base, rel), text)
-  }
-}
-const work = () => join(dir, 'work')
-const upstream = () => join(dir, 'upstream')
-const read = (rel: string) => readFileSync(join(work(), rel), 'utf8')
-
-const DATA = {
-  'profile/identity.yaml': 'name: Mira\n',
-  'profile/glossary.md': '**Target company**:\nA company Mira names.\n',
-  'cv/master.json': '{"name":"Mira"}\n',
-  'pipeline/acme/record.yaml': 'status: Applied\n',
-  'experience-bank/acme.md': 'notes\n',
-}
-const OLD_ENGINE = {
-  'CLAUDE.md': 'old prompt\n',
-  'config/rules.yaml': 'stale_after_days: 14\n',
-  'pipeline/README.md': 'old pipeline readme\n',
-  'package-lock.json': '{"v":1}\n',
-}
-
-// Upstream also ships its own copies of data paths, to prove they are never copied.
-const NEW_ENGINE = {
-  'CLAUDE.md': 'new prompt\n',
-  'config/rules.yaml': 'stale_after_days: 21\n',
-  'pipeline/README.md': 'old pipeline readme\n',
-  'package-lock.json': '{"v":1}\n',
-  '.claude/skills/update-coach/SKILL.md': 'new skill\n',
-  'profile/identity.yaml': 'name: Someone Else\n',
-  'profile/glossary.md': 'upstream term\n',
-  'pipeline/acme/record.yaml': 'status: Rejected\n',
-}
-
-const source = (latest: Partial<EngineSource> = {}): EngineSource => ({
-  latestCommit: async () => undefined,
-  latestFiles: async () => undefined,
-  download: async (dest) => {
-    cpSync(upstream(), join(dest, 'job-coach-main'), { recursive: true })
-    return join(dest, 'job-coach-main')
-  },
-  ...latest,
-})
-
-// Records each command; the record check fails when told to, before or after the update.
-const runner = (fails: (call: number) => boolean = () => false) => {
-  const calls: string[] = []
-  const run: Run = (cmd, args) => {
-    calls.push([cmd, ...args].join(' '))
-    return { ok: !fails(calls.length), output: 'pipeline/acme: status is not a known status' }
-  }
-  return { run, calls }
-}
-
-const now = new Date('2026-10-29T09:00:00Z')
+import {
+  DATA,
+  dir,
+  NEW_ENGINE,
+  now,
+  OLD_ENGINE,
+  put,
+  read,
+  runner,
+  source,
+  upstream,
+  work,
+} from './update-helpers.ts'
 
 describe('updateFromArchive', () => {
   beforeEach(() => {
@@ -194,90 +118,6 @@ describe('isEngineFile', () => {
     expect(isEngineFile('profile/identity.yaml')).toBe(false)
     expect(isEngineFile('cv/master.json')).toBe(false)
     expect(isEngineFile('.coach/state.json')).toBe(false)
-  })
-})
-
-describe('checkForUpdate', () => {
-  const blobIds = (base: string, files: Record<string, string>) =>
-    new Map(
-      Object.keys(files).map((rel) => [
-        rel,
-        execFileSync('git', ['hash-object', join(base, rel)], { encoding: 'utf8' }).trim(),
-      ]),
-    )
-
-  it('asks at most once a week, even when the answer was unknown', async () => {
-    mkdirSync(work())
-    let asked = 0
-    const counting = source({
-      latestFiles: async () => {
-        asked++
-      },
-    })
-    const at = (day: string) => checkForUpdate(work(), { now: new Date(day), source: counting })
-    expect(await at('2026-10-29T09:00:00Z')).toBe('unknown')
-    expect(await at('2026-11-04T09:00:00Z')).toBe('not-due')
-    expect(await at('2026-11-05T09:00:00Z')).toBe('unknown')
-    expect(asked).toBe(2)
-    const forced = await checkForUpdate(work(), { now, source: counting, force: true })
-    expect(forced).toBe('unknown')
-    expect(asked).toBe(3)
-  })
-
-  it('keeps unknown keys in the state file across a check', async () => {
-    mkdirSync(join(work(), '.coach'), { recursive: true })
-    writeFileSync(
-      join(work(), '.coach/state.json'),
-      JSON.stringify({ lastUpdateCheck: '2026-10-01T00:00:00Z', other: 'kept' }),
-    )
-    await checkForUpdate(work(), { now, source: source() })
-    const state = JSON.parse(read('.coach/state.json'))
-    expect(state.other).toBe('kept')
-    expect(state.lastUpdateCheck).toBe(now.toISOString())
-  })
-
-  it('treats a malformed lastUpdateCheck as not yet checked', async () => {
-    mkdirSync(join(work(), '.coach'), { recursive: true })
-    writeFileSync(join(work(), '.coach/state.json'), JSON.stringify({ lastUpdateCheck: 42 }))
-    const counting = source({
-      latestFiles: async () => {
-        asked++
-      },
-    })
-    let asked = 0
-    expect(await checkForUpdate(work(), { now, source: counting })).toBe('unknown')
-    expect(asked).toBe(1)
-  })
-
-  it('compares file contents in a folder that keeps no history', async () => {
-    put(work(), { ...DATA, ...OLD_ENGINE })
-    // Upstream's own data paths differ from the user's, and must not count.
-    const same = blobIds(work(), OLD_ENGINE)
-    same.set('profile/identity.yaml', '0'.repeat(40))
-    const unchanged = source({ latestFiles: async () => same })
-    expect(await checkForUpdate(work(), { now, source: unchanged, force: true })).toBe('latest')
-
-    put(upstream(), NEW_ENGINE)
-    const newer = source({ latestFiles: async () => blobIds(upstream(), NEW_ENGINE) })
-    expect(await checkForUpdate(work(), { now, source: newer, force: true })).toBe('available')
-  })
-
-  it('compares commits in a folder that keeps history', async () => {
-    put(work(), OLD_ENGINE)
-    const git = (...args: string[]) =>
-      execFileSync('git', ['-C', work(), ...args], { encoding: 'utf8' }).trim()
-    git('init', '-q')
-    git('add', '.')
-    git('-c', 'user.name=T', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'engine')
-    const head = git('rev-parse', 'HEAD')
-    const at = (sha: string) =>
-      checkForUpdate(work(), {
-        now,
-        source: source({ latestCommit: async () => sha }),
-        force: true,
-      })
-    expect(await at(head)).toBe('latest')
-    expect(await at('1'.repeat(40))).toBe('available')
   })
 })
 
