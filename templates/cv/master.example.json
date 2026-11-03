@@ -29,7 +29,7 @@
       "degree": "CHANGE_ME Degree",
       "institution": "CHANGE_ME University",
       "location": "CHANGE_ME Place as the source gives it, with nothing added; remove this key if it gives none",
-      "start": "CHANGE_ME 2014",
+      "start": "CHANGE_ME 2014 as the source gives it; remove this key if it gives none",
       "end": "CHANGE_ME 2018"
     }
   ],

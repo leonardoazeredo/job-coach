@@ -16,8 +16,8 @@ export interface Education {
   degree: string
   institution: string
   location?: string | undefined
-  /** "April 2026" style. Kept as free text so you can write "Present". */
-  start: string
+  /** "April 2026" style. Absent when the source gives no start date. */
+  start?: string | undefined
   end: string
 }
 

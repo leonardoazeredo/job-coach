@@ -59,6 +59,8 @@ const sampleValues: Record<string, string[]> = {
     'office_days_ok:',
   ],
   'profile/history.example.yaml': ['employment_type:', 'start:', 'end:'],
+  // The level goes to a job board search, so an unanswered one must not pass for a real one.
+  'profile/search.example.yaml': ['seniority:'],
 }
 
 describe('templates', () => {
@@ -77,6 +79,18 @@ describe('templates', () => {
   it('cv/master.example.json carries the marker in its sample dates and note', () => {
     const work = JSON.parse(text(join(TEMPLATES, 'cv/master.example.json'))).work[0]
     for (const key of ['start', 'end', 'note']) expect(work[key]).toContain(PLACEHOLDER)
+  })
+
+  it('the search template presets no seniority level', () => {
+    const { seniority } = parse(text(join(TEMPLATES, 'profile/search.example.yaml'))).discovery
+      .search
+    expect(seniority).toHaveLength(1)
+    expect(seniority[0]).toMatch(new RegExp(`^${PLACEHOLDER}`))
+  })
+
+  it('cv/master.example.json lets an education entry start be marked for removal', () => {
+    const edu = JSON.parse(text(join(TEMPLATES, 'cv/master.example.json'))).education[0]
+    expect(edu.start).toContain(PLACEHOLDER)
   })
 
   // Logs and vocabulary start empty of values the user must replace, so onboarding never lists them.
