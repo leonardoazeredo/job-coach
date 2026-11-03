@@ -279,6 +279,6 @@ describe('readCv', () => {
   it('rejects a file that is not JSON', () => {
     const path = join(dir, 'cv.json')
     writeFileSync(path, '{nope')
-    expect(() => readCv(path)).toThrow(/could not read/)
+    expect(() => readCv(path)).toThrow(/is not valid JSON/)
   })
 })

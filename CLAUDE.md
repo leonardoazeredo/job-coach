@@ -23,6 +23,7 @@ Then load the skill that fits the request; a skill may hand over to another when
 | Reusable form answers | `profile/standard-answers.yaml` |
 | What past interviews and rejections taught | `profile/lessons.md` |
 | What the search hunts for (tiers, fit thresholds, location rule, discovery titles) | `profile/search.yaml` |
+| Terms only this user uses (named companies, their own tier searches); where one differs from `GLOSSARY.md`, it applies to their own search rules | `profile/glossary.md` |
 | Engine defaults (staleness, statuses, events, board groups) | `config/rules.yaml` |
 | Every role being tracked | `pipeline/<slug>/` (one folder per role) |
 | Long-form answers about past roles | `experience-bank/` |

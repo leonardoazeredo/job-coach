@@ -6,7 +6,8 @@
 // Prints one line for the coach to put in plain words; a refusal or a failed update of the
 // online copy adds the tool's output on stderr. Exit 64 without a message. Exit 1 when the save
 // was refused (the data stays written but unsaved) or updating the online copy failed. Otherwise
-// 0, including when the folder keeps no history and nothing is saved.
+// 0, including when the folder keeps no history and nothing is saved. With nothing new to commit,
+// commits the online copy lacks are still sent, under the same rules.
 import { EXIT } from './lib/problem.ts'
 import { type Online, type SaveOptions, save } from './lib/save.ts'
 import { repoRoot } from './lib/workspace.ts'

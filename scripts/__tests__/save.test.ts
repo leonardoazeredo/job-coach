@@ -1,49 +1,11 @@
 import { execFileSync } from 'node:child_process'
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { chmodSync, mkdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { describe, expect, it, vi } from 'vitest'
 import { gitHubRepo } from '../lib/history.ts'
 import { save } from '../lib/save.ts'
 import { saveCommand } from '../save.ts'
-
-let dir: string
-let savedEnv: NodeJS.ProcessEnv
-beforeEach(() => {
-  savedEnv = { ...process.env }
-  // A git hook exports GIT_DIR and friends, which would point every git call here at the
-  // repo being pushed instead of the temp one.
-  for (const key of Object.keys(process.env)) if (key.startsWith('GIT_')) delete process.env[key]
-  // The machine's own git config can add hooks or an identity that the temp repos must not see.
-  process.env.GIT_CONFIG_GLOBAL = '/dev/null'
-  process.env.GIT_CONFIG_NOSYSTEM = '1'
-  dir = mkdtempSync(join(tmpdir(), 'save-'))
-})
-afterEach(() => {
-  process.env = savedEnv
-  rmSync(dir, { recursive: true, force: true })
-})
-
-const work = () => join(dir, 'work')
-const git = (...args: string[]) =>
-  execFileSync('git', ['-C', work(), ...args], { encoding: 'utf8' }).trim()
-const write = (rel: string, text: string) => {
-  mkdirSync(dirname(join(work(), rel)), { recursive: true })
-  writeFileSync(join(work(), rel), text)
-}
-const commits = () => Number(git('rev-list', '--count', 'HEAD'))
-
-const checkout = () => {
-  mkdirSync(work())
-  execFileSync('git', ['init', '-q', '-b', 'main', work()])
-  git('config', 'user.email', 'test@example.com')
-  git('config', 'user.name', 'Test')
-  write('README.md', 'engine\n')
-  git('add', '.')
-  git('commit', '-q', '-m', 'engine')
-}
-
-const neverPublic = async () => false
+import { checkout, commits, dir, git, neverPublic, work, write } from './save-helpers.ts'
 
 describe('save', () => {
   it('commits the data folders with the message, and leaves engine edits alone', async () => {

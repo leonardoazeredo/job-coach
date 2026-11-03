@@ -7,9 +7,6 @@ import { EXTRACT_TIMEOUT_MS } from './constants.ts'
 
 const run = promisify(execFile)
 
-// Distinct from 1, which means a failing check.
-const EXIT_NO_POPPLER = 2
-
 const TOOLS = ['pdftotext', 'pdfinfo'] as const
 const BREW_INSTALL = ['brew', 'install', 'poppler']
 const LINUX_HINT = 'sudo apt install poppler-utils   (or: sudo dnf install poppler-utils)'
@@ -42,15 +39,6 @@ export class PopplerMissingError extends Error {
 export function installHint(platform: string): string {
   if (platform === 'darwin') return BREW_INSTALL.join(' ')
   return platform === 'linux' ? LINUX_HINT : OTHER_HINT
-}
-
-/**
- * Prints a PopplerMissingError and exits with EXIT_NO_POPPLER. The error's
- * message already carries the install command.
- */
-export function exitForMissingPoppler(e: PopplerMissingError): never {
-  console.error(`\n  ERROR: ${e.message}\n`)
-  process.exit(EXIT_NO_POPPLER)
 }
 
 function isExecutable(file: string): boolean {
@@ -148,7 +136,7 @@ async function poppler(tool: string, args: string[]): Promise<string> {
     const err = e as { code?: unknown; killed?: boolean; stderr?: string }
     // ENOENT means the binary left PATH after ensurePoppler found it. Throwing
     // PopplerMissingError rather than a poppler failure lets the callers rethrow
-    // it so the CLI exits 2 instead of reporting a failing check.
+    // it so the CLI exits EXIT.missing instead of reporting a failing check.
     if (err.code === 'ENOENT')
       throw new PopplerMissingError([tool], installHint(process.platform), { cause: e })
     // execFile's message is "Command failed: <argv>" followed by all of stderr;

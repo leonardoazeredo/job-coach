@@ -48,6 +48,11 @@ describe('onboarding status', () => {
     ).toMatchObject({ missing: [], placeholders: ['profile/wins.yaml'] })
   })
 
+  it('does not list the personal glossary, which is optional', () => {
+    // The persona has no profile/glossary.md, so a copy without one must stay out of the list.
+    expect(unfinished()).toEqual(['sensitive'])
+  })
+
   it('follows the competency pack named in identity.yaml', () => {
     repo.remove('config/competencies/backend.yaml')
     expect(unfinished()).toContain('competency-pack')

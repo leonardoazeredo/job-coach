@@ -32,6 +32,7 @@ const targets = {
   'profile/voice.example.md': 'profile/voice.md',
   'profile/standard-answers.example.yaml': 'profile/standard-answers.yaml',
   'profile/lessons.example.md': 'profile/lessons.md',
+  'profile/glossary.example.md': 'profile/glossary.md',
   'cv/master.example.json': 'cv/master.json',
 }
 
@@ -78,8 +79,9 @@ describe('templates', () => {
     for (const key of ['start', 'end', 'note']) expect(work[key]).toContain(PLACEHOLDER)
   })
 
+  // Logs and vocabulary start empty of values the user must replace, so onboarding never lists them.
   it.each(Object.keys(targets))('%s carries the placeholder marker unless it is a log', (name) => {
-    expect(text(join(TEMPLATES, name)).includes(PLACEHOLDER)).toBe(!name.includes('lessons'))
+    expect(text(join(TEMPLATES, name)).includes(PLACEHOLDER)).toBe(!/lessons|glossary/.test(name))
   })
 
   it.each(Object.entries(schemas))('%s validates against its schema', (name, schema) => {
