@@ -13,7 +13,7 @@ import {
   HistoryFileSchema,
   WinsFileSchema,
 } from './cv-schema.ts'
-import type { Identity } from './identity.ts'
+import { type Identity, LEGACY_PACK } from './identity.ts'
 import type { Problem } from './problem.ts'
 import { fileProblem, readDir, readFile, yaml } from './read-file.ts'
 import { buildSources, type Sources } from './sources.ts'
@@ -35,7 +35,7 @@ export const loadProfile = (
 ): { profile: Profile | undefined; problems: Problem[] } => {
   const at = (path: string) => join(root, path)
   if (!ident.identity) return { profile: undefined, problems: ident.problems }
-  const packFile = `config/competencies/${ident.identity.competency_pack}.yaml`
+  const packFile = `config/competencies/${ident.identity.competency_pack ?? LEGACY_PACK}.yaml`
   const wins = readFile(at('profile/wins.yaml'), yaml(WinsFileSchema))
   const history = readFile(at('profile/history.yaml'), yaml(HistoryFileSchema))
   const stack = readFile(at('profile/stack.yaml'), (text) => ({
