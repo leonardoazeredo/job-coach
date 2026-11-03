@@ -14,14 +14,14 @@ Edit the CV JSON so every line is true, specific and traceable.
 
 ## Steps
 
-1. **Decide the target.** This skill edits the master CV. A CV for one role is built by cv-for-role (sourced bullets in `pipeline/<slug>/cv/`); hand over to it. Never overwrite `master.json` without the user's yes.
+1. **Decide the target.** This skill edits the master CV. A CV for one role is built by cv-for-role (sourced bullets in `pipeline/<slug>/cv/`); hand over to it. Never overwrite `master.json` without the user's yes, asked over a plain summary of each changed bullet and keyword.
 2. **Check identity fields.** Company, title, employment type and dates for every job must match `history.yaml` public fields exactly (for example "Senior Backend Engineer", permanent, 2022-03 to 2024-06).
 3. **Keywords.** For each keyword requested (from an ATS report or the job ad):
    - Find evidence: `stack.yaml`, a win, or an experience-bank answer. Record where.
    - With evidence: place it where it was actually used (in that job's bullet or tech list), not only in the skills list.
    - Without evidence: leave it out and list it as a gap in the reply.
 4. **Bullets.** Each bullet is action plus result, starts with a strong verb, and draws on one approved win or an experience-bank fact. Quote metrics exactly. 2 to 4 bullets for recent roles, 1 for early roles.
-5. **Reply** with a short diff (what changed and why), the evidence for each added keyword, and the list of keywords left out.
+5. **Reply** with a plain summary of what changed and why (the raw file or `diff -u` only when the user asks or has shown they work in software; CLAUDE.md, Showing a change), the evidence for each added keyword, and the list of keywords left out.
 
 ## Rules
 - Proposed (unapproved) wins are not used until the user approves them.

@@ -49,7 +49,7 @@ Then load the skill that fits the request; a skill may hand over to another when
 1. The files are the memory. Do not rely on earlier chat turns for pipeline state; read the files every time.
 2. Every change to a role (applied, rejected, interview booked, withdrawn, ended) is written to that role's `events.md` and `record.yaml` in the same turn, then `node scripts/check.ts` is run and must pass, then the change is saved (see Saving), then confirmed to the user in one line.
 3. At the start of a session, state today's date and ask for the user's current timezone if it is not obvious. All dates are ISO (`2026-10-22`). All times carry a timezone, and times shown to the user carry both the interviewer's and the user's own.
-4. Never edit `profile/` files without showing the change and getting a yes. Pipeline files can be written directly.
+4. Never edit `profile/` files without showing the change and getting a yes, shown as set out in Showing a change. Pipeline files can be written directly.
 5. The pipeline board is never computed by hand. pipeline-board runs `node scripts/board.ts` and reads its output.
 
 ## Saving
@@ -65,6 +65,15 @@ Every write to `profile/`, `cv/`, `pipeline/` or `experience-bank/` ends with on
 ## Plain words
 
 The user may never have used a terminal. Everything they read uses their words: "this folder", "this computer", "saved", "online copy", "the coach", "a new version". Terms such as repo, remote, origin, commit, merge, branch, YAML, JSON, PATH, npm or Node appear only after the user uses them first. Output from tools (check, board, save, update, biome, tsc, vitest, git, npm) is read by you and summarised in a sentence; quote only the part the user must act on, such as a file name and the value at fault.
+
+## Showing a change
+
+Every yes before a write to `profile/`, `cv/` or `experience-bank/` is asked over a plain summary: a short list of sentences in the user's words, one line per value, for example "Senior Customer Success Manager at Brightlane Software, March 2021 to now, permanent". The list has no keys, quotes, code formatting or file paths, and for a new file or entry it covers every value that file or entry will hold, so the yes covers exactly what was shown. The one exception is an internal identifier (a win's slug, a role's id), which is left out because it only names the entry; tags and statuses are said by what they mean.
+
+- Overwriting a file: say only what changes ("your notice period goes from 1 month to 3 months"); values that stay are not repeated.
+- An empty field holds no fact, so the list leaves it out and the file keeps it empty. A field holding a stand-in such as `Not specified` is said by what it means ("no number yet").
+- Show the raw file (and `diff -u` for an overwrite) only when the user asks, or once they have shown they work in software, by saying so or by using terms such as YAML or JSON first.
+- The write waits for a yes. A no or a correction loops back to the summary.
 
 ## Guardrails
 
