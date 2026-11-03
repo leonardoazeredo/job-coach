@@ -15,7 +15,7 @@ Collect the data the engine was published without, one section at a time, and wr
 
 ## Rules for every step
 
-- Show each file in full, then write it only after the user says yes. A no or a correction loops back to showing the file again; the step is done when the file is written or the user defers it.
+- Show what each file will hold as a plain summary (Showing a change in CLAUDE.md), then write it only after the user says yes. The raw file appears only when the user asks or has shown they work in software. A no or a correction loops back to the summary; the step is done when the file is written or the user defers it.
 - The user's pasted CV, LinkedIn text or PDF is the source for this session. A value the source does not hold is asked, never inferred: one specific question at a time.
 - Strip the template's explanatory comments when writing the file; keep the short ones that tell a later reader why a value is what it is. No `CHANGE_ME` survives in a finished file, comments included: the board counts the token anywhere, so the template header that names it goes too.
 - Required steps are 1, 2, 3 and 8. Offer to defer each of 4 to 7: a deferral is one line to the user ("the board will list it") and changes no file.
@@ -23,7 +23,7 @@ Collect the data the engine was published without, one section at a time, and wr
 
 ## Re-runs
 
-At the start, run `node scripts/board.ts` and list each section as done, unfinished or never started, then ask which to work on. Before overwriting any existing file, write the proposed text to a scratch path outside the repo and show `diff -u <existing> <proposed>`; the file is replaced only after a yes to that diff. Carry the user's existing values into the proposal, and change only what they asked to change.
+At the start, run `node scripts/board.ts` and list each section as done, unfinished or never started, then ask which to work on. Before overwriting any existing file, write the proposed text to a scratch path outside the repo and compare it with the existing file yourself. Tell the user only the values that change, in plain words; the file is replaced only after a yes to that. Show `diff -u <existing> <proposed>` instead only when the user asks or has shown they work in software. Carry the user's existing values into the proposal, and change only what they asked to change.
 
 ## Steps
 
@@ -68,7 +68,7 @@ Done when Node is in range and `npm ci` has run, the data either stays on this c
 
 Ask: "Paste your CV or LinkedIn text, or give me a PDF path." For a PDF, read it with the Read tool, or with `pdftotext -layout <path> -` when poppler is present.
 
-Draft, from that source only, then show and write one file at a time:
+Draft, from that source only, then summarise and write one file at a time:
 
 1. `profile/history.yaml` from `templates/profile/history.example.yaml`: one entry per role, newest first, with `id`, `company` and the `public` block. Titles, dates and employment type are the public labels. Ask one question per unclear date or title.
 2. `profile/stack.yaml`: core, secondary, past and tools, sorted by depth. Technologies the CV shows only briefly go to `secondary` or `past` with `roles` and `claim_as` limits. Ask whether anything in `do_not_claim` applies: things a recruiter would assume the user does that they do not.
@@ -103,7 +103,7 @@ Done when every trait in the file traces to a sample.
 
 ### 6. Competency pack
 
-The pack is the list of competencies an ad can ask for and the evidence a bullet must show. List `config/competencies/`. The user chooses; do not pick one from their field. If one fits the user's discipline, set `competency_pack` to it (a diff on `identity.yaml`). If none fits, draft `config/competencies/<name>.yaml` in the shape of `config/competencies/frontend.yaml`: 8 to 12 competencies, each with `id`, `label`, `ad_words`, `win_themes`, `slots` and one `questions` entry per slot, plus the top-level `themes` list. Use the user's discipline for `ad_words` and the questions; keep the ids that skills refer to (`stakeholder-management`, `technical-leadership`, `system-design`, `mentoring`, `ownership-delivery`, `influence-push-back`, `cross-functional-collaboration`) when they fit. Then set `competency_pack` in `identity.yaml` to the new name, and add `competencies` and `themes` that `wins.yaml` should use.
+The pack is the list of competencies an ad can ask for and the evidence a bullet must show. List `config/competencies/`. The user chooses; do not pick one from their field. If one fits the user's discipline, set `competency_pack` to it (say the change in plain words, as for any overwrite). If none fits, draft `config/competencies/<name>.yaml` in the shape of `config/competencies/frontend.yaml`: 8 to 12 competencies, each with `id`, `label`, `ad_words`, `win_themes`, `slots` and one `questions` entry per slot, plus the top-level `themes` list. Use the user's discipline for `ad_words` and the questions; keep the ids that skills refer to (`stakeholder-management`, `technical-leadership`, `system-design`, `mentoring`, `ownership-delivery`, `influence-push-back`, `cross-functional-collaboration`) when they fit. Then set `competency_pack` in `identity.yaml` to the new name, and add `competencies` and `themes` that `wins.yaml` should use.
 
 This step is required: do not finish onboarding until `competency_pack` is set. Done when `competency_pack` names a file that exists and every win's `competencies` and `themes` appear in it.
 
@@ -119,8 +119,8 @@ Done when each of the three is written or declined.
 
 ### 8. Check and next step
 
-1. If `profile/lessons.md` is missing, show `templates/profile/lessons.example.md` and write it on a yes: interview-debrief appends to it. If `profile/glossary.md` is missing, offer it in one line (the terms only the user uses, such as named companies or the searches they keep for one tier) and write it from `templates/profile/glossary.example.md` on a yes; the board never lists it.
-2. Run `node scripts/check.ts`. Errors name the file; fix that file with the user, through the diff rule, and rerun until it exits 0. Warnings are read out and explained.
+1. If `profile/lessons.md` is missing, say that you will start an empty list for lessons from interviews, which interview-debrief adds to, and write it from `templates/profile/lessons.example.md` on a yes. If `profile/glossary.md` is missing, offer it in one line (the terms only the user uses, such as named companies or the searches they keep for one tier) and write it from `templates/profile/glossary.example.md` on a yes; the board never lists it.
+2. Run `node scripts/check.ts`. Errors name the file; fix that file with the user, through the overwrite rule, and rerun until it exits 0. Warnings are read out and explained.
 3. Run `node scripts/board.ts` and show the "Onboarding unfinished" list, if any, as what remains.
 4. End with one suggested next step: "Paste a job ad or a link and I will run job-intake."
 

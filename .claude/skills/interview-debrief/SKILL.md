@@ -20,7 +20,7 @@ Turn an interview into a record, an honest assessment and lessons.
    - Where an answer was vague, too long, or missed the question, show a tighter version using a win slug.
    - Be direct. Do not grade generously to reassure, and do not invent interviewer reactions.
 4. **Next step.** Who is next and when, according to the transcript. If the transcript does not say, write "Not stated" and suggest asking the recruiter.
-5. **Lessons.** Propose 1 to 3 new rows for `profile/lessons.md` (date, source, lesson). Append them after the user says yes.
+5. **Lessons.** Propose 1 to 3 new rows for `profile/lessons.md` (date, source, lesson). Say each lesson in a plain sentence and append them after the user says yes; the raw row appears only when the user asks or has shown they work in software (CLAUDE.md, Showing a change).
 6. **Write** `pipeline/<slug>/debrief-<date>.md` and log "Interview done" via pipeline-update.
 7. **Reply** with three short parts: how it went (2 lines), top fixes (up to 3), next step.
 

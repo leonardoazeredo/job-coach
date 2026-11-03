@@ -24,7 +24,7 @@ Two phases: a question set the user records answers to, then ingestion of those 
 1. For each answer, keep the transcript in its original language, then add a 2 to 4 line English summary underneath. Never alter the original.
 2. Mark facts that conflict with `history.yaml` or `wins.yaml` and ask which is right.
 3. Propose wins: each with a slug, theme tags, the action, and a metric quoted from the user's own words. Use `status: proposed`. Where the user gave no number, write `metric: "Not specified"` rather than estimating.
-4. Show the proposed wins and changed facts as a list. Write them to `wins.yaml` only after the user approves each one.
+4. Show the proposed wins and changed facts as a plain summary, one win per entry with its action and metric in the user's words. Write them to `wins.yaml` only after the user approves each one. The raw entry appears only when the user asks or has shown they work in software (CLAUDE.md, Showing a change).
 
 ## Targeted follow-up (from cv-for-role)
 
@@ -32,7 +32,7 @@ cv-for-role asks a few questions for named evidence slots of one requirement. Sa
 
 1. Append to `experience-bank/<role-id>.md` under a section `## Follow-ups for <slug>, <date>`. Number questions after the file's last one (a file whose last question is 25 continues at 26); never renumber, because CVs cite `bank:<role-id>#<n>`.
 2. Each entry: the question as a `### <n>. ...` heading, a `Tags:` line, `Asked for: <slug> <requirement id>`, the `**Summary:**`, and the original answer verbatim in a `<details>` block, as in phase 2. A "never happened" or "don't remember" answer is saved the same way.
-3. Propose a win when an answer fills every slot of a competency: `status: proposed`, `competencies: [<id>]`, the metric quoted or `"Not specified"`, question numbers in a comment. Write it only after the user's yes.
+3. Propose a win when an answer fills every slot of a competency: `status: proposed`, `competencies: [<id>]`, the metric quoted or `"Not specified"`, question numbers in a comment. Write it only after the user's yes, asked over the same plain summary as phase 2.
 4. Flag answers that conflict with existing files; ask which is right.
 5. Run `node scripts/check.ts`: it rejects unknown tags.
 
