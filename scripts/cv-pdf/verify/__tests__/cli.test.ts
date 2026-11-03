@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, beforeAll, describe, it } from 'vitest'
-import { FALLBACK_EXPECTATIONS } from '../fallback.ts'
+import { expectations } from '../expectations.ts'
 import { installHint, PopplerMissingError } from '../poppler.ts'
 import { verifyEach, verifyPdf } from '../run.ts'
 import { hasPoppler } from './hasPoppler.ts'
@@ -26,9 +27,28 @@ function cli(...args: string[]) {
   return { code: r.status, out: r.stdout, err: r.stderr, all: r.stdout + r.stderr }
 }
 
+const SEED_EXPECTATIONS = expectations(JSON.parse(readFileSync(SEED, 'utf8')))
+
 function headerNumbers(output: string): number[] {
   return [...output.matchAll(/^ {2}\[(\d+)\] /gm)].map((m) => Number(m[1]))
 }
+
+// Outside the poppler-gated block: the usage error must hold on a machine without poppler too.
+describe('verify cli without --data', () => {
+  it('names --data, prints usage, exits 64 and checks no PDF', () => {
+    const r = cli(SAMPLE)
+    assert.equal(r.code, 64, r.all)
+    assert.match(r.err, /--data/)
+    assert.match(r.err, /usage:/)
+    assert.doesNotMatch(r.all, /\[1\] |RESULT:|MISSING FILE/)
+  })
+
+  it('does not read a PDF that is absent', () => {
+    const r = cli('/nonexistent/x.pdf')
+    assert.equal(r.code, 64, r.all)
+    assert.doesNotMatch(r.all, /MISSING FILE/)
+  })
+})
 
 describe.skipIf(!hasPoppler)('verify cli', () => {
   let dir: string
@@ -38,7 +58,7 @@ describe.skipIf(!hasPoppler)('verify cli', () => {
   afterAll(() => rm(dir, { recursive: true, force: true }))
 
   it('prints usage and exits 64 with no files', () => {
-    const r = cli()
+    const r = cli('--data', SEED)
     assert.equal(r.code, 64)
     assert.match(r.err, /usage:/)
   })
@@ -83,7 +103,7 @@ describe.skipIf(!hasPoppler)('verify cli', () => {
 
   it('treats option-like names after -- as files', () => {
     for (const name of ['--data', '--data=x.pdf']) {
-      const r = cli('--', name)
+      const r = cli('--data', SEED, '--', name)
       assert.equal(r.code, 1, r.all)
       assert.match(r.out, /MISSING FILE/)
     }
@@ -233,7 +253,7 @@ describe('verifyPdf', () => {
     'logs ten sections and counts at least one failure per FAIL section',
     async () => {
       const lines: string[] = []
-      const failures = await verifyPdf(SAMPLE, FALLBACK_EXPECTATIONS, (l) => lines.push(l))
+      const failures = await verifyPdf(SAMPLE, SEED_EXPECTATIONS, (l) => lines.push(l))
       const text = lines.join('\n')
       assert.deepEqual(headerNumbers(text), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
 
@@ -258,7 +278,7 @@ describe('verifyPdf', () => {
     }
     const total = await verifyEach(
       ['boom.pdf', 'fine.pdf'],
-      FALLBACK_EXPECTATIONS,
+      SEED_EXPECTATIONS,
       (l) => lines.push(l),
       verify,
     )
@@ -273,7 +293,7 @@ describe('verifyPdf', () => {
     await assert.rejects(
       verifyEach(
         ['a.pdf'],
-        FALLBACK_EXPECTATIONS,
+        SEED_EXPECTATIONS,
         () => {
           // output is irrelevant: the error must escape before any report
         },
@@ -285,9 +305,7 @@ describe('verifyPdf', () => {
 
   it('returns 1 for a missing file without logging sections', async () => {
     const lines: string[] = []
-    const failures = await verifyPdf('/nonexistent/x.pdf', FALLBACK_EXPECTATIONS, (l) =>
-      lines.push(l),
-    )
+    const failures = await verifyPdf('/nonexistent/x.pdf', SEED_EXPECTATIONS, (l) => lines.push(l))
     assert.equal(failures, 1)
     assert.deepEqual(headerNumbers(lines.join('\n')), [])
   })
