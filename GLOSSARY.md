@@ -201,8 +201,12 @@ Everything shipped by `leonardoazeredo/job-coach`: scripts, skills, config defau
 _Avoid_: template (the GitHub button that copies it), app
 
 **User data**:
-The four folders the engine never ships: `profile/`, `cv/`, `pipeline/` and `experience-bank/`.
+The four folders a save keeps: `profile/`, `cv/`, `pipeline/` and `experience-bank/`. Only these four, whatever else sits in the folder.
 _Avoid_: workspace (the folders a command reads, which can be the worked example)
+
+**Local work files**:
+Generated files the coach keeps in this folder but neither saves nor replaces on a Coach update, such as saved pulls and shortlists.
+_Avoid_: User data (the four saved folders), cache
 
 **History**:
 A git checkout whose top level is the folder itself. A ZIP download, a folder unpacked inside another checkout, or a computer without git keeps none.

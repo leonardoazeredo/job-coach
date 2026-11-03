@@ -15,7 +15,7 @@ import {
 import { tmpdir } from 'node:os'
 import { dirname, join, relative } from 'node:path'
 import { z } from 'zod'
-import { ENGINE, type Git, gitIn } from './history.ts'
+import { ENGINE, type Git, gitIn, output } from './history.ts'
 
 // Ignored by git and Biome: the last check date and the backups of replaced files.
 export const LOCAL_DIR = '.coach'
@@ -72,6 +72,8 @@ export const gitHubEngine: EngineSource = {
   },
 }
 
+// What a Coach update may replace. Not the same set as the folders a save commits
+// (`USER_DATA_FOLDERS` in save.ts): Local work files (discovery/, .coach/) are kept but never saved.
 // Paths under profile/, cv/, discovery/ and .coach/ are the user's and never copied, nor are
 // installed packages or git's own folder. In pipeline/ only README.md and _templates/ are engine
 // files, and in experience-bank/ only README.md; the rest of those two folders is user data.
@@ -155,7 +157,7 @@ export const runIn =
   (root: string): Run =>
   (cmd, args) => {
     const run = spawnSync(cmd, args, { cwd: root, encoding: 'utf8', timeout: 600_000 })
-    return { ok: run.status === 0, output: `${run.stdout ?? ''}${run.stderr ?? ''}`.trim() }
+    return { ok: run.status === 0, output: output(run) }
   }
 
 // The record check once onboarding has made a profile, else the same check on the example.

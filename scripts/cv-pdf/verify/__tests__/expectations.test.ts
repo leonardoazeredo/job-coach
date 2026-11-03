@@ -11,7 +11,6 @@ import {
   TEXT_PT_MAX,
 } from '../constants.ts'
 import { expectations } from '../expectations.ts'
-import { FALLBACK_EXPECTATIONS } from '../fallback.ts'
 
 describe('expectations', () => {
   it('drops skills of two characters or fewer', () => {
@@ -86,15 +85,6 @@ describe('expectations', () => {
     assert.equal(expectations({}).email, null)
     assert.equal(expectations({ email: '' }).email, null)
     assert.equal(expectations({ email: 'a@b.co' }).email, 'a@b.co')
-  })
-})
-
-describe('fallback expectations', () => {
-  it('uses the first contact entry as the email and expects no job pairs', () => {
-    assert.equal(FALLBACK_EXPECTATIONS.email, FALLBACK_EXPECTATIONS.contact[0])
-    assert.deepEqual(FALLBACK_EXPECTATIONS.pairs, [])
-    assert.ok(FALLBACK_EXPECTATIONS.keywords.includes('TypeScript'))
-    assert.ok(FALLBACK_EXPECTATIONS.headings.includes('WORK EXPERIENCE'))
   })
 })
 
