@@ -4,26 +4,23 @@
  *
  *   node verify/cli.ts [--data <cv.json>] [--] <file.pdf>...
  *
- * Exit codes: 0 every check passed, 1 a check failed, 2 poppler is missing,
- * 64 bad usage, 65 --data is not valid JSON or not an object, 66 --data could
- * not be read.
+ * Exit codes (EXIT in lib/problem.ts): 0 every check passed, 1 a check failed,
+ * 64 bad usage, 65 --data is not valid JSON or not an object, 66 poppler is
+ * missing or --data could not be read.
  */
 import { readFileSync } from 'node:fs'
+import { EXIT } from '../../lib/problem.ts'
 import type { CvData } from '../types.ts'
 import { expectations } from './expectations.ts'
 import { FALLBACK_EXPECTATIONS } from './fallback.ts'
-import { exitForMissingPoppler, PopplerMissingError } from './poppler.ts'
+import { PopplerMissingError } from './poppler.ts'
 import { verifyEach } from './run.ts'
 import type { Expectations } from './types.ts'
-
-const EXIT_USAGE = 64
-const EXIT_DATA_FORMAT = 65
-const EXIT_NO_INPUT = 66
 
 const USAGE = [
   'usage: node verify/cli.ts [--data <cv.json>] [--] <file.pdf>...',
   '  --data <cv.json>  derive expectations from a CV data file (a JSON object)',
-  '  exit: 0 pass, 1 failing check, 2 poppler missing, 64 usage, 65/66 bad --data',
+  '  exit: 0 pass, 1 failing check, 64 usage, 65 bad --data, 66 poppler missing or --data unreadable',
 ].join('\n')
 
 // `never` is declared explicitly: TS narrows after a call only when the
@@ -41,21 +38,21 @@ const opts = endAt === -1 ? argv : argv.slice(0, endAt)
 const files = endAt === -1 ? [] : argv.slice(endAt + 1)
 
 if (opts.some((a) => a.startsWith('--data='))) {
-  fail(EXIT_USAGE, 'use --data <path>, not --data=<path>')
+  fail(EXIT.usage, 'use --data <path>, not --data=<path>')
 }
 let dataArg: string | undefined
 const dataAt = opts.indexOf('--data')
 if (dataAt !== -1) {
   dataArg = opts[dataAt + 1]
-  if (!dataArg || dataArg.startsWith('--')) fail(EXIT_USAGE, '--data needs a path')
+  if (!dataArg || dataArg.startsWith('--')) fail(EXIT.usage, '--data needs a path')
   opts.splice(dataAt, 2)
 }
 const unknown = opts.find((a) => a.startsWith('--'))
-if (unknown) fail(EXIT_USAGE, `unknown option ${unknown}\n         ${USAGE}`)
+if (unknown) fail(EXIT.usage, `unknown option ${unknown}\n         ${USAGE}`)
 files.unshift(...opts)
 if (files.length === 0) {
   console.error(USAGE)
-  process.exit(EXIT_USAGE)
+  process.exit(EXIT.usage)
 }
 
 let exp: Expectations = FALLBACK_EXPECTATIONS
@@ -65,7 +62,7 @@ if (dataArg) {
     raw = readFileSync(dataArg, 'utf8')
   } catch (e) {
     fail(
-      EXIT_NO_INPUT,
+      EXIT.missing,
       `could not read --data ${dataArg}: ${e instanceof Error ? e.message : String(e)}`,
     )
   }
@@ -74,21 +71,18 @@ if (dataArg) {
     parsed = JSON.parse(raw)
   } catch (e) {
     fail(
-      EXIT_DATA_FORMAT,
+      EXIT.data,
       `--data ${dataArg} is not valid JSON: ${e instanceof Error ? e.message : String(e)}`,
     )
   }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    fail(EXIT_DATA_FORMAT, `--data ${dataArg} should hold a JSON object`)
+    fail(EXIT.data, `--data ${dataArg} should hold a JSON object`)
   }
   try {
     // biome-ignore lint/nursery/noUnsafeTypeAssertion: parsed passed the object guard above, and expectations tolerates missing fields
     exp = expectations(parsed as Partial<CvData>)
   } catch (e) {
-    fail(
-      EXIT_DATA_FORMAT,
-      `--data ${dataArg} is not a CV: ${e instanceof Error ? e.message : String(e)}`,
-    )
+    fail(EXIT.data, `--data ${dataArg} is not a CV: ${e instanceof Error ? e.message : String(e)}`)
   }
   console.log(
     `expectations from ${dataArg}: ${exp.keywords.length} keywords, ${exp.pairs.length} job pairs`,
@@ -99,7 +93,7 @@ let total = 0
 try {
   total = await verifyEach(files, exp)
 } catch (e) {
-  if (e instanceof PopplerMissingError) exitForMissingPoppler(e)
-  throw e
+  if (!(e instanceof PopplerMissingError)) throw e
+  fail(EXIT.missing, e.message)
 }
-process.exitCode = total > 0 ? 1 : 0
+process.exitCode = total > 0 ? EXIT.problems : 0
