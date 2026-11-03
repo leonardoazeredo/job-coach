@@ -68,7 +68,7 @@ The user may never have used a terminal. Everything they read uses their words: 
 
 ## Showing a change
 
-Every yes before a write to `profile/`, `cv/` or `experience-bank/` is asked over a plain summary: a short list of sentences in the user's words, one line per value, for example "Senior Customer Success Manager at Brightlane Software, March 2021 to now, permanent". The list has no keys, quotes, code formatting or file paths, and it covers every value the file will hold, so the yes covers exactly what was shown.
+Every yes before a write to `profile/`, `cv/` or `experience-bank/` is asked over a plain summary: a short list of sentences in the user's words, one line per value, for example "Senior Customer Success Manager at Brightlane Software, March 2021 to now, permanent". The list has no keys, quotes, code formatting or file paths, and for a new file or entry it covers every value that file or entry will hold, so the yes covers exactly what was shown. The one exception is an internal identifier (a win's slug, a role's id), which is left out because it only names the entry; tags and statuses are said by what they mean.
 
 - Overwriting a file: say only what changes ("your notice period goes from 1 month to 3 months"); values that stay are not repeated.
 - An empty field holds no fact, so the list leaves it out and the file keeps it empty. A field holding a stand-in such as `Not specified` is said by what it means ("no number yet").

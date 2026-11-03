@@ -24,7 +24,7 @@ Two phases: a question set the user records answers to, then ingestion of those 
 1. For each answer, keep the transcript in its original language, then add a 2 to 4 line English summary underneath. Never alter the original.
 2. Mark facts that conflict with `history.yaml` or `wins.yaml` and ask which is right.
 3. Propose wins: each with a slug, theme tags, the action, and a metric quoted from the user's own words. Use `status: proposed`. Where the user gave no number, write `metric: "Not specified"` rather than estimating.
-4. Show the proposed wins and changed facts as a plain summary, one win per entry with its action and metric in the user's words. Write them to `wins.yaml` only after the user approves each one. The raw entry appears only when the user asks or has shown they work in software (CLAUDE.md, Showing a change).
+4. Show the proposed wins and changed facts as a plain summary, one entry per win covering every value it will hold (action and metric in the user's words, themes or competencies, and that it waits for approval). Write them to `wins.yaml` only after the user approves each one. The raw entry appears only when the user asks or has shown they work in software (CLAUDE.md, Showing a change).
 
 ## Targeted follow-up (from cv-for-role)
 
