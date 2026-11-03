@@ -2,9 +2,10 @@
 // data under a build id that rotates on deploys, so the id is read from the live
 // page first. A logged-out visitor gets the same first page back for every page
 // number, so a search stops as soon as a page adds nothing that search has not
-// already returned. An empty page, or one answered with an error status, ends the
-// search too, without a retry, since the board answers 404 to a title it has no page
-// for. A page that fails to connect or is not JSON is retried with a growing pause,
+// already returned. An empty page, one answered with an error status, or one whose
+// JSON lacks the expected envelope ends the search too, without a retry, since the board
+// answers 404 to a title it has no page for and a reshaped payload will not fix itself
+// on a second request. A page that fails to connect or is not JSON is retried with a growing pause,
 // and fails the whole pull only once every attempt has failed.
 import { type BoardDeps, isWorkMode, type JobBoard, type Listing } from '../listings.ts'
 import type { SearchPreferences } from '../schema.ts'
