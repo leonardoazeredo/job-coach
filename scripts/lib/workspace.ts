@@ -141,6 +141,23 @@ const checkRoleCv = (root: string, slug: string, profile: Profile | undefined): 
   }
 }
 
+// The record check loads a copy with no pack, because onboarding leaves it unset until its
+// pack step. Matching a CV against the fallback pack would still be matching it against a
+// field the user never chose, so only the CV commands refuse.
+const packRefusal = (id: Identity | undefined): Problem[] =>
+  id && id.competency_pack === undefined ? [error('profile/identity.yaml', NO_PACK)] : []
+
+type LoadedProfile = { profile: Profile | undefined; problems: Problem[] }
+
+// What the CV commands read: no profile at all while the pack is unchosen.
+const cvProfileOf = (id: Identity | undefined, load: () => LoadedProfile): LoadedProfile => {
+  const refused = packRefusal(id)
+  return refused.length > 0 ? { profile: undefined, problems: refused } : load()
+}
+
+const NO_PACK =
+  'no competency pack is chosen yet, so the CV cannot be matched to your field. Choose one in the competency pack step of onboarding, then run this again'
+
 const noFolder = (slug: string): Problem => error(slug, `no pipeline/${slug} folder`)
 
 const memo = <T>(load: () => T): (() => T) => {
@@ -222,6 +239,7 @@ export const openWorkspace = (
     return { identity: read.data, problems: fileProblem('profile/identity.yaml', read) }
   })
   const profile = memo(() => loadProfile(root, identity()))
+  const cvProfile = () => cvProfileOf(identity().identity, profile)
   const rules = memo(() => loadRules(root))
   const visibility = memo(() => probe(root))
   // Built once per run, so the board and the record checker share one set of rules
@@ -266,14 +284,14 @@ export const openWorkspace = (
   // The gate, profile then folder, reports both as facts; a missing folder stops the
   // reading and a missing profile the checking.
   const openCv = (slug: string) => {
-    const p = profile()
+    const p = cvProfile()
     const folder = known(slug)
     const gate = [...p.problems, ...(folder ? [] : [noFolder(slug)])]
     return { gate, cv: folder ? checkRoleCv(root, slug, p.profile) : unchecked }
   }
 
   const lintCvs = (slug?: string) => {
-    const p = profile()
+    const p = cvProfile()
     if (slug === undefined) {
       if (!p.profile) return { problems: p.problems, checked: 0 }
       const all = lintCvsWith(p.profile, slugs())

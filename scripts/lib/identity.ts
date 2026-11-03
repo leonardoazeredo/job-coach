@@ -2,8 +2,9 @@
 // timezone and locale that make "today", and which competency pack the CV work uses.
 import { z } from 'zod'
 
-// Only for CV work on an identity written before packs existed. A new copy never gets it:
-// onboarding leaves the pack unset until the user chooses one.
+// Only so the record check can load an identity written before packs existed. The CV
+// commands refuse such an identity instead (see packRefusal in workspace.ts), because a
+// pack the user never chose would decide what their CV is matched against.
 export const LEGACY_PACK = 'frontend'
 
 export const IdentitySchema = z.object({
