@@ -113,7 +113,7 @@ This step is required: do not finish onboarding until `competency_pack` is set. 
 
 Offer each in one sentence on why it exists, and write it only if the user opts in:
 
-- `profile/history-private.yaml`: facts about past roles that must never reach outward material, such as a payroll title that differs from the public one or a background-check risk. Only interview-prep and offer-review read it. After the opt-in, ask for each role in `history.yaml`, one per reply, whether the contract title differs from the public one, and write the answer as that role's `payroll_title`.
+- `profile/history-private.yaml`: facts about past roles that must never reach outward material, such as a payroll title that differs from the public one or a background-check risk. Only interview-prep and offer-review read it. After the opt-in, ask for each role in `history.yaml`, one per reply, whether the contract title differs from the public one. A title that differs goes in that role's `payroll_title`; otherwise leave the key out.
 - `profile/standard-answers.yaml`: answers to the questions every application form asks, so application-writer reuses the user's wording. Ask the earliest start date as its own question for `earliest_start`. Salary answers come from `identity.yaml` levels.
 - Salary history: kept in `history-private.yaml` per role under `salary_history`, only on request.
 
