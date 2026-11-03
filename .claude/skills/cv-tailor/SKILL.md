@@ -12,6 +12,8 @@ Edit the CV JSON so every line is true, specific and traceable.
 - `profile/history.yaml` (public fields), `profile/wins.yaml` (approved wins only), `profile/stack.yaml`
 - `experience-bank/` files for the roles being edited
 
+When a `cv-*` script refuses because no competency pack is chosen, stop there. Tell the user in one plain sentence that the coach needs to know their field before it can check a CV, and hand over to onboarding's competency pack step. The user chooses the pack; never set `competency_pack` or pick one from their field yourself.
+
 ## Steps
 
 1. **Decide the target.** This skill edits the master CV. A CV for one role is built by cv-for-role (sourced bullets in `pipeline/<slug>/cv/`); hand over to it. Never overwrite `master.json` without the user's yes, asked over a plain summary of each changed bullet and keyword.

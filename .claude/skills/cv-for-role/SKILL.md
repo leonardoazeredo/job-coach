@@ -14,6 +14,8 @@ Tailor the CV to one ad without saying anything the files cannot back. Every lin
 - `cv/master.json`
 - `pipeline/<slug>/requirements.yaml` and `cv/bullets.yaml` if they exist (resume, do not restart)
 
+When any `cv-*` script refuses because no competency pack is chosen, stop there. Tell the user in one plain sentence that the coach needs to know their field before it can match a CV, and hand over to onboarding's competency pack step. The user chooses the pack; never set `competency_pack` or pick one from their field yourself.
+
 ## Phase 1: break the ad down
 
 Write `pipeline/<slug>/requirements.yaml`:
