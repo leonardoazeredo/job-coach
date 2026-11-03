@@ -1,49 +1,11 @@
 import { execFileSync } from 'node:child_process'
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { chmodSync, mkdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { describe, expect, it, vi } from 'vitest'
 import { gitHubRepo } from '../lib/history.ts'
 import { save } from '../lib/save.ts'
 import { saveCommand } from '../save.ts'
-
-let dir: string
-let savedEnv: NodeJS.ProcessEnv
-beforeEach(() => {
-  savedEnv = { ...process.env }
-  // A git hook exports GIT_DIR and friends, which would point every git call here at the
-  // repo being pushed instead of the temp one.
-  for (const key of Object.keys(process.env)) if (key.startsWith('GIT_')) delete process.env[key]
-  // The machine's own git config can add hooks or an identity that the temp repos must not see.
-  process.env.GIT_CONFIG_GLOBAL = '/dev/null'
-  process.env.GIT_CONFIG_NOSYSTEM = '1'
-  dir = mkdtempSync(join(tmpdir(), 'save-'))
-})
-afterEach(() => {
-  process.env = savedEnv
-  rmSync(dir, { recursive: true, force: true })
-})
-
-const work = () => join(dir, 'work')
-const git = (...args: string[]) =>
-  execFileSync('git', ['-C', work(), ...args], { encoding: 'utf8' }).trim()
-const write = (rel: string, text: string) => {
-  mkdirSync(dirname(join(work(), rel)), { recursive: true })
-  writeFileSync(join(work(), rel), text)
-}
-const commits = () => Number(git('rev-list', '--count', 'HEAD'))
-
-const checkout = () => {
-  mkdirSync(work())
-  execFileSync('git', ['init', '-q', '-b', 'main', work()])
-  git('config', 'user.email', 'test@example.com')
-  git('config', 'user.name', 'Test')
-  write('README.md', 'engine\n')
-  git('add', '.')
-  git('commit', '-q', '-m', 'engine')
-}
-
-const neverPublic = async () => false
+import { checkout, commits, dir, git, neverPublic, work, write } from './save-helpers.ts'
 
 describe('save', () => {
   it('commits the data folders with the message, and leaves engine edits alone', async () => {
@@ -207,87 +169,6 @@ describe('save online copy', () => {
     const result = await save(work(), { message: 'x', probe: neverPublic })
     expect(result).toMatchObject({ kind: 'saved', online: 'failed' })
     expect(commits()).toBe(2)
-  })
-})
-
-describe('save with nothing new to commit', () => {
-  const bare = () => join(dir, 'online.git')
-  const onlineLog = () =>
-    execFileSync('git', ['-C', bare(), 'rev-list', '--all'], { encoding: 'utf8' }).trim()
-  // A clean folder whose history is ahead of its online copy, as after an update's merge commit.
-  const ahead = (origin: string, pushUrl?: string) => {
-    checkout()
-    execFileSync('git', ['init', '-q', '--bare', bare()])
-    git('remote', 'add', 'origin', origin)
-    if (pushUrl) git('remote', 'set-url', '--push', 'origin', pushUrl)
-    git('push', '-q', pushUrl ?? origin, 'main')
-    git('update-ref', 'refs/remotes/origin/main', 'HEAD')
-    write('pipeline/acme/record.yaml', 'status: Applied\n')
-    git('add', '.')
-    git('commit', '-q', '-m', 'merge')
-  }
-  const noop = () => undefined
-
-  it('sends commits the online copy lacks to a private online copy', async () => {
-    ahead(bare())
-    const result = await save(work(), { message: 'x', probe: neverPublic })
-    expect(result).toEqual({ kind: 'saved', online: 'pushed' })
-    expect(onlineLog()).toBe(git('rev-list', 'HEAD'))
-    expect(commits()).toBe(2)
-  })
-
-  it('never pushes to a copy GitHub reports as public', async () => {
-    ahead('git@github.com:someone/my-copy.git', bare())
-    const before = onlineLog()
-    const result = await save(work(), { message: 'x', probe: async () => true })
-    expect(result).toEqual({ kind: 'saved', online: 'public' })
-    expect(onlineLog()).toBe(before)
-  })
-
-  it('holds the push when GitHub cannot say whether the copy is public', async () => {
-    ahead('git@github.com:someone/my-copy.git', bare())
-    const before = onlineLog()
-    const result = await save(work(), { message: 'x', probe: async () => undefined })
-    expect(result).toEqual({ kind: 'saved', online: 'unchecked' })
-    expect(onlineLog()).toBe(before)
-  })
-
-  it('never pushes to the engine', async () => {
-    ahead('https://github.com/leonardoazeredo/job-coach.git', bare())
-    const before = onlineLog()
-    const result = await save(work(), { message: 'x', probe: neverPublic })
-    expect(result).toEqual({ kind: 'saved', online: 'public' })
-    expect(onlineLog()).toBe(before)
-  })
-
-  it('reports nothing, and asks nobody, when not ahead of the online copy', async () => {
-    ahead(bare())
-    await save(work(), { message: 'x', probe: neverPublic })
-    const probe = async () => {
-      throw new Error('not asked')
-    }
-    expect(await save(work(), { message: 'x', probe })).toEqual({ kind: 'nothing' })
-  })
-
-  it('reports nothing for a clean folder with no online copy', async () => {
-    checkout()
-    expect(await save(work(), { message: 'x', probe: neverPublic })).toEqual({ kind: 'nothing' })
-  })
-
-  it('exits 1 on a failed push, with the failed line and the push output', async () => {
-    ahead(bare())
-    git('remote', 'set-url', 'origin', join(dir, 'missing.git'))
-    const log = vi.spyOn(console, 'log').mockImplementation(noop)
-    const err = vi.spyOn(console, 'error').mockImplementation(noop)
-    try {
-      const code = await saveCommand(['x'], work(), { probe: neverPublic })
-      expect(code).toBe(1)
-      expect(log).toHaveBeenCalledWith('saved on this computer; updating the online copy failed')
-      expect(String(err.mock.calls[0]?.[0])).not.toBe('')
-    } finally {
-      log.mockRestore()
-      err.mockRestore()
-    }
   })
 })
 
