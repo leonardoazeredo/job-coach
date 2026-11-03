@@ -15,8 +15,8 @@ Collect the data the engine was published without, one section at a time, and wr
 
 ## Rules for every step
 
-- Show what each file will hold as a plain summary (Showing a change in CLAUDE.md), then write it only after the user says yes. The raw file appears only when the user asks or has shown they work in software. A no or a correction loops back to the summary; the step is done when the file is written or the user defers it.
-- The user's pasted CV, LinkedIn text or PDF is the source for this session. A value the source does not hold is asked, never inferred: one specific question at a time.
+- For each file, draft its exact values first, then show a plain summary built from that draft (Showing a change in CLAUDE.md), then write the draft unchanged after the user says yes. The summary covers every value, including each sentence you drafted yourself. Do not compose the summary from the conversation and draft the file afterwards. The raw file appears only when the user asks or has shown they work in software. A no or a correction loops back to the summary; the step is done when the file is written or the user defers it.
+- The user's pasted CV, LinkedIn text or PDF is the source for this session. A value the source does not hold is asked, never inferred: one specific question at a time. A value the user gave only in part (a year without a month) is written in the part they gave.
 - Strip the template's explanatory comments when writing the file; keep the short ones that tell a later reader why a value is what it is. No `CHANGE_ME` survives in a finished file, comments included: the board counts the token anywhere, so the template header that names it goes too.
 - Required steps are 1, 2, 3 and 8. Offer to defer each of 4 to 7: a deferral is one line to the user ("the board will list it") and changes no file.
 - A file that already exists is updated, never replaced: see Re-runs.
@@ -104,6 +104,8 @@ Done when every trait in the file traces to a sample.
 ### 6. Competency pack
 
 The pack is the list of competencies an ad can ask for and the evidence a bullet must show. List `config/competencies/`. The user chooses; do not pick one from their field. If one fits the user's discipline, set `competency_pack` to it (say the change in plain words, as for any overwrite). If none fits, draft `config/competencies/<name>.yaml` in the shape of `config/competencies/frontend.yaml`: 8 to 12 competencies, each with `id`, `label`, `ad_words`, `win_themes`, `slots` and one `questions` entry per slot, plus the top-level `themes` list. Use the user's discipline for `ad_words` and the questions; keep the ids that skills refer to (`stakeholder-management`, `technical-leadership`, `system-design`, `mentoring`, `ownership-delivery`, `influence-push-back`, `cross-functional-collaboration`) when they fit. Then set `competency_pack` in `identity.yaml` to the new name, and add `competencies` and `themes` that `wins.yaml` should use.
+
+Ask the yes for a drafted pack over the summary that Showing a change allows for it: the competency names, not the ad words, slots and questions.
 
 This step is required: do not finish onboarding until `competency_pack` is set. Done when `competency_pack` names a file that exists and every win's `competencies` and `themes` appear in it.
 

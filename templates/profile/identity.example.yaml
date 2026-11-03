@@ -16,7 +16,7 @@ locale: en-US                  # BCP 47 language tag; dates in files stay ISO wh
 
 location:
   city: CHANGE_ME City, Country
-  since: 2020-01               # CHANGE_ME year-month you moved there
+  since: 2020-01               # CHANGE_ME the year, or year-month, you moved there; as the user said it
   timezone: Etc/UTC            # CHANGE_ME IANA name, for example America/Chicago or Europe/Berlin
 right_to_work:                 # one line per country you can work in, and on what basis
   CHANGE_ME country: CHANGE_ME citizen, no sponsorship needed
