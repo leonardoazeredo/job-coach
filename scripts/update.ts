@@ -3,7 +3,9 @@
 //        node scripts/update.ts zip
 // check asks GitHub once whether a newer engine exists. Without --now it runs at most once a
 // week (once a day after a failed try) and prints "available" or, when it got no answer, one plain
-// line saying so; with --now it always asks and prints its answer.
+// line saying so; with --now it always asks and prints its answer. Before onboarding has created
+// profile/coach.md, check without --now does nothing: a new user has not yet met the coach, and
+// an offer to update it would be the first thing they read.
 // zip updates a folder that keeps no history: it copies the newest engine files over this one,
 // backing up each file it replaces, and undoes the update if the install or the record check
 // then fails.
@@ -12,6 +14,8 @@
 // Exit 64 on a usage error, or zip in a folder that keeps history (that one updates with git).
 // Exit 1 when zip did not start, was undone or could not fetch the new version, with the reason
 // on stderr. Otherwise 0, including a check that got no answer.
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import { gitIn } from './lib/history.ts'
 import { EXIT } from './lib/problem.ts'
 import {
@@ -64,7 +68,10 @@ export const updateCommand = async (
   const source = deps.source ?? gitHubEngine
   const [sub, ...rest] = args
   if (sub === 'check' && rest.every((a) => a === '--now')) {
-    await printCheck(root, { now, source, force: rest.includes('--now'), path: deps.path })
+    const force = rest.includes('--now')
+    if (force || existsSync(join(root, 'profile/coach.md'))) {
+      await printCheck(root, { now, source, force, path: deps.path })
+    }
     return 0
   }
   if (sub !== 'zip' || rest.length > 0) {

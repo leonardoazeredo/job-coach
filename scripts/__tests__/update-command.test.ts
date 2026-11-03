@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { gitHubEngine, SourceFault, type UnknownReason } from '../lib/update.ts'
@@ -33,14 +33,42 @@ describe('gitHubEngine', () => {
   })
 })
 
+const printedBeforeOnboarding = async (
+  args: string[],
+  deps: Parameters<typeof updateCommand>[2],
+) => {
+  const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
+  const code = await updateCommand(args, work(), deps)
+  const lines = log.mock.calls.map((c) => c[0])
+  log.mockRestore()
+  return { code, lines }
+}
+const printed = async (args: string[], deps: Parameters<typeof updateCommand>[2]) => {
+  put(work(), { 'profile/coach.md': 'Coach Mira.\n' })
+  return printedBeforeOnboarding(args, deps)
+}
+
 describe('updateCommand check', () => {
-  const printed = async (args: string[], deps: Parameters<typeof updateCommand>[2]) => {
-    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
-    const code = await updateCommand(args, work(), deps)
-    const lines = log.mock.calls.map((c) => c[0])
-    log.mockRestore()
-    return { code, lines }
-  }
+  it('stays silent and asks nothing before onboarding has created the coach file', async () => {
+    mkdirSync(work())
+    const latestFiles = vi.fn(async () => new Map([['CLAUDE.md', '0'.repeat(40)]]))
+    const { code, lines } = await printedBeforeOnboarding(['check'], {
+      now,
+      source: source({ latestFiles }),
+    })
+    expect(code).toBe(0)
+    expect(lines).toEqual([])
+    expect(latestFiles).not.toHaveBeenCalled()
+    expect(existsSync(join(work(), '.coach'))).toBe(false)
+  })
+
+  it('still answers --now before onboarding, since the user asked', async () => {
+    mkdirSync(work())
+    const src = source({ latestFiles: async () => new Map() })
+    expect(
+      (await printedBeforeOnboarding(['check', '--now'], { now, source: src })).lines,
+    ).toHaveLength(1)
+  })
 
   it('prints one plain line and exits 0 when the check cannot get an answer', async () => {
     mkdirSync(work())
