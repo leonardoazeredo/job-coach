@@ -110,9 +110,10 @@ describe('templates', () => {
           : [k],
       )
     const have = new Set(shape(template))
-    // Tiers and the right-to-work countries are keyed by the person's own choices.
+    // Tiers and the right-to-work countries are keyed by the person's own choices, and the
+    // pack is left unset in the template so the pack step of onboarding must set it.
     const missing = shape(persona).filter(
-      (k) => !have.has(k) && !/^(tiers|right_to_work)\./.test(k),
+      (k) => !have.has(k) && k !== 'competency_pack' && !/^(tiers|right_to_work)\./.test(k),
     )
     expect(missing).toEqual([])
   })
@@ -122,8 +123,8 @@ describe('templates, filled in', () => {
   let repo: TempRepo
   beforeEach(() => {
     repo = tempRepo()
-    // The template profile names the frontend pack and the record check loads it from the engine,
-    // so the test repo needs the engine's copy.
+    // The template names no pack, so the record check loads the frontend pack that older copies
+    // fall back to from the engine; the test repo needs the engine's copy.
     for (const [name, target] of Object.entries(targets))
       repo.write(target, filled(text(join(TEMPLATES, name))))
     repo.write(

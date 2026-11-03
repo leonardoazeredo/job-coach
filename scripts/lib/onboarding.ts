@@ -8,6 +8,9 @@ import { join } from 'node:path'
 // in a file, comments included, so the template headers that name it must be stripped on write.
 export const PLACEHOLDER = 'CHANGE_ME'
 
+// Shown in place of a file when the identity names no pack, so the board says what to set.
+const NO_PACK = 'competency_pack in profile/identity.yaml'
+
 export type OnboardingSection = {
   id: string
   label: string
@@ -21,7 +24,7 @@ export type OnboardingSection = {
 
 type Spec = Pick<OnboardingSection, 'id' | 'label' | 'required' | 'optIn'> & { files: string[] }
 
-const specs = (pack: string): Spec[] => [
+const specs = (pack: string | undefined): Spec[] => [
   {
     id: 'cv-import',
     label: 'CV import: history, stack and master CV',
@@ -53,9 +56,9 @@ const specs = (pack: string): Spec[] => [
   {
     id: 'competency-pack',
     label: 'Competency pack',
-    required: false,
+    required: true,
     optIn: false,
-    files: [`config/competencies/${pack}.yaml`],
+    files: pack ? [`config/competencies/${pack}.yaml`] : [],
   },
   {
     id: 'sensitive',
@@ -74,11 +77,13 @@ const hasPlaceholder = (path: string): boolean => {
   }
 }
 
-// Only sections with something left are returned. `pack` is the competency pack the
-// identity names, or the engine default when there is no readable identity.
-export const onboardingStatus = (root: string, pack: string): OnboardingSection[] =>
+// Only sections with something left are returned. `pack` is the competency pack the identity
+// names; undefined (no pack named, or no readable identity) leaves the pack step unfinished
+// rather than assuming one.
+export const onboardingStatus = (root: string, pack: string | undefined): OnboardingSection[] =>
   specs(pack).flatMap(({ files, ...section }) => {
     const missing = files.filter((f) => !existsSync(join(root, f)))
+    if (section.id === 'competency-pack' && !pack) missing.push(NO_PACK)
     const placeholders = files.filter((f) => !missing.includes(f) && hasPlaceholder(join(root, f)))
     return missing.length + placeholders.length === 0 ? [] : [{ ...section, missing, placeholders }]
   })

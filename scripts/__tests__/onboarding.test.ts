@@ -58,6 +58,26 @@ describe('onboarding status', () => {
     expect(unfinished()).toContain('competency-pack')
   })
 
+  it('lists the pack step as required while the identity names no pack', () => {
+    repo.editYaml<{ competency_pack?: string }>('profile/identity.yaml', (i) => {
+      delete i.competency_pack
+    })
+    expect(
+      repo
+        .workspace()
+        .onboarding()
+        .find((s) => s.id === 'competency-pack'),
+    ).toMatchObject({ required: true, missing: ['competency_pack in profile/identity.yaml'] })
+  })
+
+  it('keeps frontend finished when the identity chose it on purpose', () => {
+    repo.editYaml<{ competency_pack?: string }>('profile/identity.yaml', (i) => {
+      i.competency_pack = 'frontend'
+    })
+    repo.write('config/competencies/frontend.yaml', repo.read('config/competencies/backend.yaml'))
+    expect(unfinished()).not.toContain('competency-pack')
+  })
+
   it('works with no profile at all', () => {
     removeProfile()
     const required = repo
@@ -65,7 +85,7 @@ describe('onboarding status', () => {
       .onboarding()
       .filter((s) => s.required)
       .map((s) => s.id)
-    expect(required).toEqual(['cv-import', 'identity'])
+    expect(required).toEqual(['cv-import', 'identity', 'competency-pack'])
   })
 })
 

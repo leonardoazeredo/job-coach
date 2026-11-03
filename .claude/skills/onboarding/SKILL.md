@@ -83,7 +83,7 @@ Ask in short groups, never all at once: name and pronouns; locale and spelling (
 
 Write, from the templates:
 
-1. `profile/identity.yaml`. Set `competency_pack` to a pack that exists in `config/competencies/`; step 6 changes it if the user wants another.
+1. `profile/identity.yaml`. Leave `competency_pack` unset; step 6 sets it.
 2. `profile/search.yaml`: three tiers worded with the user's own criteria and currency, a `min_stack_overlap_pct`, a location rule in prose, and the discovery titles and search. The salary floor lives in `identity.yaml` only.
 3. `profile/coach.md`: the four bullets, in the user's language and tone. This file is the gate CLAUDE.md checks, so write it last.
 
@@ -103,9 +103,9 @@ Done when every trait in the file traces to a sample.
 
 ### 6. Competency pack
 
-The pack is the list of competencies an ad can ask for and the evidence a bullet must show. List `config/competencies/`. If one fits the user's discipline, set `competency_pack` to it (a diff on `identity.yaml`). Otherwise draft `config/competencies/<name>.yaml` in the shape of `config/competencies/frontend.yaml`: 8 to 12 competencies, each with `id`, `label`, `ad_words`, `win_themes`, `slots` and one `questions` entry per slot, plus the top-level `themes` list. Use the user's discipline for `ad_words` and the questions; keep the ids that skills refer to (`stakeholder-management`, `technical-leadership`, `system-design`, `mentoring`, `ownership-delivery`, `influence-push-back`, `cross-functional-collaboration`) when they fit. Then set `competency_pack` in `identity.yaml` to the new name, and add `competencies` and `themes` that `wins.yaml` should use.
+The pack is the list of competencies an ad can ask for and the evidence a bullet must show. List `config/competencies/`. The user chooses; do not pick one from their field. If one fits the user's discipline, set `competency_pack` to it (a diff on `identity.yaml`). If none fits, draft `config/competencies/<name>.yaml` in the shape of `config/competencies/frontend.yaml`: 8 to 12 competencies, each with `id`, `label`, `ad_words`, `win_themes`, `slots` and one `questions` entry per slot, plus the top-level `themes` list. Use the user's discipline for `ad_words` and the questions; keep the ids that skills refer to (`stakeholder-management`, `technical-leadership`, `system-design`, `mentoring`, `ownership-delivery`, `influence-push-back`, `cross-functional-collaboration`) when they fit. Then set `competency_pack` in `identity.yaml` to the new name, and add `competencies` and `themes` that `wins.yaml` should use.
 
-Done when `competency_pack` names a file that exists and every win's `competencies` and `themes` appear in it.
+This step is required: do not finish onboarding until `competency_pack` is set. Done when `competency_pack` names a file that exists and every win's `competencies` and `themes` appear in it.
 
 ### 7. Optional sensitive sections
 
