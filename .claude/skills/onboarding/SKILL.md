@@ -18,7 +18,7 @@ Collect the data the engine was published without, one section at a time, and wr
 - For each file, draft its exact values first, then show a plain summary built from that draft (Showing a change in CLAUDE.md), then write the draft unchanged after the user says yes. The summary covers every value, including each sentence you drafted yourself. Do not compose the summary from the conversation and draft the file afterwards. The raw file appears only when the user asks or has shown they work in software. A no or a correction loops back to the summary; the step is done when the file is written or the user defers it.
 - The user's pasted CV, LinkedIn text or PDF is the source for this session. A value the source does not hold is asked, never inferred: one specific question at a time. Each reply asks one thing and waits; asking for a yes on a summary counts as that one thing, so a further question waits for the next reply. A value the user gave only in part (a year without a month) is written in the part they gave. The same goes for the location of a job or course: "Bradford" stays "Bradford", and a college's name does not give its location. If the source gives none, leave the key out; a CV reads fine without it.
 - Strip the template's explanatory comments when writing the file; keep the short ones that tell a later reader why a value is what it is. No `CHANGE_ME` survives in a finished file, comments included: the board counts the token anywhere, so the template header that names it goes too.
-- Required steps are 1, 2, 3 and 8. Offer to defer each of 4 to 7: a deferral is one line to the user ("I'll remind you of it later") and changes no file.
+- Required steps are 1, 2, 3 and 8. Offer to defer each of 4 to 7: a deferral is one line to the user ("It stays on your list for later") and changes no file.
 - A file that already exists is updated, never replaced: see Re-runs.
 
 ## Re-runs
@@ -70,7 +70,7 @@ Ask: "Paste your CV or LinkedIn text, or give me a PDF path." For a PDF, read it
 
 Draft, from that source only, then summarise and write one file at a time:
 
-1. `profile/history.yaml` from `templates/profile/history.example.yaml`: one entry per role, newest first, with `id`, `company` and the `public` block. Titles, dates and employment type are the public labels. Ask one question per unclear date or title.
+1. `profile/history.yaml` from `templates/profile/history.example.yaml`: one entry per role, newest first, with `id`, `company` and the `public` block. Titles, dates and employment type are the public labels. Ask about one unclear date or title per reply.
 2. `profile/stack.yaml`: core, secondary, past and tools, sorted by depth. Technologies the CV shows only briefly go to `secondary` or `past` with `roles` and `claim_as` limits. Ask whether anything in `do_not_claim` applies: things a recruiter would assume the user does that they do not.
 3. `cv/master.json` from `templates/cv/master.example.json` (create `cv/` if needed): bullets reworded only from what the source says, metrics exactly as in the source.
 4. `profile/wins.yaml` from `templates/profile/wins.example.yaml`: candidate wins from the bullets, each `status: proposed`, `metric: "Not specified"` unless the source states one, with `# CHANGE_ME: metrics unconfirmed, finish onboarding step 4` as the first line. `check.ts` needs this file to exist, and the marker keeps the board listing step 4 until it is done.
