@@ -21,4 +21,25 @@ describe('pdfFileName', () => {
   it('falls back to a plain name when nothing usable is left', () => {
     expect(pdfFileName('')).toBe('CV.pdf')
   })
+
+  it.each([
+    ['Łukasz Nowak', 'Lukasz-Nowak-CV.pdf'],
+    ['Søren Aaberg', 'Soren-Aaberg-CV.pdf'],
+    ['Ærin Ølsen', 'AErin-Olsen-CV.pdf'],
+    ['Œdipe Moreau', 'OEdipe-Moreau-CV.pdf'],
+    ['Strauß Weiß', 'Strauss-Weiss-CV.pdf'],
+    ['Đorđe Đurić', 'Dorde-Duric-CV.pdf'],
+    ['Ðór Þórsson', 'Dor-THorsson-CV.pdf'],
+    ['Ismaıl Kaya', 'Ismail-Kaya-CV.pdf'],
+    ['łukasz søren', 'lukasz-soren-CV.pdf'],
+    ['æon œuvre', 'aeon-oeuvre-CV.pdf'],
+    ['đorđe ðór', 'dorde-dor-CV.pdf'],
+    ['þór ınan', 'thor-inan-CV.pdf'],
+  ])('transliterates letters with no accent decomposition: %s', (name, file) => {
+    expect(pdfFileName(name)).toBe(file)
+  })
+
+  it('keeps the CV.pdf fallback for a name with no Latin letters', () => {
+    expect(pdfFileName('李 雷')).toBe('CV.pdf')
+  })
 })

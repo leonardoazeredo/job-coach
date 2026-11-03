@@ -18,9 +18,30 @@ export const IdentitySchema = z.object({
 export type Identity = z.infer<typeof IdentitySchema>
 
 // Upload forms and some filesystems refuse accents and punctuation, so the name is
-// reduced to ASCII words before it titles a file.
+// reduced to ASCII words before it titles a file. Normalisation cannot split these letters
+// into a base and an accent, so they are spelled out first or they would just vanish.
+const TRANSLITERATIONS: Record<string, string> = {
+  Ł: 'L',
+  ł: 'l',
+  Ø: 'O',
+  ø: 'o',
+  Æ: 'AE',
+  æ: 'ae',
+  Œ: 'OE',
+  œ: 'oe',
+  ß: 'ss',
+  Đ: 'D',
+  đ: 'd',
+  Ð: 'D',
+  ð: 'd',
+  Þ: 'TH',
+  þ: 'th',
+  ı: 'i',
+}
+
 const asciiWord = (word: string): string =>
   word
+    .replace(/[ŁłØøÆæŒœßĐđÐðÞþı]/g, (letter) => TRANSLITERATIONS[letter] ?? '')
     .normalize('NFD')
     .replace(/[^A-Za-z0-9-]/g, '')
     .replace(/^-+|-+$/g, '')
