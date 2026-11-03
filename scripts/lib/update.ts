@@ -72,6 +72,8 @@ export const gitHubEngine: EngineSource = {
   },
 }
 
+// What a Coach update may replace. Not the same set as the folders a save commits
+// (`USER_DATA_FOLDERS` in save.ts): Local work files (discovery/, .coach/) are kept but never saved.
 // Paths under profile/, cv/, discovery/ and .coach/ are the user's and never copied, nor are
 // installed packages or git's own folder. In pipeline/ only README.md and _templates/ are engine
 // files, and in experience-bank/ only README.md; the rest of those two folders is user data.
