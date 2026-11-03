@@ -13,6 +13,6 @@ roles:
       employment_type: permanent # CHANGE_ME
       start: 2020-01             # CHANGE_ME year-month
       end: 2022-01               # CHANGE_ME year-month; use "present" for a current role
-      location: CHANGE_ME City, Country
+      location: CHANGE_ME Place      # as the source gives it, with nothing added; remove this line if it gives none
     summary: CHANGE_ME One sentence on what the role was for.
     # experience_bank: experience-bank/<role-id>.md   # add once experience-mining has written that file
