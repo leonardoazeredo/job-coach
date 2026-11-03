@@ -2,18 +2,20 @@
 // timezone and locale that make "today", and which competency pack the CV work uses.
 import { z } from 'zod'
 
-// What the engine ships, so an identity written before packs existed still loads.
-export const DEFAULT_PACK = 'frontend'
+// Only for CV work on an identity written before packs existed. A new copy never gets it:
+// onboarding leaves the pack unset until the user chooses one.
+export const LEGACY_PACK = 'frontend'
 
 export const IdentitySchema = z.object({
   name: z.string(),
   location: z.object({ timezone: z.string() }),
   locale: z.string().default('en-US'),
-  // A file name under config/competencies/, so it may not carry a path.
+  // A file name under config/competencies/, so it may not carry a path. Optional so that
+  // "names no pack" stays distinguishable from "chose frontend".
   competency_pack: z
     .string()
     .regex(/^[a-z0-9][a-z0-9-]*$/, 'use lowercase letters, digits and hyphens')
-    .default(DEFAULT_PACK),
+    .optional(),
 })
 export type Identity = z.infer<typeof IdentitySchema>
 

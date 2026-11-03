@@ -12,7 +12,7 @@ phone: CHANGE_ME +00 000 000 0000
 linkedin: CHANGE_ME linkedin.com/in/your-handle
 github: CHANGE_ME github.com/your-handle
 locale: en-US                  # BCP 47 language tag; dates in files stay ISO whatever it is
-competency_pack: frontend      # file name under config/competencies/ without .yaml; frontend is the one the engine ships
+# competency_pack: set by the competency pack step of onboarding (a file name under config/competencies/ without .yaml)
 
 location:
   city: CHANGE_ME City, Country

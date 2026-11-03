@@ -13,7 +13,7 @@ import { lintVariant } from './cv-lint.ts'
 import type { BulletsFile, RequirementsFile } from './cv-schema.ts'
 import { todayIn } from './dates.ts'
 import { type Discovery, discovery as discoveryOver } from './discovery.ts'
-import { DEFAULT_PACK, type Identity, IdentitySchema, pdfFileName } from './identity.ts'
+import { type Identity, IdentitySchema, pdfFileName } from './identity.ts'
 import { type OnboardingSection, onboardingStatus } from './onboarding.ts'
 import { error, hasErrors, type Problem } from './problem.ts'
 import { loadProfile, type Profile } from './profile.ts'
@@ -324,8 +324,7 @@ export const openWorkspace = (
 
   const today: Workspace['today'] = (when) => todayOf(identity(), when)
 
-  const onboarding = () =>
-    onboardingStatus(root, identity().identity?.competency_pack ?? DEFAULT_PACK)
+  const onboarding = () => onboardingStatus(root, identity().identity?.competency_pack)
 
   return { rules, profile, visibility, check, lintCvs, roleCv, board, onboarding, discovery, today }
 }
