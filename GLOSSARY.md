@@ -199,6 +199,10 @@ _Avoid_: triage (the screening that gives each role a verdict), merge, candidate
 
 ## Saving and updates
 
+**Draft**:
+A proposed version of one profile file or the master CV, held until the user says yes and then written exactly as its summary showed it. The summary is read from the draft, never written beside it.
+_Avoid_: proposal, preview, pending change, staged file
+
 **Engine**:
 Everything shipped by `leonardoazeredo/job-coach`: scripts, skills, config defaults, templates, docs and the core prompt. Under `pipeline/` and `experience-bank/`, only the README and `pipeline/_templates/` are engine files.
 _Avoid_: template (the GitHub button that copies it), app

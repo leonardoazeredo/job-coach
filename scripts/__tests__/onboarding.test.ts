@@ -48,6 +48,18 @@ describe('onboarding status', () => {
     ).toMatchObject({ missing: [], placeholders: ['profile/wins.yaml'] })
   })
 
+  it('counts a proposed win as the wins section unfinished, with no marker in the file', () => {
+    const wins = repo.read('profile/wins.yaml')
+    repo.write('profile/wins.yaml', wins.replace('    status: approved', '    status: proposed'))
+    expect(repo.read('profile/wins.yaml')).not.toContain('CHANGE_ME')
+    expect(
+      repo
+        .workspace()
+        .onboarding()
+        .find((s) => s.id === 'wins'),
+    ).toMatchObject({ missing: [], placeholders: [], proposed: ['profile/wins.yaml'] })
+  })
+
   it('counts a search file whose seniority is still the template placeholder as unfinished', () => {
     const search = repo.read('profile/search.yaml')
     repo.write(

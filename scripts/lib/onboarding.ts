@@ -1,8 +1,10 @@
 // Which onboarding sections (.claude/skills/onboarding) are unfinished: a file is absent, or
 // exists but still contains PLACEHOLDER (reported separately, so a half-filled template cannot
-// pass as done). Files are never parsed here; check.ts owns validity.
+// pass as done), or holds a win still proposed. Only wins.yaml is parsed, for that; check.ts
+// owns validity, so a file that does not parse is left to it.
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { parse } from 'yaml'
 
 // The token the templates in templates/ put in values the user must replace. It counts anywhere
 // in a file, comments included, so the template headers that name it must be stripped on write.
@@ -20,6 +22,8 @@ export type OnboardingSection = {
   optIn: boolean
   missing: string[]
   placeholders: string[]
+  // Files holding a win whose metric the user has not yet confirmed.
+  proposed: string[]
 }
 
 type Spec = Pick<OnboardingSection, 'id' | 'label' | 'required' | 'optIn'> & { files: string[] }
@@ -69,6 +73,16 @@ const specs = (pack: string | undefined): Spec[] => [
   },
 ]
 
+// A proposed win is one onboarding step 4 has not yet put to the user.
+const hasProposedWin = (path: string): boolean => {
+  try {
+    const wins: unknown = parse(readFileSync(path, 'utf8'))?.wins
+    return Array.isArray(wins) && wins.some((w) => w?.status === 'proposed')
+  } catch {
+    return false
+  }
+}
+
 const hasPlaceholder = (path: string): boolean => {
   try {
     return readFileSync(path, 'utf8').includes(PLACEHOLDER)
@@ -84,8 +98,14 @@ export const onboardingStatus = (root: string, pack: string | undefined): Onboar
   specs(pack).flatMap(({ files, ...section }) => {
     const missing = files.filter((f) => !existsSync(join(root, f)))
     if (section.id === 'competency-pack' && !pack) missing.push(NO_PACK)
-    const placeholders = files.filter((f) => !missing.includes(f) && hasPlaceholder(join(root, f)))
-    return missing.length + placeholders.length === 0 ? [] : [{ ...section, missing, placeholders }]
+    const present = files.filter((f) => !missing.includes(f))
+    const placeholders = present.filter((f) => hasPlaceholder(join(root, f)))
+    const proposed = present.filter(
+      (f) => f === 'profile/wins.yaml' && hasProposedWin(join(root, f)),
+    )
+    return missing.length + placeholders.length + proposed.length === 0
+      ? []
+      : [{ ...section, missing, placeholders, proposed }]
   })
 
 // The board shows the list once something besides an opt-in section is unfinished.
@@ -115,6 +135,7 @@ export const renderOnboarding = (sections: OnboardingSection[]): string => {
     const left = [
       ...s.missing.map((f) => `${f} missing`),
       ...s.placeholders.map((f) => `${f} still has ${PLACEHOLDER}`),
+      ...s.proposed.map((f) => `${f} has wins waiting for a yes`),
     ]
     lines.push(`- ${s.id} (${tag}): ${s.label}; ${left.join(', ')}`)
   }

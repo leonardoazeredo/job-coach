@@ -1,13 +1,15 @@
 // The templates onboarding copies must not drift from the schemas the scripts read. Those with a
 // schema are checked against it, and identity, search and stack also against the example
-// persona's keys; then every template, placeholders filled, is loaded as a profile and has to
-// pass the record check.
+// persona's keys; each Draft table must name exactly its template's keys; then every template,
+// placeholders filled, is loaded as a profile and has to pass the record check.
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 import type { ZodType } from 'zod'
 import { CvDataSchema, HistoryFileSchema, WinsFileSchema } from '../lib/cv-schema.ts'
+import type { Field, Shape } from '../lib/draft-fields.ts'
+import { TABLES } from '../lib/draft-table.ts'
 import { IdentitySchema } from '../lib/identity.ts'
 import { PLACEHOLDER } from '../lib/onboarding.ts'
 import { SearchSchema } from '../lib/schema.ts'
@@ -131,6 +133,78 @@ describe('templates', () => {
     )
     expect(missing).toEqual([])
   })
+})
+
+type Obj = Record<string, unknown>
+const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v)
+
+// Each named place where the Draft table and its template disagree. The keys of an entries map
+// are the user's own, so only the shape of their values is compared.
+const drift = (shape: Shape, tpl: unknown, at: string): string[] => {
+  const t = isObj(tpl) ? tpl : {}
+  const out = Object.keys(t)
+    .filter((k) => !(k in shape))
+    .map((k) => `${at}${k} is in the template but not the table`)
+  for (const [k, f] of Object.entries(shape)) {
+    if (f.later) {
+      if (k in t) out.push(`${at}${k} is marked later but the template has it`)
+      continue
+    }
+    if (!(k in t)) {
+      out.push(`${at}${k} is in the table but not the template`)
+      continue
+    }
+    out.push(...inner(f, t[k], `${at}${k}`))
+  }
+  return out
+}
+
+const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : [])
+
+// The shape of the items or entry values a field holds, where the table gives one.
+const fieldsOf = (f: Field): Shape | undefined => {
+  switch (f.t) {
+    case 'items':
+      return f.fields
+    case 'list':
+      return f.item?.fields
+    case 'entries':
+      return f.value
+    default:
+      return undefined
+  }
+}
+
+const inner = (f: Field, v: unknown, at: string): string[] => {
+  const marked = JSON.stringify(v).includes(PLACEHOLDER)
+  // A default stands unless given, so a placeholder there would be written as if answered.
+  const leaf =
+    f.t !== 'group' && f.kind === 'default' && marked
+      ? [`${at} is a default but holds ${PLACEHOLDER}`]
+      : []
+  if (f.t === 'group') return drift(f.fields, v, `${at}.`)
+  const fields = fieldsOf(f)
+  if (!fields) return leaf
+  const values = isObj(v) ? Object.values(v) : arr(v)
+  return [...leaf, ...values.filter(isObj).flatMap((item) => drift(fields, item, `${at}[].`))]
+}
+
+describe('draft tables', () => {
+  it('name a table for every template onboarding copies', () => {
+    expect(Object.keys(TABLES).sort()).toEqual(Object.values(targets).sort())
+    for (const [name, target] of Object.entries(targets))
+      expect(TABLES[target]?.template).toBe(name)
+  })
+
+  it.each(Object.entries(TABLES).filter(([, t]) => t.format !== 'text'))(
+    '%s holds every key of its template, and no other',
+    (_, table) => {
+      if (table.format === 'text') return
+      const src = text(join(TEMPLATES, table.template))
+      const tpl = table.format === 'json' ? JSON.parse(src) : parse(src)
+      expect(drift(table.root.fields, tpl, '')).toEqual([])
+    },
+  )
 })
 
 describe('templates, filled in', () => {

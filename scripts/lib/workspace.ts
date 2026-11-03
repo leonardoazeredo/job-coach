@@ -53,6 +53,7 @@ export type RoleCv = {
 }
 
 export type Workspace = {
+  identity: () => { identity: Identity | undefined; problems: Problem[] }
   rules: () => { rules: Rules | undefined; problems: Problem[] }
   profile: () => { profile: Profile | undefined; problems: Problem[] }
   // Undefined when it cannot be told; see repo-visibility.ts.
@@ -228,29 +229,47 @@ const todayOf = (
   }
 }
 
+type CheckedRules = { sr: StatusRules | undefined; problems: Problem[] }
+
+// Inconsistent rules still yield sr, so a check goes on reporting record problems; only
+// unreadable rules leave it undefined.
+const statusRulesFrom = (rules: Rules | undefined): CheckedRules => {
+  if (!rules) return { sr: undefined, problems: [] }
+  const sr = statusRules(rules)
+  return { sr, problems: sr.problems() }
+}
+
+// A board over inconsistent rules would misplace roles, so none is computed. Unreadable rules
+// report their own problems.
+const boardOf = (
+  ruleProblems: Problem[],
+  s: CheckedRules,
+  roles: () => Parameters<typeof computeBoard>[0],
+  today: string,
+): ReturnType<Workspace['board']> => {
+  if (!s.sr) return { board: undefined, problems: ruleProblems }
+  if (s.problems.length > 0) return { board: undefined, problems: s.problems }
+  return { board: computeBoard(roles(), s.sr, today), problems: s.problems }
+}
+
+const readIdentity = (root: string): ReturnType<Workspace['identity']> => {
+  const read = readFile(join(root, 'profile/identity.yaml'), yaml(IdentitySchema))
+  return { identity: read.data, problems: fileProblem('profile/identity.yaml', read) }
+}
+
 export const openWorkspace = (
   root = repoRoot(),
   probe: VisibilityProbe = repoVisibility,
 ): Workspace => {
   const slugs = memo(() => listSlugs(root))
   const roles = memo(() => slugs().map((slug) => readRole(root, slug)))
-  const identity = memo((): { identity: Identity | undefined; problems: Problem[] } => {
-    const read = readFile(join(root, 'profile/identity.yaml'), yaml(IdentitySchema))
-    return { identity: read.data, problems: fileProblem('profile/identity.yaml', read) }
-  })
+  const identity = memo(() => readIdentity(root))
   const profile = memo(() => loadProfile(root, identity()))
   const cvProfile = () => cvProfileOf(identity().identity, profile)
   const rules = memo(() => loadRules(root))
   const visibility = memo(() => probe(root))
-  // Built once per run, so the board and the record checker share one set of rules
-  // rather than each rebuilding it. Inconsistent rules still yield sr, so a check goes
-  // on reporting record problems; only unreadable rules leave it undefined.
-  const statusRulesOf = memo((): { sr: StatusRules | undefined; problems: Problem[] } => {
-    const r = rules()
-    if (!r.rules) return { sr: undefined, problems: [] }
-    const sr = statusRules(r.rules)
-    return { sr, problems: sr.problems() }
-  })
+  // Built once per run, so the board and the record checker share one set of rules.
+  const statusRulesOf = memo(() => statusRulesFrom(rules().rules))
   // A named slug must be a role folder: this also refuses paths such as "../profile".
   const known = (slug: string) => slugs().includes(slug)
   const paths = (slug: string) => {
@@ -322,14 +341,7 @@ export const openWorkspace = (
     }
   }
 
-  // A board over inconsistent rules would misplace roles, so none is computed.
-  const board = (today: string) => {
-    const r = rules()
-    const s = statusRulesOf()
-    if (!s.sr) return { board: undefined, problems: r.problems }
-    if (s.problems.length > 0) return { board: undefined, problems: s.problems }
-    return { board: computeBoard(roles(), s.sr, today), problems: s.problems }
-  }
+  const board = (today: string) => boardOf(rules().problems, statusRulesOf(), roles, today)
 
   // Without a readable rules.yaml there is no expiry window and no title expansion,
   // so no Discovery is built: matching over built-in defaults would hide what the rules say.
@@ -344,5 +356,17 @@ export const openWorkspace = (
 
   const onboarding = () => onboardingStatus(root, identity().identity?.competency_pack)
 
-  return { rules, profile, visibility, check, lintCvs, roleCv, board, onboarding, discovery, today }
+  return {
+    identity,
+    rules,
+    profile,
+    visibility,
+    check,
+    lintCvs,
+    roleCv,
+    board,
+    onboarding,
+    discovery,
+    today,
+  }
 }
