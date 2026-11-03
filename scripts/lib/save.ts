@@ -39,7 +39,7 @@ export type SaveOptions = {
 
 // Without an email set, git may refuse to commit when it cannot work one out; until one is
 // set, every save commits under a stand-in name and email, replacing any name already set.
-const identity = (git: Git): string[] =>
+const fallbackCommitter = (git: Git): string[] =>
   git(['config', 'user.email']).stdout.trim()
     ? []
     : ['-c', 'user.name=Job coach', '-c', 'user.email=job-coach@localhost']
@@ -98,7 +98,15 @@ export const save = async (root: string, opts: SaveOptions): Promise<SaveResult>
     .stdout.split('\0')
     .filter(Boolean)
   if (staged.length === 0) return nothingToCommit(git, probe)
-  const commit = git([...identity(git), 'commit', '-q', '-m', opts.message, '--', ...staged])
+  const commit = git([
+    ...fallbackCommitter(git),
+    'commit',
+    '-q',
+    '-m',
+    opts.message,
+    '--',
+    ...staged,
+  ])
   if (commit.status !== 0) return { kind: 'refused', output: output(commit) }
   return pushOnline(git, probe)
 }

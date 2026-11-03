@@ -15,7 +15,7 @@ import {
 import { tmpdir } from 'node:os'
 import { dirname, join, relative } from 'node:path'
 import { z } from 'zod'
-import { ENGINE, type Git, gitIn } from './history.ts'
+import { ENGINE, type Git, gitIn, output } from './history.ts'
 
 // Ignored by git and Biome: the last check date and the backups of replaced files.
 export const LOCAL_DIR = '.coach'
@@ -157,7 +157,7 @@ export const runIn =
   (root: string): Run =>
   (cmd, args) => {
     const run = spawnSync(cmd, args, { cwd: root, encoding: 'utf8', timeout: 600_000 })
-    return { ok: run.status === 0, output: `${run.stdout ?? ''}${run.stderr ?? ''}`.trim() }
+    return { ok: run.status === 0, output: output(run) }
   }
 
 // The record check once onboarding has made a profile, else the same check on the example.
