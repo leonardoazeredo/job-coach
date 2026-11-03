@@ -178,18 +178,25 @@ const buildAndServe = async (outDir: string, cv: CvData) => {
 }
 
 export const readCv = (path: string): CvData => {
+  const reason = (e: unknown): string => (e instanceof Error ? e.message : String(e))
+  let raw: string
+  try {
+    raw = readFileSync(path, 'utf8')
+  } catch (e) {
+    throw new ExportError(`could not read ${path}: ${reason(e)}`, EXIT.missing)
+  }
   let parsed: unknown
   try {
-    parsed = JSON.parse(readFileSync(path, 'utf8'))
+    parsed = JSON.parse(raw)
   } catch (e) {
-    throw new ExportError(`could not read ${path}: ${e instanceof Error ? e.message : String(e)}`)
+    throw new ExportError(`${path} is not valid JSON: ${reason(e)}`, EXIT.data)
   }
   const result = CvDataSchema.safeParse(parsed)
   if (!result.success) {
     const issues = result.error.issues
       .map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`)
       .join('; ')
-    throw new ExportError(`${path} is not a valid CV: ${issues}`)
+    throw new ExportError(`${path} is not a valid CV: ${issues}`, EXIT.data)
   }
   return result.data
 }

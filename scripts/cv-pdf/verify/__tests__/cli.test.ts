@@ -198,12 +198,28 @@ describe('the export command', () => {
     assert.match(r.all, /CHROME_PATH/)
   })
 
-  it.skipIf(!hasPoppler)('exits 1 for a CV that is not valid', async () => {
+  it.skipIf(!hasPoppler)('exits 66 for a --data file that does not exist', () => {
+    const r = run({}, '--data', join(tmpdir(), 'no-such-cv.json'))
+    assert.equal(r.code, 66, r.all)
+    assert.match(r.all, /could not read/)
+  })
+
+  it.skipIf(!hasPoppler)('exits 65 for a --data file that is not JSON', async () => {
+    const file = join(tmpdir(), `notjson-cv-${process.pid}.json`)
+    await writeFile(file, '{nope')
+    try {
+      assert.equal(run({}, '--data', file).code, 65)
+    } finally {
+      await rm(file, { force: true })
+    }
+  })
+
+  it.skipIf(!hasPoppler)('exits 65 for a CV that is not valid', async () => {
     const file = join(tmpdir(), `bad-cv-${process.pid}.json`)
     await writeFile(file, '{}')
     try {
       const r = run({}, '--data', file)
-      assert.equal(r.code, 1, r.all)
+      assert.equal(r.code, 65, r.all)
     } finally {
       await rm(file, { force: true })
     }
