@@ -97,23 +97,61 @@ const eachCommented = (doc: Document, act: (c: Commented) => void) => {
   })
 }
 
-// Where a marked comment sits on a value the draft leaves alone, that value is still the
-// template's example.
-const markedPaths = (doc: Document): (string | number)[][] => {
-  const found: (string | number)[][] = []
-  visit(doc, {
-    Scalar: (_, node, path) => {
-      if (!marked(node.comment)) return
-      const keys: (string | number)[] = []
-      path.forEach((step, i) => {
-        if (isPair(step)) keys.push(keyOf(step))
-        const parent = path[i - 1]
-        if (isSeq(parent) && isNode(step)) keys.push(parent.items.indexOf(step))
-      })
-      found.push(keys)
-    },
+type Path = (string | number)[]
+
+// The key path to a node: each pair's key, and each item's place in its list.
+const pathTo = (node: unknown, ancestors: readonly unknown[]): Path => {
+  const chain = [...ancestors, node]
+  const keys: Path = []
+  chain.forEach((step, i) => {
+    const parent = chain[i - 1]
+    if (isPair(step)) keys.push(keyOf(step))
+    else if (isSeq(parent) && isNode(step)) keys.push(parent.items.indexOf(step))
+  })
+  return keys
+}
+
+// Every value a template mark sits on, beside it or on the line above, on the value itself,
+// on a list or map, or on its key. A mark on the whole document is its header.
+const markedPaths = (doc: Document): Path[] => {
+  const found: Path[] = []
+  visit(doc, (_, node, ancestors) => {
+    if (!isNode(node) || !(marked(node.comment) || marked(node.commentBefore))) return
+    const path = pathTo(node, ancestors)
+    if (path.length > 0) found.push(path)
   })
   return found
+}
+
+const step = (v: unknown, key: string | number): unknown => {
+  if (Array.isArray(v)) return v[Number(key)]
+  return isObj(v) ? v[String(key)] : undefined
+}
+
+// Follows a path read in the file as it was into the merged value, matching items by id, and
+// gives it back in the merged value's terms when the draft leaves that value as it was.
+const untouched = (path: Path, c: Change, root: GroupField): Path | undefined => {
+  let field: Field | undefined = root
+  let { before, after } = c
+  const out: Path = []
+  for (const key of path) {
+    if (field?.t === 'items' && Array.isArray(before) && Array.isArray(after)) {
+      const items: ItemsField = field
+      const item = before[Number(key)]
+      const at = after.findIndex((x) => idOf(items, x) === idOf(items, item))
+      if (at === -1) return undefined
+      out.push(at)
+      before = item
+      after = after[at]
+      field = itemGroup(items)
+      continue
+    }
+    out.push(key)
+    before = step(before, key)
+    after = step(after, key)
+    field = childField(field, String(key))
+  }
+  return after !== undefined && same(before, after) ? out : undefined
 }
 
 export const yamlText = (
@@ -123,6 +161,7 @@ export const yamlText = (
   root: GroupField,
 ): { text: string; marked: (string | number)[][] } => {
   const doc: Document = parseDocument(source)
+  const marks = fresh ? [] : markedPaths(doc)
   if (fresh)
     eachCommented(doc, (c) => {
       c.comment = null
@@ -131,7 +170,10 @@ export const yamlText = (
   // Every table's root is a map, and so is every file read through one.
   if (isMap(doc.contents)) syncMap(doc, doc.contents, change, root)
   else doc.contents = doc.createNode(change.after)
-  const left = fresh ? [] : markedPaths(doc)
+  const left = marks.flatMap((path) => {
+    const kept = untouched(path, change, root)
+    return kept ? [kept] : []
+  })
   eachCommented(doc, unmark)
   return { text: doc.toString(OPTIONS), marked: left }
 }

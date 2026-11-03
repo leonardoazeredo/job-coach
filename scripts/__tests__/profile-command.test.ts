@@ -101,6 +101,44 @@ describe('profile draft and write', () => {
 })
 
 describe('profile draft refusals', () => {
+  it('summarises a plain stack item turned limited in words, with no raw value', async () => {
+    const shown = await draft('profile/stack.yaml', {
+      tools: [{ name: 'Postman', roles: ['brightwell'], claim_as: 'Postman (API testing)' }],
+    })
+    expect(shown.stdout).toBe(
+      'Changed in Tools: Postman, written "Postman (API testing)" except at brightwell\n',
+    )
+  })
+
+  // A copy filled in by hand before the Draft module can still hold the template's marks.
+  const marking = (find: string, mark: (line: string) => string) => {
+    const text = repo.read('profile/identity.yaml')
+    const line = text.split('\n').find((l) => l.includes(find)) ?? ''
+    repo.write('profile/identity.yaml', text.replace(line, mark(line)))
+  }
+
+  it('refuses an untouched sample that the template marked on an inline map', async () => {
+    marking(
+      'mid: {min: 135000',
+      () => '    mid: {min: 0, max: 0}      # CHANGE_ME your level name and range',
+    )
+    const shown = await draft('profile/identity.yaml', { availability: 'Two weeks' })
+    expect(shown.code).toBe(EXIT.problems)
+    expect(shown.stderr).toContain('"Pay range by level" still holds')
+    expect((await run(['drafts'])).stdout).toBe('No drafts are waiting.\n')
+  })
+
+  it('refuses an untouched sample marked on the line above it, and takes it once given', async () => {
+    marking('floor: 130000', (line) => `  # CHANGE_ME annual base\n${line}`)
+    const shown = await draft('profile/identity.yaml', { availability: 'Two weeks' })
+    expect(shown.code).toBe(EXIT.problems)
+    expect(shown.stderr).toContain('"Lowest base pay" still holds')
+
+    const given = await draft('profile/identity.yaml', { compensation: { floor: 140000 } })
+    expect(given.stderr).toBe('')
+    expect(drafted('profile/identity.yaml')).not.toContain('CHANGE_ME')
+  })
+
   it('refuses a new file that leaves a sample value in place, naming it, and drafts nothing', async () => {
     const values = personaFile('profile/identity.yaml')
     delete values.location.timezone

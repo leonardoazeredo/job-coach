@@ -132,7 +132,13 @@ const itemChange = (f: ItemsField, b: unknown, a: unknown, r: Render): string[] 
     return [`Added to ${f.label}: ${head}`, ...pad(rest, '  ')]
   }
   if (same(a, b)) return []
-  const inner = isObj(a) && isObj(b) ? groupChanges(itemGroup(f), b, a, r) : [String(a)]
+  // A plain item that became a limited one, or back, has no field to compare, so the new
+  // item is shown whole.
+  if (!(isObj(a) && isObj(b))) {
+    const [head = '', ...rest] = itemLines(f, a, r)
+    return [`Changed in ${f.label}: ${head}`, ...pad(rest, '  ')]
+  }
+  const inner = groupChanges(itemGroup(f), b, a, r)
   if (inner.length === 0) return []
   return [`Changed in ${f.label}: ${headOf(f, a, r)}`, ...pad(inner, '  ')]
 }
