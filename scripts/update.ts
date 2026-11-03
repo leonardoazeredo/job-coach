@@ -2,7 +2,8 @@
 // Usage: node scripts/update.ts check [--now]
 //        node scripts/update.ts zip
 // check asks GitHub once whether a newer engine exists. Without --now it runs at most once a
-// week and prints only "available"; with --now it always asks and prints its answer.
+// week (once a day after a failed try) and prints "available" or, when it got no answer, one plain
+// line saying so; with --now it always asks and prints its answer.
 // zip updates a folder that keeps no history: it copies the newest engine files over this one,
 // backing up each file it replaces, and undoes the update if the install or the record check
 // then fails.
@@ -10,7 +11,7 @@
 // under config/), not started, not fetched or undone.
 // Exit 64 on a usage error, or zip in a folder that keeps history (that one updates with git).
 // Exit 1 when zip did not start, was undone or could not fetch the new version, with the reason
-// on stderr. Otherwise 0.
+// on stderr. Otherwise 0, including a check that got no answer.
 import { gitIn } from './lib/history.ts'
 import { EXIT } from './lib/problem.ts'
 import {
@@ -18,11 +19,24 @@ import {
   type EngineSource,
   gitHubEngine,
   type Run,
+  type UnknownReason,
   updateFromArchive,
 } from './lib/update.ts'
 import { repoRoot } from './lib/workspace.ts'
 
 const USAGE = 'usage: node scripts/update.ts check [--now] | zip'
+
+// Read by the coach and passed on to the user, so no technical words.
+const NO_ANSWER: Record<UnknownReason, string> = {
+  offline:
+    'The coach could not reach the internet to look for a new version; it will try again tomorrow.',
+  'rate-limited':
+    'The coach could not look for a new version because the update service is busy; it will try again tomorrow.',
+  unexpected:
+    'The coach could not read the answer when it looked for a new version; it will try again tomorrow.',
+}
+const STATE_RESET =
+  "The coach's record of when it last looked for a new version was damaged, so it was reset."
 
 export type UpdateDeps = { now?: Date; source?: EngineSource; path?: string; run?: Run }
 
@@ -36,8 +50,15 @@ export const updateCommand = async (
   const [sub, ...rest] = args
   if (sub === 'check' && rest.every((a) => a === '--now')) {
     const force = rest.includes('--now')
-    const result = await checkForUpdate(root, { now, source, force, path: deps.path })
-    if (result === 'available' || force) console.log(result)
+    const result = await checkForUpdate(root, {
+      now,
+      source,
+      force,
+      path: deps.path,
+      onStateReset: () => console.log(STATE_RESET),
+    })
+    if (typeof result === 'object') console.log(NO_ANSWER[result.reason])
+    else if (result === 'available' || force) console.log(result)
     return 0
   }
   if (sub !== 'zip' || rest.length > 0) {

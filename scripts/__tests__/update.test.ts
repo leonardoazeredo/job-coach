@@ -15,8 +15,11 @@ import { EXIT } from '../lib/problem.ts'
 import {
   checkForUpdate,
   type EngineSource,
+  gitHubEngine,
   isEngineFile,
   type Run,
+  SourceFault,
+  type UnknownReason,
   updateFromArchive,
 } from '../lib/update.ts'
 import { updateCommand } from '../update.ts'
@@ -206,22 +209,102 @@ describe('checkForUpdate', () => {
       ]),
     )
 
-  it('asks at most once a week, even when the answer was unknown', async () => {
+  const state = () => JSON.parse(read('.coach/state.json'))
+  const failing = (reason: 'offline' | 'rate-limited' | 'unexpected') => {
+    const counter = { asked: 0 }
+    const src = source({
+      latestFiles: async () => {
+        counter.asked++
+        throw new SourceFault(reason)
+      },
+    })
+    return { counter, src }
+  }
+
+  it.each(['offline', 'rate-limited', 'unexpected'] as const)(
+    'reports %s as unknown with its reason',
+    async (reason) => {
+      mkdirSync(work())
+      const { src } = failing(reason)
+      expect(await checkForUpdate(work(), { now, source: src })).toEqual({
+        kind: 'unknown',
+        reason,
+      })
+    },
+  )
+
+  it('reports a source that has no data as an unexpected reply', async () => {
+    mkdirSync(work())
+    expect(await checkForUpdate(work(), { now, source: source() })).toEqual({
+      kind: 'unknown',
+      reason: 'unexpected',
+    })
+  })
+
+  it('stores no check date after a failure and retries at most once a day', async () => {
+    mkdirSync(work())
+    const { counter, src } = failing('offline')
+    const at = (time: string) => checkForUpdate(work(), { now: new Date(time), source: src })
+    expect(await at('2026-10-29T09:00:00Z')).toMatchObject({ kind: 'unknown' })
+    expect(state().lastUpdateCheck).toBeUndefined()
+    expect(await at('2026-10-30T08:00:00Z')).toBe('not-due')
+    expect(counter.asked).toBe(1)
+    expect(await at('2026-10-30T09:00:00Z')).toMatchObject({ kind: 'unknown' })
+    expect(counter.asked).toBe(2)
+    const forced = await checkForUpdate(work(), { now, source: src, force: true })
+    expect(forced).toMatchObject({ kind: 'unknown' })
+    expect(counter.asked).toBe(3)
+  })
+
+  it('asks at most once a week after a definite answer', async () => {
     mkdirSync(work())
     let asked = 0
     const counting = source({
       latestFiles: async () => {
         asked++
+        return new Map()
       },
     })
     const at = (day: string) => checkForUpdate(work(), { now: new Date(day), source: counting })
-    expect(await at('2026-10-29T09:00:00Z')).toBe('unknown')
+    expect(await at('2026-10-29T09:00:00Z')).toBe('latest')
     expect(await at('2026-11-04T09:00:00Z')).toBe('not-due')
-    expect(await at('2026-11-05T09:00:00Z')).toBe('unknown')
+    expect(await at('2026-11-05T09:00:00Z')).toBe('latest')
     expect(asked).toBe(2)
-    const forced = await checkForUpdate(work(), { now, source: counting, force: true })
-    expect(forced).toBe('unknown')
-    expect(asked).toBe(3)
+  })
+
+  it('clears the failed attempt after a success', async () => {
+    mkdirSync(work())
+    await checkForUpdate(work(), { now, source: failing('offline').src })
+    expect(state().lastUpdateAttempt).toBeDefined()
+    const ok = source({ latestFiles: async () => new Map() })
+    expect(await checkForUpdate(work(), { now, source: ok, force: true })).toBe('latest')
+    expect(state().lastUpdateAttempt).toBeUndefined()
+    expect(state().lastUpdateCheck).toBe(now.toISOString())
+  })
+
+  it('treats a missing state file as never checked, silently', async () => {
+    mkdirSync(work())
+    const reset = vi.fn()
+    const ok = source({ latestFiles: async () => new Map() })
+    await checkForUpdate(work(), { now, source: ok, onStateReset: reset })
+    expect(reset).not.toHaveBeenCalled()
+  })
+
+  it('checks and reports an unparseable state file as reset', async () => {
+    mkdirSync(join(work(), '.coach'), { recursive: true })
+    writeFileSync(join(work(), '.coach/state.json'), '{not json')
+    const reset = vi.fn()
+    const ok = source({ latestFiles: async () => new Map() })
+    expect(await checkForUpdate(work(), { now, source: ok, onStateReset: reset })).toBe('latest')
+    expect(reset).toHaveBeenCalledTimes(1)
+    expect(state().lastUpdateCheck).toBe(now.toISOString())
+  })
+
+  it('does not crash when the state file cannot be written', async () => {
+    mkdirSync(work())
+    writeFileSync(join(work(), '.coach'), 'a file where the folder should be')
+    const ok = source({ latestFiles: async () => new Map() })
+    expect(await checkForUpdate(work(), { now, source: ok })).toBe('latest')
   })
 
   it('keeps unknown keys in the state file across a check', async () => {
@@ -230,23 +313,32 @@ describe('checkForUpdate', () => {
       join(work(), '.coach/state.json'),
       JSON.stringify({ lastUpdateCheck: '2026-10-01T00:00:00Z', other: 'kept' }),
     )
-    await checkForUpdate(work(), { now, source: source() })
-    const state = JSON.parse(read('.coach/state.json'))
-    expect(state.other).toBe('kept')
-    expect(state.lastUpdateCheck).toBe(now.toISOString())
+    const ok = source({ latestFiles: async () => new Map() })
+    await checkForUpdate(work(), { now, source: ok })
+    expect(state().other).toBe('kept')
+    expect(state().lastUpdateCheck).toBe(now.toISOString())
   })
 
   it('treats a malformed lastUpdateCheck as not yet checked', async () => {
     mkdirSync(join(work(), '.coach'), { recursive: true })
-    writeFileSync(join(work(), '.coach/state.json'), JSON.stringify({ lastUpdateCheck: 42 }))
+    writeFileSync(
+      join(work(), '.coach/state.json'),
+      JSON.stringify({ lastUpdateCheck: 42, other: 'kept' }),
+    )
     const counting = source({
       latestFiles: async () => {
         asked++
+        return new Map()
       },
     })
     let asked = 0
-    expect(await checkForUpdate(work(), { now, source: counting })).toBe('unknown')
+    const reset = vi.fn()
+    expect(await checkForUpdate(work(), { now, source: counting, onStateReset: reset })).toBe(
+      'latest',
+    )
     expect(asked).toBe(1)
+    expect(reset).not.toHaveBeenCalled()
+    expect(state().other).toBe('kept')
   })
 
   it('compares file contents in a folder that keeps no history', async () => {
@@ -281,7 +373,86 @@ describe('checkForUpdate', () => {
   })
 })
 
+describe('gitHubEngine', () => {
+  afterEach(() => vi.unstubAllGlobals())
+  const reply = (init: ResponseInit, body = '{}') =>
+    vi.stubGlobal('fetch', async () => new Response(body, init))
+
+  it('tells a network failure from a rate limit from a reply it cannot read', async () => {
+    vi.stubGlobal('fetch', async () => {
+      throw new TypeError('fetch failed')
+    })
+    await expect(gitHubEngine.latestCommit()).rejects.toMatchObject({ reason: 'offline' })
+    reply({ status: 403, headers: { 'x-ratelimit-remaining': '0' } })
+    await expect(gitHubEngine.latestCommit()).rejects.toMatchObject({ reason: 'rate-limited' })
+    reply({ status: 429 })
+    await expect(gitHubEngine.latestFiles()).rejects.toMatchObject({ reason: 'rate-limited' })
+    reply({ status: 404 })
+    await expect(gitHubEngine.latestCommit()).rejects.toMatchObject({ reason: 'unexpected' })
+    reply({ status: 200 }, '<html>')
+    await expect(gitHubEngine.latestCommit()).rejects.toMatchObject({ reason: 'unexpected' })
+    reply({ status: 200 }, '{"sha":7}')
+    await expect(gitHubEngine.latestCommit()).rejects.toMatchObject({ reason: 'unexpected' })
+  })
+
+  it('returns the newest commit from a good reply', async () => {
+    reply({ status: 200 }, '{"sha":"abc"}')
+    expect(await gitHubEngine.latestCommit()).toBe('abc')
+  })
+})
+
 describe('updateCommand', () => {
+  const printed = async (args: string[], deps: Parameters<typeof updateCommand>[2]) => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
+    const code = await updateCommand(args, work(), deps)
+    const lines = log.mock.calls.map((c) => c[0])
+    log.mockRestore()
+    return { code, lines }
+  }
+
+  it('prints one plain line and exits 0 when the check cannot get an answer', async () => {
+    mkdirSync(work())
+    const reasons: [UnknownReason, RegExp][] = [
+      ['offline', /internet/],
+      ['rate-limited', /busy/],
+      ['unexpected', /read/],
+    ]
+    for (const [reason, words] of reasons) {
+      rmSync(join(work(), '.coach'), { recursive: true, force: true })
+      const src = source({
+        latestFiles: async () => {
+          throw new SourceFault(reason)
+        },
+      })
+      const { code, lines } = await printed(['check'], { now, source: src })
+      expect(code).toBe(0)
+      expect(lines).toHaveLength(1)
+      expect(lines[0]).toMatch(words)
+      expect(lines[0]).not.toMatch(/API|HTTP|JSON|GitHub/)
+    }
+  })
+
+  it('prints available when an update exists and nothing for latest or not-due', async () => {
+    put(work(), OLD_ENGINE)
+    const ids = new Map([['CLAUDE.md', '0'.repeat(40)]])
+    const newer = source({ latestFiles: async () => ids })
+    expect((await printed(['check'], { now, source: newer })).lines).toEqual(['available'])
+    expect((await printed(['check'], { now, source: newer })).lines).toEqual([])
+    const same = source({ latestFiles: async () => new Map() })
+    rmSync(join(work(), '.coach'), { recursive: true })
+    expect((await printed(['check'], { now, source: same })).lines).toEqual([])
+  })
+
+  it('says the record of the last check was reset when the state file is damaged', async () => {
+    mkdirSync(join(work(), '.coach'), { recursive: true })
+    writeFileSync(join(work(), '.coach/state.json'), '{not json')
+    const same = source({ latestFiles: async () => new Map() })
+    const { code, lines } = await printed(['check'], { now, source: same })
+    expect(code).toBe(0)
+    expect(lines).toHaveLength(1)
+    expect(lines[0]).toMatch(/damaged/)
+  })
+
   it('refuses a ZIP update in a folder that keeps history', async () => {
     mkdirSync(work())
     execFileSync('git', ['init', '-q', work()])
