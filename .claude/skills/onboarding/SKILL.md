@@ -79,7 +79,7 @@ Done when the four files exist and each person-fact in them traces to the pasted
 
 ### 3. Identity and targets
 
-Ask in short groups, never all at once: name and pronouns; locale and spelling (`en-GB`, `en-US`) and the language to be coached in; city, timezone and since when; right to work by country; years of professional experience; roles, seniority and discipline; salary floor, currency and levels; remote or hybrid and office days; what a good role has; where to look (regions, titles).
+Ask one thing per reply, in this order, skipping what the source already gives: name and pronouns; locale and spelling (`en-GB`, `en-US`) and the language to be coached in; city, timezone and since when; right to work by country; years of professional experience; roles, seniority and discipline; salary floor, currency and levels; remote or hybrid and office days; what a good role has; where to look (regions, titles).
 
 Write, from the templates:
 
