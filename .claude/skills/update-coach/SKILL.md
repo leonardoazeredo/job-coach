@@ -14,7 +14,7 @@ When the user asks whether a new version exists, run `node scripts/update.ts che
 Run `node scripts/save.ts --everything "Saved before updating the coach"`.
 
 - `not saved: this folder keeps no history`: take the **Without history** path below.
-- `not saved: a check refused the save`: stop. Say in one sentence what is wrong and that the update waits until it is fixed; offer to fix it.
+- `not saved: a check refused the save`: a fault in a file you wrote earlier in this same turn follows the Saving rule in `CLAUDE.md`. Otherwise stop. Say in one sentence what is wrong and that the update waits until it is fixed; offer the fix and change no file until the user says yes to that fix. An instruction given before the fault was named ("just get it done", "fix whatever is in the way") is not that yes. Any other record is the user's, so the fix is theirs to approve, even when the cause is plain, such as a misspelled status.
 - Anything else (`saved; the online copy is up to date`, `saved on this computer`, `…the online copy waits…`, `…updating the online copy failed`, `nothing new to save`): take the **With history** path. A held or failed online copy does not stop the update; the work is safe on this computer.
 
 Done when the save has answered and the path is chosen.
