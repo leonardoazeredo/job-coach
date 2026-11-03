@@ -13,7 +13,7 @@
       "id": "CHANGE_ME-role-id",
       "role": "CHANGE_ME Title as in history.yaml",
       "company": "CHANGE_ME Company",
-      "location": "CHANGE_ME City, Country",
+      "location": "CHANGE_ME Place as the source gives it, with nothing added; remove this key if it gives none",
       "start": "CHANGE_ME January 2020",
       "end": "CHANGE_ME January 2022",
       "note": "CHANGE_ME contract",
@@ -28,7 +28,7 @@
       "id": "CHANGE_ME-degree",
       "degree": "CHANGE_ME Degree",
       "institution": "CHANGE_ME University",
-      "location": "CHANGE_ME City, Country",
+      "location": "CHANGE_ME Place as the source gives it, with nothing added; remove this key if it gives none",
       "start": "CHANGE_ME 2014",
       "end": "CHANGE_ME 2018"
     }
