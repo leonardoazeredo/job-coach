@@ -57,6 +57,9 @@ A technology a role requires that is not in the stack.
 **Limit**:
 A restriction on how a stack item may be claimed, such as "coursework only" or "report generation only". An item with a limit appears bare only under the roles where it happened, and everywhere else only with its limit stated.
 
+**Hard limit**:
+A plain-language condition in `profile/search.yaml` `fit.hard_limits`, such as hours, travel or an employer to avoid, that rules a role out. A role whose ad shows it breaks one is "Not a fit"; an ad silent on it is not. Not a stack **Limit**.
+
 **Claimable**:
 Allowed to appear in outward material: in the stack, stated within its limit, and not a do-not-claim item.
 

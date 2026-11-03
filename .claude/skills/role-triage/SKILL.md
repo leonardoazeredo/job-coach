@@ -19,9 +19,10 @@ Fast, complete screening of a list. Every role gets a line, in the order given. 
 2. **Screen each role** on what the card shows, in this order, stopping at the first failure:
    1. Already in `pipeline/` → "Tracked (status)".
    2. Location or right to work impossible under `fit.location_rule` in `profile/search.yaml`.
-   3. Hard gap: mandatory primary language or framework outside core and secondary, or a `do_not_claim` item.
-   4. Published salary with a top end below the floor (`rules.yaml` fit.salary_test).
-   5. Seniority clearly junior or mid.
+   3. The card shows it breaks a limit in `fit.hard_limits` in `profile/search.yaml` (the list may be absent); the reason names the limit. A card that says nothing on a limit does not break it: a Keep or Maybe whose limit the card leaves open carries "check: <limit>" in its reason.
+   4. Hard gap: mandatory primary language or framework outside core and secondary, or a `do_not_claim` item.
+   5. Published salary with a top end below the floor (`rules.yaml` fit.salary_test).
+   6. Seniority clearly junior or mid.
    Otherwise **Keep** or **Maybe**. Titles in `discovery.title_expansion` and roles matching `agentic_keywords` are never dropped for the title alone.
 3. **Output one table** with every role, none omitted:
 
