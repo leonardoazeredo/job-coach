@@ -10,6 +10,8 @@ import { installHint, PopplerMissingError } from '../poppler.ts'
 import { verifyEach, verifyPdf } from '../run.ts'
 import { hasPoppler } from './hasPoppler.ts'
 
+// The CLI under test is an engine entry point, so the paths come from this file's location and
+// not the working directory.
 const ROOT = fileURLToPath(new URL('../..', import.meta.url))
 const CLI = join(ROOT, 'verify/cli.ts')
 const SEED = join(ROOT, 'verify/testdata/seed-cv.json')

@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { test } from 'vitest'
 
 const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '')
+// Reads the stylesheet the PDF export ships, so the test checks the real file rather than a copy.
 const cv = strip(readFileSync(new URL('../cv.css', import.meta.url), 'utf8'))
 
 // Innermost rules only: a nested @media block yields its child rules, not itself.

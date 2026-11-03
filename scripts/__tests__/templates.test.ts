@@ -16,6 +16,7 @@ import { repoRoot } from '../lib/workspace.ts'
 import { PERSONA, type TempRepo, tempRepo } from './temp-repo.ts'
 import { errors } from './workspace-repo.ts'
 
+// The shipped templates are the thing being guarded, so they are read from the engine, not a copy.
 const TEMPLATES = join(repoRoot(), 'templates')
 const text = (path: string) => readFileSync(path, 'utf8')
 
@@ -121,6 +122,8 @@ describe('templates, filled in', () => {
   let repo: TempRepo
   beforeEach(() => {
     repo = tempRepo()
+    // The template profile names the frontend pack and the record check loads it from the engine,
+    // so the test repo needs the engine's copy.
     for (const [name, target] of Object.entries(targets))
       repo.write(target, filled(text(join(TEMPLATES, name))))
     repo.write(
