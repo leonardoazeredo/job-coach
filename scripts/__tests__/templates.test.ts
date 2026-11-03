@@ -16,6 +16,7 @@ import { repoRoot } from '../lib/workspace.ts'
 import { PERSONA, type TempRepo, tempRepo } from './temp-repo.ts'
 import { errors } from './workspace-repo.ts'
 
+// The shipped templates are the thing being guarded, so they are read from the engine, not a copy.
 const TEMPLATES = join(repoRoot(), 'templates')
 const text = (path: string) => readFileSync(path, 'utf8')
 

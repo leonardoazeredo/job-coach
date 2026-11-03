@@ -65,7 +65,7 @@ Python and Postgres tags in Europe and EMEA, Engineering department, Ashby or Gr
 location=Europe,EMEA&tags=python,postgres&department=Engineering&source=ashby,greenhouse&remote=true
 ```
 
-Page URL form: `https://jobs.whatrunsindia.com/?location=%F0%9F%87%A9%F0%9F%87%AA+Berlin&tags=python&employmentType=FullTime&exp=5&sort=newest&remote=true&source=ashby&department=Customer+Success+%26+Support`.
+Page URL form: `https://jobs.whatrunsindia.com/?location=%F0%9F%87%A9%F0%9F%87%AA+<city>&tags=python&employmentType=FullTime&exp=5&sort=newest&remote=true&source=ashby&department=Customer+Success+%26+Support`.
 
 ## Result fields
 
