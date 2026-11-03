@@ -41,7 +41,15 @@ One of core, secondary, past or tools: how deeply a stack item is known.
 _Avoid_: tier (a tier is a role's priority, 0 to 2)
 
 **Tier**:
-A role's priority, from 0 (career maker) to 2 (standard senior role).
+A role's priority, from 0 (career maker) to 2 (standard role), set at intake from the full ad. It decides how much preparation the role gets, so tier 0 is kept small: only the applications one person can prepare deeply.
+
+**Tier criterion**:
+One of the marks a user's search rules name for a career-making role, such as the product, the pay, the scope or prestige.
+_Avoid_: tier rule, signal
+
+**Prestige**:
+A company whose name lifts a CV, by a measure the user's search rules state or a company they name. Never a judgement made afresh each time.
+_Avoid_: brand, top company
 
 **Gap**:
 A technology a role requires that is not in the stack.
@@ -207,6 +215,10 @@ _Avoid_: commit, backup (a backup is the copy a ZIP update keeps)
 **Coach update**:
 Bringing the engine up to the newest upstream version: a merge in a folder with history, or a copy over the engine files with backups in `.coach/backups/` in one without.
 _Avoid_: pipeline update (recording a change to a role)
+
+**User copy**:
+A folder made from the engine template that holds one person's User data and takes Coach updates.
+_Avoid_: template (the GitHub button), repo (in anything the user reads), workspace (the folders a command reads)
 
 ## Tests
 

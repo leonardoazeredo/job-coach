@@ -119,7 +119,7 @@ Done when each of the three is written or declined.
 
 ### 8. Check and next step
 
-1. If `profile/lessons.md` is missing, show `templates/profile/lessons.example.md` and write it on a yes: interview-debrief appends to it.
+1. If `profile/lessons.md` is missing, show `templates/profile/lessons.example.md` and write it on a yes: interview-debrief appends to it. If `profile/glossary.md` is missing, offer it in one line (the terms only the user uses, such as named companies or the searches they keep for one tier) and write it from `templates/profile/glossary.example.md` on a yes; the board never lists it.
 2. Run `node scripts/check.ts`. Errors name the file; fix that file with the user, through the diff rule, and rerun until it exits 0. Warnings are read out and explained.
 3. Run `node scripts/board.ts` and show the "Onboarding unfinished" list, if any, as what remains.
 4. End with one suggested next step: "Paste a job ad or a link and I will run job-intake."

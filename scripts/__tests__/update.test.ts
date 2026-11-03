@@ -49,6 +49,7 @@ const read = (rel: string) => readFileSync(join(work(), rel), 'utf8')
 
 const DATA = {
   'profile/identity.yaml': 'name: Mira\n',
+  'profile/glossary.md': '**Target company**:\nA company Mira names.\n',
   'cv/master.json': '{"name":"Mira"}\n',
   'pipeline/acme/record.yaml': 'status: Applied\n',
   'experience-bank/acme.md': 'notes\n',
@@ -68,6 +69,7 @@ const NEW_ENGINE = {
   'package-lock.json': '{"v":1}\n',
   '.claude/skills/update-coach/SKILL.md': 'new skill\n',
   'profile/identity.yaml': 'name: Someone Else\n',
+  'profile/glossary.md': 'upstream term\n',
   'pipeline/acme/record.yaml': 'status: Rejected\n',
 }
 
