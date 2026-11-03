@@ -48,7 +48,7 @@ const pathsToSave = (root: string, git: Git): string[] =>
 // The engine is never pushed to. Another copy on GitHub is pushed to only when GitHub answers, at
 // every save, that it is not public, so a copy made public after onboarding stops receiving data;
 // without that answer (offline, rate limited, an address it cannot read) the push waits for the
-// next save. A copy elsewhere cannot be checked, and relies on onboarding's question about whether
+// next save, which sends them even when it has nothing new to commit. A copy elsewhere cannot be checked, and relies on onboarding's question about whether
 // it is private.
 const pushOnline = async (git: Git, probe: PublicProbe): Promise<SaveResult> => {
   const origin = git(['remote', 'get-url', 'origin'])
@@ -68,11 +68,24 @@ const pushOnline = async (git: Git, probe: PublicProbe): Promise<SaveResult> => 
     : { kind: 'saved', online: 'failed', output: output(push) }
 }
 
+// Commits that no origin branch is known to hold, judged from the refs already fetched so that
+// a clean save makes no network call. Unfetched pushes made elsewhere look unsent and are pushed
+// again, which git accepts as already up to date.
+const unsent = (git: Git): boolean =>
+  git(['remote', 'get-url', 'origin']).status === 0 &&
+  Number(git(['rev-list', '--count', 'HEAD', '--not', '--remotes=origin']).stdout.trim()) > 0
+
+// With nothing to commit, commits left by an earlier held or failed push, or by a merge, still go
+// online under the same rules as a fresh save.
+const nothingToCommit = (git: Git, probe: PublicProbe): Promise<SaveResult> | SaveResult =>
+  unsent(git) ? pushOnline(git, probe) : { kind: 'nothing' }
+
 export const save = async (root: string, opts: SaveOptions): Promise<SaveResult> => {
   const git = gitIn(root, opts.path)
   if (!git) return { kind: 'no-history' }
+  const probe = opts.probe ?? gitHubPublic
   const paths = opts.everything ? ['.'] : pathsToSave(root, git)
-  if (paths.length === 0) return { kind: 'nothing' }
+  if (paths.length === 0) return nothingToCommit(git, probe)
   git(['add', '-A', '--', ...paths])
   // Commit the staged paths by name, not the folders: git fails a commit whose folder holds nothing
   // it tracks (empty, or only ignored files). --no-renames keeps a moved file's old path in the
@@ -80,8 +93,8 @@ export const save = async (root: string, opts: SaveOptions): Promise<SaveResult>
   const staged = git(['diff', '--cached', '--no-renames', '--name-only', '-z', '--', ...paths])
     .stdout.split('\0')
     .filter(Boolean)
-  if (staged.length === 0) return { kind: 'nothing' }
+  if (staged.length === 0) return nothingToCommit(git, probe)
   const commit = git([...identity(git), 'commit', '-q', '-m', opts.message, '--', ...staged])
   if (commit.status !== 0) return { kind: 'refused', output: output(commit) }
-  return pushOnline(git, opts.probe ?? gitHubPublic)
+  return pushOnline(git, probe)
 }
