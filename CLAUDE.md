@@ -60,7 +60,7 @@ Every write to `profile/`, `cv/`, `pipeline/` or `experience-bank/` ends with on
 - `saved; the online copy is up to date` or `saved on this computer`: no need to mention it.
 - `…the online copy is public…`: once per session, say in one sentence that nothing is sent online because the online copy can be seen by anyone, and offer to walk through making it private (onboarding step 1).
 - `…the online copy waits…` or `…updating the online copy failed`: add one plain sentence that the work is safe on this computer and the online copy is updated with the next save.
-- `not saved: a check refused the save`: the check's output is on stderr. If the fault is in your own write, fix the file and save again. Otherwise tell the user in one plain sentence what is wrong, that their information is written but not yet saved, and what you will do next.
+- `not saved: a check refused the save`: the check's output is on stderr. If the fault is in a file you wrote earlier in this same turn, fix it and save again. A record that was already broken is the user's: tell the user in one plain sentence what is wrong, that their information is written but not yet saved, and what you would change, then wait for a yes before touching the file.
 
 ## Plain words
 
