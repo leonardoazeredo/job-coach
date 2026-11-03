@@ -116,7 +116,7 @@ export function CvDocument({ data, fit }: { data: CvData; fit?: FitResult | null
               <article className="job" key={ed.id}>
                 <div className="job-role">{ed.degree}</div>
                 <div className="edu-line">
-                  {line} <span className="job-dates">| {dates}</span>
+                  {line} {dates ? <span className="job-dates">| {dates}</span> : null}
                 </div>
               </article>
             )

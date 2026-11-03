@@ -144,7 +144,8 @@ export const CvDataSchema = z.object({
         degree: str,
         institution: str,
         location: str.optional(),
-        start: str,
+        // A course whose source gives no start date leaves the key out.
+        start: str.optional(),
         end: str,
       }),
     )

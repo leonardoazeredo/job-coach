@@ -48,6 +48,20 @@ describe('onboarding status', () => {
     ).toMatchObject({ missing: [], placeholders: ['profile/wins.yaml'] })
   })
 
+  it('counts a search file whose seniority is still the template placeholder as unfinished', () => {
+    const search = repo.read('profile/search.yaml')
+    repo.write(
+      'profile/search.yaml',
+      search.replace(/seniority: .*/, 'seniority: [CHANGE_ME level]'),
+    )
+    expect(
+      repo
+        .workspace()
+        .onboarding()
+        .find((s) => s.id === 'identity'),
+    ).toMatchObject({ placeholders: ['profile/search.yaml'] })
+  })
+
   it('does not list the personal glossary, which is optional', () => {
     // The persona has no profile/glossary.md, so a copy without one must stay out of the list.
     expect(unfinished()).toEqual(['sensitive'])

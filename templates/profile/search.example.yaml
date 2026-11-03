@@ -33,7 +33,7 @@ discovery:
     city: CHANGE_ME City
     country: CHANGE_ME Country
     regions: [Remote]
-    seniority: [mid, senior]
+    seniority: [CHANGE_ME level]   # the levels the user asked for, in the job board's words; no default
     stack: [CHANGE_ME Language]
     employment: full-time
     hybrid: true
