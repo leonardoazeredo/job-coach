@@ -8,9 +8,10 @@ export const hasErrors = (problems: Problem[]): boolean => problems.some((p) => 
 
 // One code per failure class, so the agent running a command reads the same meaning
 // from every command. usage and missing are the sysexits values cv-export already
-// documents; problems is any other failure of ours, not only one in the data; an
-// external tool's own status passes through untouched.
-export const EXIT = { usage: 64, problems: 1, missing: 66 } as const
+// documents; problems is any other failure of ours, not only one in the data; data is
+// an input that was read but is not in the shape the command needs; an external
+// tool's own status passes through untouched.
+export const EXIT = { usage: 64, problems: 1, data: 65, missing: 66 } as const
 
 export const printProblems = (problems: Problem[], showWarnings: boolean): void => {
   for (const p of problems.filter((x) => x.level === 'error'))
