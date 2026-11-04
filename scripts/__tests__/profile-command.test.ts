@@ -79,7 +79,7 @@ describe('profile draft and write', () => {
       wins: [
         {
           slug: 'retry-queue',
-          role: 'cedarline',
+          role: 'cedarline-payments',
           themes: ['reliability'],
           action,
           metric: 'Not specified',
@@ -88,7 +88,7 @@ describe('profile draft and write', () => {
     })
     expect(added.stderr).toBe('')
     expect(added.stdout).toBe(
-      `Added to Wins: ${action} Result: no number yet\n  Status: proposed\n`,
+      `Added to Wins: ${action} Result: no number yet\n  Job: Senior Backend Engineer at Cedarline Payments\n  Status: proposed\n`,
     )
     await write('profile/wins.yaml')
     const saved = personaFile('profile/wins.yaml').wins.find(

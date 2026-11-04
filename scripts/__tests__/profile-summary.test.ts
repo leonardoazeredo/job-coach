@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 import { type Field, group } from '../lib/draft-fields.ts'
 import { TABLES } from '../lib/draft-table.ts'
-import { draft, drafted, personaFile, repo, useProfileRepo } from './profile-repo.ts'
+import { draft, drafted, personaFile, repo, run, useProfileRepo } from './profile-repo.ts'
 
 useProfileRepo()
 
@@ -149,6 +149,58 @@ describe('the summary reads properly as printed', () => {
     const priv = await draft('profile/history-private.yaml', { roles: [{ id: 'harbor-health' }] })
     expect(priv.stderr).toBe('')
     expect(drafted('profile/history-private.yaml')).not.toContain('CHANGE_ME')
+  })
+})
+
+describe('the summary of an odd or changing value', () => {
+  it('keeps a locale that is not a language tag as written', async () => {
+    const shown = await draft('profile/identity.yaml', { locale: 'en_GB' })
+    expect(shown.stderr).toBe('')
+    expect(shown.stdout).toBe('Locale: en_GB (was American English)\n')
+  })
+
+  it('names the jobs of a limit that changes, once', async () => {
+    await draft('profile/stack.yaml', {
+      tools: [{ name: 'Postman', roles: ['brightwell'], claim_as: 'Postman (API testing)' }],
+    })
+    await run(['write', 'profile/stack.yaml'])
+    const shown = await draft('profile/stack.yaml', {
+      tools: [{ name: 'Postman', roles: ['harbor-health'] }],
+    })
+    expect(shown.stdout).toBe(
+      'Changed in Tools: Postman: write it as "Postman (API testing)", except in Software Developer at Harbor Health Network, where it may be written plainly\n',
+    )
+  })
+
+  it('shows the old pay in the old currency', async () => {
+    const shown = await draft('profile/identity.yaml', {
+      compensation: { currency: 'EUR', floor: 120000 },
+    })
+    expect(shown.stdout).toBe('Currency: EUR (was USD)\nLowest base pay: €120,000 (was $130,000)\n')
+  })
+
+  it('prints no line for a blank entry of a map', async () => {
+    const shown = await draft('profile/identity.yaml', { right_to_work: { uk: '' } })
+    expect(shown.stdout).not.toContain('?')
+    expect(shown.stdout).not.toContain('uk')
+  })
+
+  it('does not say "null" for a key the file holds with no value', async () => {
+    repo.write(
+      'profile/identity.yaml',
+      repo.read('profile/identity.yaml').replace(/^github:.*$/m, 'github:'),
+    )
+    const shown = await draft('profile/identity.yaml', { github: 'github.com/x' })
+    expect(shown.stdout).toBe('GitHub: github.com/x\n')
+  })
+
+  it('shows the job a win moves to', async () => {
+    const shown = await draft('profile/wins.yaml', {
+      wins: [{ slug: 'bw-test-suite', role: 'harbor-health' }],
+    })
+    expect(shown.stdout).toContain(
+      'Job: Software Developer at Harbor Health Network (was Backend Engineer at Brightwell Logistics)',
+    )
   })
 })
 

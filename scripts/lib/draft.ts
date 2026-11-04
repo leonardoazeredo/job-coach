@@ -57,13 +57,24 @@ const packName =
 
 // What a summary needs to word values the way the user reads them. The jobs come from the
 // history on disk, so a history drafted in the same turn does not name its jobs yet.
-const renderFor = (root: string, file: string, data: Obj, open: () => Workspace): Render => {
-  const pay = data.compensation
-  const currency = isObj(pay) && typeof pay.currency === 'string' ? pay.currency : undefined
+const currencyOf = (data: Obj | undefined): string | undefined => {
+  const pay = data?.compensation
+  return isObj(pay) && typeof pay.currency === 'string' ? pay.currency : undefined
+}
+
+const renderFor = (
+  target: { root: string; file: string },
+  data: { now: Obj; was: Obj | undefined },
+  open: () => Workspace,
+): Render => {
+  const { root, file } = target
+  const currency = currencyOf(data.now)
+  const wasCurrency = currencyOf(data.was)
   const { history } = open().history()
   return {
-    locale: localeOf(file, data, open),
+    locale: localeOf(file, data.now, open),
     ...(currency ? { currency } : {}),
+    ...(wasCurrency ? { wasCurrency } : {}),
     ...(history
       ? { jobs: new Map(history.map((j) => [j.id, `${j.public.title} at ${j.company}`])) }
       : {}),
@@ -162,7 +173,7 @@ const shapeData = (target: Target, input: Obj, open: () => Workspace): Shaped =>
       table.root,
       fresh ? undefined : base,
       merged.data,
-      renderFor(root, file, merged.data, open),
+      renderFor({ root, file }, { now: merged.data, was: fresh ? undefined : base }, open),
     ),
   }
 }

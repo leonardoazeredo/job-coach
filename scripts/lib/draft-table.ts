@@ -192,7 +192,7 @@ const wins: DataTable = {
       frame: '{action} Result: {metric}',
       fields: {
         slug: value('Slug', 'exempt'),
-        role: value('Job', 'exempt'),
+        role: reading(value('Job'), 'job'),
         status: value('Status', 'default'),
         themes: list('Themes', 'exempt'),
         metric: standingIn(value('Metric', 'default'), 'no number yet'),

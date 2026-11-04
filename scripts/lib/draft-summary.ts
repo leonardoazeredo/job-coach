@@ -19,12 +19,20 @@ export type Render = {
   locale: string
   // The currency of the draft's own pay, when it names one.
   currency?: string
+  // The currency the file's pay was in before the draft, for the "was" side of a change.
+  wasCurrency?: string
   // Title and company by job id; undefined when the job history cannot be read.
   jobs?: Map<string, string>
   pack: (id: string) => string
 }
 
-const blank = (v: unknown) => v === undefined || (typeof v === 'string' && v.trim() === '')
+const blank = (v: unknown) =>
+  v === undefined || v === null || (typeof v === 'string' && v.trim() === '')
+
+const prior = (r: Render): Render => {
+  const { currency: _, wasCurrency, ...rest } = r
+  return wasCurrency ? { ...rest, currency: wasCurrency } : rest
+}
 
 const MONTH = /^(\d{4})-(\d{2})$/
 const DAY = /^(\d{4})-(\d{2})-(\d{2})$/
@@ -54,8 +62,16 @@ const moneyIn = (n: number, { locale, currency }: Render): string => {
   }
 }
 
-const languageOf = (tag: string): string =>
-  new Intl.DisplayNames('en', { type: 'language', languageDisplay: 'dialect' }).of(tag) ?? tag
+// A locale that is not a language tag stays as written.
+const languageOf = (tag: string): string => {
+  try {
+    return (
+      new Intl.DisplayNames('en', { type: 'language', languageDisplay: 'dialect' }).of(tag) ?? tag
+    )
+  } catch {
+    return tag
+  }
+}
 
 const jobIn = (id: string, { jobs }: Render): string =>
   jobs ? (jobs.get(id) ?? 'a job that is not in your job history') : 'a job'
@@ -179,7 +195,9 @@ const fieldLines = (f: Field, v: unknown, r: Render): string[] => {
   if (f.t === 'value') return [`${f.label}: ${shown(v, f, r)}`]
   const lines =
     f.t === 'entries'
-      ? Object.entries(obj(v)).map(([k, x]) => `- ${entryLine(f, k, x, r)}`)
+      ? Object.entries(obj(v))
+          .filter(([, x]) => !blank(x))
+          .map(([k, x]) => `- ${entryLine(f, k, x, r)}`)
       : listLines(f, arr(v), r)
   return lines.length === 0 ? [] : [`${f.label}:`, ...lines]
 }
@@ -199,7 +217,11 @@ const itemChange = (f: ItemsField, b: unknown, a: unknown, r: Render): string[] 
     const [head = '', ...rest] = itemLines(f, a, r)
     return [`Changed in ${f.label}: ${head}`, ...pad(rest, '  ')]
   }
-  const inner = groupChanges(itemGroup(f), b, a, r)
+  // A list the frame already says, such as the jobs of a limit, is not repeated beneath it.
+  const said = framed({ frame: f.frame, fields: itemGroup(f).fields }, a, r).used
+  const skip = said.filter((p) => fieldAt(itemGroup(f).fields, p.split('.'))?.t === 'list')
+  const gone = skip.map((p) => p.split('.'))
+  const inner = groupChanges(itemGroup(f), without(b, gone), without(a, gone), r)
   // Only what the frame says may have changed, such as whether a claim is checked.
   if (inner.length === 0)
     return headOf(f, a, r) === headOf(f, b, r) ? [] : [`Changed in ${f.label}: ${headOf(f, a, r)}`]
@@ -223,14 +245,16 @@ const itemsChanges = (f: ItemsField, before: unknown[], after: unknown[], r: Ren
 }
 
 const entriesChanges = (f: EntriesField, before: Obj, after: Obj, r: Render): string[] => {
-  const line = (k: string, v: unknown) => entryLine(f, k, v, r)
-  const gone = Object.keys(before).filter((k) => !(k in after))
-  const changed = Object.entries(after).filter(([k, a]) => !same(a, before[k]))
+  const line = (k: string, v: unknown, at = r) => entryLine(f, k, v, at)
+  const had = (o: Obj) => Object.fromEntries(Object.entries(o).filter(([, x]) => !blank(x)))
+  const [was, now] = [had(before), had(after)]
+  const gone = Object.keys(was).filter((k) => !(k in now))
+  const changed = Object.entries(now).filter(([k, a]) => !same(a, was[k]))
   return [
-    ...gone.map((k) => `Removed from ${f.label}: ${line(k, before[k])}`),
+    ...gone.map((k) => `Removed from ${f.label}: ${line(k, was[k], prior(r))}`),
     ...changed.map(([k, a]) =>
-      k in before
-        ? `${f.label}: ${line(k, a)} (was ${line(k, before[k])})`
+      k in was
+        ? `${f.label}: ${line(k, a)} (was ${line(k, was[k], prior(r))})`
         : `Added to ${f.label}: ${line(k, a)}`,
     ),
   ]
@@ -243,9 +267,10 @@ const valueChange = (
   a: unknown,
   r: Render,
 ): string[] => {
-  if (blank(a)) return blank(b) ? [] : [`${f.label}: left out (was ${shown(b, f, r)})`]
+  const was = shown(b, f, prior(r))
+  if (blank(a)) return blank(b) ? [] : [`${f.label}: left out (was ${was})`]
   const now = `${f.label}: ${shown(a, f, r)}`
-  return [blank(b) ? now : `${now} (was ${shown(b, f, r)})`]
+  return [blank(b) ? now : `${now} (was ${was})`]
 }
 
 const fieldChanges = (f: Field, b: unknown, a: unknown, r: Render): string[] => {
