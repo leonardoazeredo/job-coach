@@ -246,3 +246,14 @@ describe('templates, filled in', () => {
     expect(left).toEqual(['cv-import', 'identity', 'wins', 'voice', 'sensitive'])
   })
 })
+
+describe('template text a person reads in a summary', () => {
+  const words = /company-research|\bstack\b/i
+
+  it('names no working step and no stack in a priority or in the target line', () => {
+    const { tiers } = parse(text(join(TEMPLATES, 'profile/search.example.yaml')))
+    for (const tier of Object.values(tiers) as Record<string, string>[])
+      for (const [key, value] of Object.entries(tier)) expect(value, key).not.toMatch(words)
+    expect(text(join(TEMPLATES, 'profile/coach.example.md'))).not.toMatch(words)
+  })
+})

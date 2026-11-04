@@ -32,7 +32,7 @@ describe('the summary reads properly as printed', () => {
     expect(shown.stderr).toBe('')
     expect(shown.stdout).toContain('Open to remote work: no\n')
     expect(shown.stdout).toContain('Lowest base pay: £38,000\n')
-    expect(shown.stdout).toContain('- At mid level: £40,000 to £46,000\n')
+    expect(shown.stdout).toContain('- At Mid level: £40,000 to £46,000\n')
     expect(shown.stdout).toContain('Locale: British English\n')
     expect(shown.stdout).not.toMatch(/\b(true|false)\b/)
     const search = await fresh('profile/search.yaml', {})
@@ -94,18 +94,19 @@ describe('the summary reads properly as printed', () => {
     expect(shown.stdout).toBe('Changed in Tools: Postman: write it as "Postman (API testing)"\n')
   })
 
-  it('never prints a pattern, and says the coach checks CV text for the claim', async () => {
+  it('never prints a pattern, and says once that the coach checks CV text for the claims', async () => {
     const stack = await fresh('profile/stack.yaml', {})
-    const line = stack.stdout.split('\n').find((l) => l.startsWith('- Java and the JVM'))
-    expect(line).toBe(
-      '- Java and the JVM; say instead: none, treat as a hard gap (the coach checks CV text for this claim)',
+    const lines = stack.stdout.split('\n')
+    expect(lines.find((l) => l.startsWith('- Java and the JVM'))).toBe(
+      '- Java and the JVM; say instead: none, treat as a hard gap',
     )
     expect(stack.stdout).not.toContain('Patterns')
     expect(stack.stdout).not.toContain('\\b')
-    // The schema asks for at least one pattern, so every item carries the addition.
-    const items = stack.stdout.split('\n').filter((l) => l.includes('; say instead: '))
-    expect(items).toHaveLength(4)
-    for (const item of items) expect(item).toMatch(/ \(the coach checks CV text for this claim\)$/)
+    expect(lines.filter((l) => l.includes('; say instead: '))).toHaveLength(4)
+    // The schema asks for at least one pattern, so the one line holds for every item.
+    const said = lines.filter((l) => l.includes('checks CV text'))
+    expect(said).toEqual(['The coach checks CV text for each of these claims.'])
+    expect(lines[lines.indexOf(said[0] ?? '') - 1]).toContain('Java and the JVM')
   })
 
   it('names the job a private note is about, and a pack by its plain name', async () => {
@@ -134,7 +135,7 @@ describe('the summary reads properly as printed', () => {
       wins: [{ slug: 'bw-test-suite', themes: ['quality', 'tooling'] }],
     })
     expect(shown.stdout).toBe(
-      "None of your answers change; only the coach's filing details (such as tags) are updated.\n",
+      'Nothing you wrote changes; the coach is only updating the labels it uses to find things in your files.\n',
     )
   })
 
@@ -196,7 +197,7 @@ describe('the summary of an odd or changing value', () => {
       'Removed from Right to work: us: US citizen, no sponsorship needed',
     )
     expect(shown.stdout).toContain(
-      'Removed from Pay range by level: At mid level: $135,000 to $160,000',
+      'Removed from Pay range by level: At Mid level: $135,000 to $160,000',
     )
     expect(shown.stdout).not.toMatch(/[{}"]/)
   })
@@ -216,7 +217,7 @@ describe('the summary of an odd or changing value', () => {
       repo.remove('profile/history.yaml')
       const shown = await draft('profile/stack.yaml', postman(['harbor-health']))
       expect(shown.stdout).toContain(`\n  ${said}\n`)
-      expect(shown.stdout).not.toContain('None of your answers')
+      expect(shown.stdout).not.toContain('Nothing you wrote changes')
     })
 
     it('says so when neither id is in the job history', async () => {
@@ -390,7 +391,7 @@ describe("the summary uses the person's words, not the coach's", () => {
         'When an ad asks for something I lack, say so plainly and show how fast I learn.',
     })
     expect(shown.stdout).toMatch(
-      /^Wording for a skill an ad asks for that you lack: When an ad asks/m,
+      /^Wording for a skill an ad asks for that is missing: When an ad asks/m,
     )
     expect(shown.stdout).not.toMatch(/When an ad asks for something you lack/)
   })
@@ -430,7 +431,7 @@ describe("the summary uses the person's words, not the coach's", () => {
       compensation: { currency: 'GBP', by_level: { senior: { min: 40000, max: 46000 } } },
     })
     expect(pay.stdout).toContain('Currency: British Pound (GBP) (was US Dollar (USD))')
-    expect(pay.stdout).toContain('At senior level: £40,000 to £46,000')
+    expect(pay.stdout).toContain('At Senior level: £40,000 to £46,000')
     expect(pay.stdout).not.toMatch(/^Currency: GBP/m)
   })
 
@@ -455,5 +456,29 @@ describe("the summary uses the person's words, not the coach's", () => {
     expect(shown.stdout).toBe(
       'Private notes on jobs:\n- Software Developer at Harbor Health Network, payroll title Support Analyst\n',
     )
+  })
+})
+
+describe('the summary uses the words the coach speaks to the person', () => {
+  it('names a win an achievement', async () => {
+    const shown = await draft('profile/wins.yaml', {
+      wins: [{ slug: 'bw-test-suite', metric: 'CI time down from 38 minutes to 9' }],
+    })
+    expect(shown.stdout).not.toMatch(/\bWins?\b/)
+    const removed = await draft('profile/wins.yaml', { wins: [{ remove: 'bw-test-suite' }] })
+    expect(removed.stdout).toMatch(/^Removed from Achievements: /)
+  })
+
+  it('prints a level capitalised wherever one is listed', async () => {
+    const shown = await draft('profile/identity.yaml', {
+      seniority_targets: ['senior', 'lead'],
+      compensation: { by_level: { manager: { min: 1, max: 2 } } },
+    })
+    expect(shown.stdout).toContain('Target levels:\n- Senior\n- Lead\n')
+    expect(shown.stdout).toContain('Added to Pay range by level: At Manager level: ')
+    const search = await draft('profile/search.yaml', {
+      discovery: { search: { seniority: ['entry-level', 'senior'] } },
+    })
+    expect(search.stdout).toContain('Search levels:\n- Entry-level\n- Senior\n')
   })
 })

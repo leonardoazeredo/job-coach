@@ -7,14 +7,14 @@ tiers:                         # how much effort a role earns; job-intake assign
   0:
     label: Career maker
     when: CHANGE_ME What makes a role worth deep preparation, for example the product or the pay
-    action: Deep preparation; company-research and a tailored application.
+    action: Deep preparation, with research on the company and a tailored application.
   1:
     label: High-value target
-    when: CHANGE_ME The pay, stack and scope that make a role clearly worth it
+    when: CHANGE_ME The pay, skills and scope that make a role clearly worth it
     action: Deep preparation; tailored answers and research.
   2:
     label: Standard role
-    when: Fits the stack and criteria but lower pay, broader scope or less ownership.
+    when: Fits your skills and criteria but lower pay, broader scope or less ownership.
     action: Standard answers with light customisation.
 
 fit:

@@ -5,4 +5,4 @@
 - Name: CHANGE_ME Full Name. Pronouns: CHANGE_ME they/them.
 - Language and spelling: CHANGE_ME American English, dates in ISO form.
 - Tone: CHANGE_ME calm, direct and organised. No hype.
-- Target in one line: CHANGE_ME seniority, discipline and main stack; where; the pay floor with its currency.
+- Target in one line: CHANGE_ME seniority, discipline and main skills; where; the pay floor with its currency.
