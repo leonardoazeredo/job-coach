@@ -73,7 +73,7 @@ Every write to `profile/*` or `cv/master.json` goes through `node scripts/profil
 
 `draft` and `write` never run in the same turn, because the user's yes has to come between them. This holds for a starter file too.
 
-- The four markdown files (`coach.md`, `voice.md`, `lessons.md`, `glossary.md`) are drafted as whole text. The summary is the text itself for a new file and the changed lines for an overwrite.
+- The four markdown files (`coach.md`, `voice.md`, `lessons.md`, `glossary.md`) are drafted as whole text. The summary is the text itself for a new file and the changed lines for an overwrite. A template's own leading comment is left out of both and of the saved file; a comment the user wrote stays.
 - A value the user gave only in part goes into the draft as given and no more: a year stays a year, "a shared spreadsheet" stays that. Never add a month, a product, a place, a level or an "only". If a file needs the rest, ask for it.
 - Show the raw file or a `diff -u` only when the user asks, or once they have shown they work in software, by saying so or by using terms such as YAML or JSON first.
 - The write waits for a yes. A no or a correction loops back to a new draft.

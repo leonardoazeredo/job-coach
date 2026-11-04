@@ -129,6 +129,13 @@ const shapeData = (target: Target, input: Obj, open: () => Workspace): Shaped =>
   }
 }
 
+const templateComment = (table: { template: string }): string =>
+  readFileSync(join(TEMPLATES, table.template), 'utf8').match(/^<!--[\s\S]*?-->\n*/)?.[0] ?? ''
+
+// Only the template's exact comment goes; one the person wrote stays.
+const withoutComment = (text: string, comment: string): string =>
+  comment !== '' && text.startsWith(comment) ? text.slice(comment.length) : text
+
 export type DraftResult =
   | { kind: 'not-values'; reason: string }
   | { kind: 'refused'; problems: Problem[] }
@@ -157,11 +164,16 @@ export const makeDraft = (
     return { kind: 'refused', problems: [error(file, 'is not a file a draft is made of')] }
   const existing = readIfThere(join(root, file))
   let shaped: Shaped
-  if (table.format === 'text')
-    shaped = input.includes(PLACEHOLDER)
+  if (table.format === 'text') {
+    // The template's own comment tells the person how to fill the file in; carried into the file
+    // it would be shown to them and read at the start of every session.
+    const comment = templateComment(table)
+    const text = withoutComment(input, comment)
+    const before = existing === undefined ? undefined : withoutComment(existing, comment)
+    shaped = text.includes(PLACEHOLDER)
       ? { problems: still(file, ['The text']) }
-      : { text: input, same: input === existing, summary: textSummary(existing, input) }
-  else {
+      : { text, same: text === before, summary: textSummary(before, text) }
+  } else {
     const parsed = parseValues(input)
     if ('reason' in parsed) return { kind: 'not-values', reason: parsed.reason }
     shaped = shapeData({ file, table, existing }, parsed.values, () => deps.open(root))
