@@ -178,6 +178,21 @@ describe('profile write refusals', () => {
   })
 })
 
+describe('profile draft with a seniority only one board ignores', () => {
+  // The search is shared by every board and the board is named only at pull time, so the
+  // schema must not refuse a level that one board does not know.
+  it('drafts and checks a search whose seniority Remote Rocketship would ignore', async () => {
+    const shown = await draft('profile/search.yaml', {
+      discovery: { search: { seniority: ['lead'] } },
+    })
+    expect(shown.stderr).toBe('')
+    expect(shown.code).toBe(0)
+    expect(shown.stdout).toContain('lead')
+    await write('profile/search.yaml')
+    expect(repo.workspace().check().problems).toEqual([])
+  })
+})
+
 describe('profile drafts, drop and the other kinds of input', () => {
   it('says so and keeps no draft when nothing would change', async () => {
     const shown = await draft('profile/stack.yaml', { tools: ['Postman'] })
