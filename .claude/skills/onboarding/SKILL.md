@@ -84,7 +84,7 @@ Done when the four files exist and each person-fact in them traces to the pasted
 
 ### 3. Identity and targets
 
-Ask these in this order, skipping what the source already gives. Each item is one question and one reply; never put two items in one question.
+Ask these in this order, skipping what the source or an earlier answer already settles. A skipped value still appears in the summary for the user's yes, so nothing goes unseen. A value is settled only when it is stated: one you inferred stays a question. Each item is one question and one reply; never put two items in one question.
 
 1. Name.
 2. Pronouns.
@@ -114,6 +114,8 @@ Ask these in this order, skipping what the source already gives. Each item is on
 26. Regions to look in.
 27. Job titles to look for.
 
+Two items are settled without a question unless the user's words leave them open. Item 7: the user wrote to you in one language, so coach in it. Item 12: the countries the user named are the whole list, so do not ask for others; "for now" or "and maybe elsewhere" leaves it open, and then ask once.
+
 Each answer has one named place. Items 1, 3, 4 and 5 are `name`, `email`, `phone`, `linkedin` and `github`; 6 is `locale`; 8 is `languages`; 9 to 11 are `location`; 12 is `right_to_work`; 13 and 14 are `availability`; 15 is `experience_years`; 17 is `seniority_targets`; 19 to 21 are `compensation`; 22 is `work_setup.remote`; 23 is `work_setup.office_days_ok`; 24 is `ideal_role_criteria`; 25 is `fit.hard_limits` in `search.yaml` (Hard limits below). Items 16 and 18 go into the target line of `coach.md` and 16 also into the discovery titles of `search.yaml`; 26 goes into `location_rule` and 27 into the discovery titles. Pronouns (2) and the language to be coached in (7) go only into `profile/coach.md`, the one file with a place for them: leave them out of the `identity.yaml` input. A question that has no place in this list is not asked.
 
 A refused draft is put to the user as what you need from them, in their words ("I still need your notice period"), never naming a file or a key.
@@ -132,7 +134,9 @@ Done when the three files exist, `timezone` is an IANA name and `locale` a langu
 
 ### 4. Wins
 
-Take the wins in `profile/wins.yaml` one by one. For each: show the action and the metric, then ask only "Is this exactly how you would say it?" and wait. The reply is the whole ask: request no further figure or detail in it. The metric is written word for word as the user says it, qualifiers included ("contributed to", "up to"); a correction replaces the wording, and a win left at `Not specified` gets its own ask for a number in the next reply. Ask for `never_say` inflations: the stronger version of the claim that someone writing about it might put down. Say it to the user in those words. A win the user cannot put a metric on keeps `Not specified`. Set `status: approved` only on the user's yes to that win. Add wins the user raises, with `role` matching a `history.yaml` id. Each approval or correction is a draft of `profile/wins.yaml` naming the win by `slug` with only the changed values.
+Take the wins in `profile/wins.yaml` one by one, two turns each. In the first, show the action and the metric and ask one question that covers both the wording and the overclaim: "Is this exactly how you would say it, and what is the stronger version someone might put down that you would not claim?" One reply answers it. When the reply answers only part, take what it gave and ask for the other part in the next reply, as that one question alone. The metric is written word for word as the user says it, qualifiers included ("contributed to", "up to"); a correction replaces the wording, and a win left at `Not specified` gets its own ask for a number in the next reply. The stronger version goes into `never_say`; say it to the user in those words. A win the user cannot put a metric on keeps `Not specified`.
+
+In the second turn, draft `profile/wins.yaml` naming the win by `slug` with only the changed values, and relay the summary for a yes. A win with nothing to change (right wording, nothing for `never_say`) spends no further turn: its summary, showing only `status: approved`, is the second turn. `status: approved` is set only on the user's yes to that summary. Add wins the user raises, with `role` matching a `history.yaml` id.
 
 Done when no win is `proposed` without the user's say-so.
 
@@ -162,7 +166,7 @@ Done when each of the three is written or declined.
 
 ### 8. Check and next step
 
-1. If `profile/lessons.md` is missing, say that you will start an empty list for lessons from interviews, which interview-debrief adds to, and draft it as text in the shape of `templates/profile/lessons.example.md` on a yes. If `profile/glossary.md` is missing, offer it in one line (the terms only the user uses, such as named companies or the searches they keep for one tier) and draft it in the shape of `templates/profile/glossary.example.md` on a yes; the board never lists it.
+1. If `profile/lessons.md` is missing, draft it as text in the shape of `templates/profile/lessons.example.md`, an empty list for lessons from interviews, which interview-debrief adds to. Draft it in the same turn as the last summary of step 6 or 7, whichever comes last, relay both summaries, and let that one yes cover both; the empty list is never asked about on its own. When the reply is a yes to only one, write that one and ask about the other. If `profile/glossary.md` is missing, offer it in one line (the terms only the user uses, such as named companies or the searches they keep for one tier) and draft it in the shape of `templates/profile/glossary.example.md` on a yes; the board never lists it.
 2. Run `node scripts/check.ts`. Errors name the file; fix that file with the user through a draft of the changed values, and rerun until it exits 0. Warnings are read out and explained.
 3. Run `node scripts/board.ts` and show the "Onboarding unfinished" list, if any, as what remains.
 4. End with one suggested next step: "Paste a job ad or a link and I'll check how well it fits what you're after."

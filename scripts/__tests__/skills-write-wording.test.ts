@@ -84,4 +84,25 @@ describe('onboarding records each answer as given', () => {
   it('tells the user what a refusal needs without naming a file', () => {
     expect(text).toContain('never naming a file or a key')
   })
+
+  it('asks wording and overclaim as one question and says what a partial reply does', () => {
+    const wins = text.split('### 4. Wins')[1]?.split('### 5.')[0] ?? ''
+    expect(wins).toContain('one question that covers both the wording and the overclaim')
+    expect(wins).toContain('answers only part')
+    expect(wins).not.toContain('request no further figure')
+    expect(wins).toMatch(/nothing to change[^.]*spends no further turn/)
+    expect(wins).toContain("only on the user's yes")
+  })
+
+  it('skips settled identity answers but keeps them in the summary and asks about inferred ones', () => {
+    const step = text.split('### 3. Identity and targets')[1] ?? ''
+    expect(step).toContain('source or an earlier answer already settles')
+    expect(step).toContain('still appears in the summary')
+    expect(step).toContain('inferred stays a question')
+    expect(step).toContain('do not ask for others')
+  })
+
+  it('drafts the empty lessons list with an earlier yes, not on its own', () => {
+    expect(text).toContain('the empty list is never asked about on its own')
+  })
 })
