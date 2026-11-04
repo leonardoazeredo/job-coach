@@ -112,7 +112,7 @@ Per role: `id`, `roleTitle`, `slug`, `url` (the employer's apply page, often a W
 ## Differs from our adapter
 
 - The adapter pulls the `_next/data` route with one title per query and loops titles. The POST route takes all titles in one query, so a tier's titles can share one request and one 20-result window.
-- The adapter sends `seniority`, `employmentType` and `showHybridJobs` from `discovery.search`; the site's seniority values are `senior` and `expert`, not `lead`.
+- The adapter sends `seniority`, `employmentType` and `showHybridJobs` from `discovery.search`; the site's seniority values are `senior` and `expert`, not `lead`. The adapter holds the accepted seniority values (`ROCKETSHIP_SENIORITY`) and prints a warning at pull time naming any value in `profile/search.yaml` outside them; the search is still sent.
 - The adapter does not send a salary floor. `minSalary` is available and is in US dollars, so a floor in another currency must be converted, and it tests the top of the range.
 - The adapter sends `discovery.search.country` as `locations`, which already covers worldwide remote. It sends `discovery.search.city` as `locationCity`, and that parameter behaves oddly (above); consider dropping it for remote searches.
 - The adapter's `techStack` is an OR, so several names widen the result rather than requiring any one of them. Names are case-sensitive.

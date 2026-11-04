@@ -1,5 +1,7 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { rocketshipBoard } from '../lib/boards/rocketship.ts'
+import { ROCKETSHIP_SENIORITY, rocketshipBoard } from '../lib/boards/rocketship.ts'
 import { fakeFetch, fixture, html, json, search, sleep } from './board-fakes.ts'
 import { personaRules } from './temp-repo.ts'
 
@@ -256,5 +258,44 @@ describe('rocketship listing mapping', () => {
     })
     expect(by('Dunmere')?.languages).toEqual(['es'])
     expect(by('Oakhollow')?.level).toBe('senior/lead')
+  })
+})
+
+describe('rocketship seniority values', () => {
+  const pullWith = async (seniority: string[]) => {
+    const lines: string[] = []
+    const { fetch, urls } = fakeFetch((u) => (isData(u) ? json(empty) : html(index)))
+    await rocketshipBoard({
+      fetch,
+      sleep,
+      log: (line) => lines.push(line),
+      search: { ...search, seniority },
+      searchTitles: ['Frontend Engineer'],
+    }).pull()
+    return { lines, sent: urls.filter(isData)[0]?.searchParams.get('seniority') }
+  }
+
+  it('says which values the board ignores and which it takes, and still sends the search', async () => {
+    const { lines, sent } = await pullWith(['mid', 'senior', 'lead'])
+    expect(lines.filter((l) => l.startsWith('warning:'))).toEqual([
+      'warning: profile/search.yaml seniority "mid" and "lead" are not levels Remote Rocketship knows, so it ignores them and the search loses that filter; it takes entry-level, junior, mid-level, senior, expert',
+    ])
+    expect(sent).toBe('mid,senior,lead')
+  })
+
+  it('names a single value without a list', async () => {
+    const { lines } = await pullWith(['lead'])
+    expect(lines.find((l) => l.includes('seniority'))).toContain('seniority "lead" is not a level')
+  })
+
+  it('stays quiet when every value is one the board takes', async () => {
+    const { lines } = await pullWith(['mid-level', 'senior', 'expert'])
+    expect(lines.filter((l) => l.includes('seniority'))).toEqual([])
+  })
+
+  it('lists every accepted value in the board notes', () => {
+    const notes = readFileSync(join(import.meta.dirname, '../../docs/boards/rocketship.md'), 'utf8')
+    const row = notes.split('\n').find((l) => l.startsWith('| Seniority |')) ?? ''
+    for (const level of ROCKETSHIP_SENIORITY) expect(row).toContain(`\`${level}\``)
   })
 })

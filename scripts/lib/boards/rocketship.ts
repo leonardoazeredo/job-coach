@@ -83,6 +83,27 @@ const toCard = (x: unknown): Card | undefined => {
   }
 }
 
+// The levels the site filters on; docs/boards/rocketship.md lists the same ones, and a test
+// holds the two together. The site answers any other word with every listing, so the
+// search has to say so itself.
+export const ROCKETSHIP_SENIORITY = ['entry-level', 'junior', 'mid-level', 'senior', 'expert']
+
+const quoted = (words: string[]): string => {
+  const marked = words.map((w) => `"${w}"`)
+  return marked.length < 2
+    ? marked.join('')
+    : `${marked.slice(0, -1).join(', ')} and ${marked.at(-1)}`
+}
+
+// Checked here rather than in the schema because the search is shared by every board and
+// the board is named only when the pull runs.
+const seniorityWarning = (seniority: string[]): string | undefined => {
+  const unknown = seniority.filter((x) => !ROCKETSHIP_SENIORITY.includes(x))
+  if (unknown.length === 0) return undefined
+  const [one, many] = unknown.length === 1 ? ['is not a level', 'it'] : ['are not levels', 'them']
+  return `warning: profile/search.yaml seniority ${quoted(unknown)} ${one} Remote Rocketship knows, so it ignores ${many} and the search loses that filter; it takes ${ROCKETSHIP_SENIORITY.join(', ')}`
+}
+
 const SITE = 'https://www.remoterocketship.com'
 const HEADERS = { 'user-agent': 'Mozilla/5.0' }
 // The search preferences as the site's query parameters, with the sort order fixed here.
@@ -211,6 +232,8 @@ export const rocketshipBoard = ({
   return {
     name: 'rocketship',
     pull: async () => {
+      const warning = seniorityWarning(preferences.seniority)
+      if (warning) log?.(warning)
       const buildId = await readBuildId()
       const seen = new Map<string, Listing>()
       for (const title of searchTitles) await search(buildId, title, seen)
