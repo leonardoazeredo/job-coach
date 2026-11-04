@@ -68,10 +68,46 @@ describe('profile draft of a copy that still holds template marks', () => {
     expect(drafted('profile/identity.yaml')).not.toContain('CHANGE_ME')
   })
 
-  it('names no value for a mark above a whole section, and drafts', async () => {
+  // No template marks a section key (by_level, right_to_work, compensation, work_setup, roles,
+  // tiers, core and the rest carry no CHANGE_ME), so a mark on one is the user's own note.
+  it("keeps the user's own mark above a whole section, and drafts", async () => {
     marking('work_setup:', (line) => `# CHANGE_ME check these with her\n${line}`)
     const shown = await draft('profile/identity.yaml', { availability: 'Two weeks' })
     expect(shown.stderr).toBe('')
     expect(shown.stdout).toBe('Availability: Two weeks (was Free to start from 2026-11-16)\n')
+    expect(drafted('profile/identity.yaml')).toContain(
+      '# CHANGE_ME check these with her\nwork_setup:',
+    )
+  })
+
+  it('refuses a marked inline map the input gives only in part, and takes it given whole', async () => {
+    marking(
+      'mid: {min: 135000',
+      () => '    mid: {min: 0, max: 0}      # CHANGE_ME your level name and range',
+    )
+    const part = await draft('profile/identity.yaml', {
+      compensation: { by_level: { mid: { min: 0 } } },
+    })
+    expect(part.code).toBe(EXIT.problems)
+    expect(part.stderr).toContain('"Pay range by level" still holds')
+
+    const whole = { compensation: { by_level: { mid: { min: 140000, max: 160000 } } } }
+    const given = await draft('profile/identity.yaml', whole)
+    expect(given.stderr).toBe('')
+    expect(drafted('profile/identity.yaml')).not.toContain('CHANGE_ME')
+  })
+
+  // The input must give an item's id to reach the item, so that id does not answer a mark on it.
+  it("keeps a mark on an item's id line when the draft changes another value of the item", async () => {
+    const jobs = repo.read('profile/history.yaml')
+    repo.write(
+      'profile/history.yaml',
+      jobs.replace('  - id: independent', '  - id: independent # CHANGE_ME'),
+    )
+    const shown = await draft('profile/history.yaml', {
+      roles: [{ id: 'independent', summary: 'Booking services for clinics.' }],
+    })
+    expect(shown.stderr).toBe('')
+    expect(drafted('profile/history.yaml')).toContain('- id: independent # CHANGE_ME')
   })
 })
