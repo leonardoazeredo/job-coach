@@ -32,7 +32,7 @@ cv-for-role asks a few questions for named evidence slots of one requirement. Sa
 
 1. Append to `experience-bank/<role-id>.md` under a section `## Follow-ups for <slug>, <date>`. Number questions after the file's last one (a file whose last question is 25 continues at 26); never renumber, because CVs cite `bank:<role-id>#<n>`.
 2. Each entry: the question as a `### <n>. ...` heading, a `Tags:` line, `Asked for: <slug> <requirement id>`, the `**Summary:**`, and the original answer verbatim in a `<details>` block, as in phase 2. A "never happened" or "don't remember" answer is saved the same way.
-3. Propose a win when an answer fills every slot of a competency: `status: proposed`, `competencies: [<id>]`, the metric quoted or `"Not specified"`, question numbers in a comment. Draft and write it as in phase 2 step 4, on the user's yes.
+3. Propose a win when an answer fills every slot of a competency: `status: proposed`, `competencies: [<id>]`, the metric quoted or `"Not specified"`. The bank entry's `Asked for:` line is what ties the win to its questions. Draft and write it as in phase 2 step 4, on the user's yes.
 4. Flag answers that conflict with existing files; ask which is right.
 5. Run `node scripts/check.ts`: it rejects unknown tags.
 
