@@ -267,6 +267,19 @@ describe('the summary of an odd or changing value', () => {
     expect(shown.stdout).toBe('Removed from Core stack: Python (8+ years)\n')
   })
 
+  it('does not report the surviving copy of a duplicate as changed', async () => {
+    const stack = repo.read('profile/stack.yaml')
+    repo.write(
+      'profile/stack.yaml',
+      stack.replace(
+        'tools:\n',
+        'tools:\n  - {name: Pm, roles: [], claim_as: "Pm one"}\n  - {name: Pm, roles: [], claim_as: "Pm two"}\n',
+      ),
+    )
+    const shown = await draft('profile/stack.yaml', { tools: [{ remove: 'Pm' }] })
+    expect(shown.stdout).toBe('Removed from Tools: Pm: write it as "Pm one"\n')
+  })
+
   it('says an order change beside an added item', async () => {
     const shown = await draft('profile/stack.yaml', {
       core: [{ remove: 'Python (8+ years)' }, 'Python (8+ years)', 'NewThing'],

@@ -239,52 +239,52 @@ const itemChange = (f: ItemsField, b: unknown, a: unknown, r: Render): string[] 
 }
 
 // The places in `list` of copies of an id beyond the count `other` holds, for an id both hold:
-// a removal takes the first copy, an addition lands after the last.
-const surplusCopies = (s: {
-  list: unknown[]
-  other: unknown[]
-  id: (x: unknown) => unknown
-  fromEnd: boolean
-}): Set<number> => {
+// a removal takes the first copy.
+const surplusCopies = (
+  list: unknown[],
+  other: unknown[],
+  id: (x: unknown) => unknown,
+): Set<number> => {
   const spare = new Map<unknown, number>()
-  for (const x of s.list) spare.set(s.id(x), (spare.get(s.id(x)) ?? 0) + 1)
-  for (const y of s.other) spare.set(s.id(y), (spare.get(s.id(y)) ?? 0) - 1)
-  const places = s.list.map((_, i) => i)
+  for (const x of list) spare.set(id(x), (spare.get(id(x)) ?? 0) + 1)
+  for (const y of other) spare.set(id(y), (spare.get(id(y)) ?? 0) - 1)
   const out = new Set<number>()
-  for (const i of s.fromEnd ? places.reverse() : places) {
-    const key = s.id(s.list[i])
-    const n = spare.get(key) ?? 0
-    if (n > 0 && s.other.some((y) => s.id(y) === key)) {
-      spare.set(key, n - 1)
+  list.forEach((x, i) => {
+    const n = spare.get(id(x)) ?? 0
+    if (n > 0 && other.some((y) => id(y) === id(x))) {
+      spare.set(id(x), n - 1)
       out.add(i)
     }
-  }
+  })
   return out
 }
 
 const itemsChanges = (f: ItemsField, before: unknown[], after: unknown[], r: Render): string[] => {
   const id = (x: unknown) => idOf(f, x)
   const gone = before.filter((b) => !after.some((a) => id(a) === id(b)))
-  const surplus = (list: unknown[], other: unknown[], fromEnd: boolean) =>
-    surplusCopies({ list, other, id, fromEnd })
-  const dropped = surplus(before, after, false)
+  const dropped = surplusCopies(before, after, id)
+  // Each item is compared with the copy that survives, not with one a removal took.
+  const left = before.filter((_, i) => !dropped.has(i))
   const lines = [
     ...gone.map((b) => `Removed from ${f.label}: ${headOf(f, b, r)}`),
     ...[...dropped].map((i) => `Removed from ${f.label}: ${headOf(f, before[i], r)}`),
-    ...after.flatMap((a) =>
-      itemChange(
-        f,
-        before.find((b) => id(b) === id(a)),
-        a,
-        r,
-      ),
-    ),
+    ...after.flatMap((a) => {
+      const at = left.findIndex((b) => id(b) === id(a))
+      const was = left[at]
+      if (at !== -1) left.splice(at, 1)
+      return itemChange(f, was, a, r)
+    }),
   ]
   // Items kept in a different order change the file, and the order can matter.
-  const kept = (list: unknown[], other: unknown[], extra: Set<number>) =>
-    list.flatMap((x, i) => (!extra.has(i) && other.some((y) => id(y) === id(x)) ? [id(x)] : []))
-  const added = surplus(after, before, true)
-  const moved = !same(kept(before, after, dropped), kept(after, before, added))
+  const kept = (list: unknown[], other: unknown[]) =>
+    list.filter((x) => other.some((y) => id(y) === id(x))).map(id)
+  const moved = !same(
+    kept(
+      before.filter((_, i) => !dropped.has(i)),
+      after,
+    ),
+    kept(after, before),
+  )
   return moved ? [...lines, `${f.label}: order changed`] : lines
 }
 
