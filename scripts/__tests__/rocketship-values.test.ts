@@ -68,6 +68,7 @@ describe('rocketship country, employment type and stack values', () => {
     expect(warnings[0]).not.toContain('case-sensitive')
   })
 
+  // Guards drift: reads the board notes, outside the fixture, so they keep naming the types the warning takes.
   it('lists every accepted employment type in the board notes', () => {
     const notes = readFileSync(join(import.meta.dirname, '../../docs/boards/rocketship.md'), 'utf8')
     const row = notes.split('\n').find((l) => l.startsWith('| Employment type |')) ?? ''
