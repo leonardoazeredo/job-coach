@@ -109,7 +109,7 @@ const shapeData = (target: Target, input: Obj, open: () => Workspace): Shaped =>
   const base: Obj = found.base ?? tpl
   const merged = merge(table.root, { base, input, tpl }, fresh)
   if (merged.problems.length > 0) return { problems: merged.problems.map((m) => error(file, m)) }
-  const change = { before: base, after: merged.data }
+  const change = { before: base, after: merged.data, given: input }
   const y =
     table.format === 'yaml' ? yamlText(existing ?? tplText, fresh, change, table.root) : undefined
   const text = y?.text ?? `${JSON.stringify(merged.data, null, 2)}\n`
@@ -123,7 +123,8 @@ const shapeData = (target: Target, input: Obj, open: () => Workspace): Shaped =>
   const locale = localeOf(file, merged.data, open)
   return {
     text,
-    same: !fresh && JSON.stringify(base) === JSON.stringify(merged.data),
+    // Taking out a mark alone still changes the file, and what onboarding counts.
+    same: !fresh && !y?.stripped && JSON.stringify(base) === JSON.stringify(merged.data),
     summary: dataSummary(table.root, fresh ? undefined : base, merged.data, locale),
   }
 }

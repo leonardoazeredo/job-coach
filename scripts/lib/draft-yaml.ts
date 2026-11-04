@@ -111,12 +111,27 @@ const pathTo = (node: unknown, ancestors: readonly unknown[]): Path => {
   return keys
 }
 
+// The template's header lands on the first key when no blank line follows it, so a mark there
+// above the key is the header's, not the key's.
+const isHeader = (node: unknown, ancestors: readonly unknown[]): boolean => {
+  const [, map, pair] = ancestors
+  return (
+    ancestors.length === 3 &&
+    isMap(map) &&
+    map.items[0] === pair &&
+    isPair(pair) &&
+    pair.key === node
+  )
+}
+
 // Every value a template mark sits on, beside it or on the line above, on the value itself,
 // on a list or map, or on its key. A mark on the whole document is its header.
 const markedPaths = (doc: Document): Path[] => {
   const found: Path[] = []
   visit(doc, (_, node, ancestors) => {
-    if (!isNode(node) || !(marked(node.comment) || marked(node.commentBefore))) return
+    if (!isNode(node)) return
+    const above = marked(node.commentBefore) && !isHeader(node, ancestors)
+    if (!(marked(node.comment) || above)) return
     const path = pathTo(node, ancestors)
     if (path.length > 0) found.push(path)
   })
@@ -128,38 +143,95 @@ const step = (v: unknown, key: string | number): unknown => {
   return isObj(v) ? v[String(key)] : undefined
 }
 
-// Follows a path read in the file as it was into the merged value, matching items by id, and
-// gives it back in the merged value's terms when the draft leaves that value as it was.
-const untouched = (path: Path, c: Change, root: GroupField): Path | undefined => {
-  let field: Field | undefined = root
-  let { before, after } = c
-  const out: Path = []
-  for (const key of path) {
-    if (field?.t === 'items' && Array.isArray(before) && Array.isArray(after)) {
-      const items: ItemsField = field
-      const item = before[Number(key)]
-      const at = after.findIndex((x) => idOf(items, x) === idOf(items, item))
-      if (at === -1) return undefined
-      out.push(at)
-      before = item
-      after = after[at]
-      field = itemGroup(items)
-      continue
-    }
-    out.push(key)
-    before = step(before, key)
-    after = step(after, key)
-    field = childField(field, String(key))
+// Stands for a key the draft's input does not reach.
+const UNSAID = Symbol('unsaid')
+
+// What the input says at one key below `given`: the item with the same id in a keyed list, the
+// value under a key it names (null included), or UNSAID.
+const said = (
+  given: unknown,
+  key: string | number,
+  item: { f: ItemsField; was: unknown } | undefined,
+) => {
+  if (given === UNSAID) return UNSAID
+  if (item && Array.isArray(given)) {
+    const found = given.find((x) => idOf(item.f, x) === idOf(item.f, item.was))
+    return found === undefined ? UNSAID : found
   }
-  return after !== undefined && same(before, after) ? out : undefined
+  return isObj(given) && String(key) in given ? given[String(key)] : UNSAID
+}
+
+// An input that holds a value here, rather than keys to look into, answers the whole of it.
+const answers = (given: unknown, field: Field | undefined) =>
+  given !== UNSAID && !isObj(given) && !(Array.isArray(given) && field?.t === 'items')
+
+// `section` marks a group of the table's own, not the values of one entry or item.
+type Walk = {
+  field: Field | undefined
+  section: boolean
+  before: unknown
+  after: unknown
+  given: unknown
+  out: Path
+}
+
+// One step of a marked path: into an item by its id, or into a key.
+const walkInto = (w: Walk, key: string | number): Walk | undefined => {
+  const { field } = w
+  if (field?.t === 'items' && Array.isArray(w.before) && Array.isArray(w.after)) {
+    const was = w.before[Number(key)]
+    const at = w.after.findIndex((x) => idOf(field, x) === idOf(field, was))
+    if (at === -1) return undefined
+    const given = said(w.given, key, { f: field, was })
+    const after = w.after[at]
+    return {
+      field: itemGroup(field),
+      section: false,
+      before: was,
+      after,
+      given,
+      out: [...w.out, at],
+    }
+  }
+  const child = childField(field, String(key))
+  return {
+    field: child,
+    section: field?.t === 'group' && child?.t === 'group',
+    before: step(w.before, key),
+    after: step(w.after, key),
+    given: said(w.given, key, undefined),
+    out: [...w.out, key],
+  }
+}
+
+// Follows a path read in the file as it was into the merged value, matching items by id, and
+// gives it back in the merged value's terms while the value is still the template's example:
+// the input does not name it, and the draft leaves it as it was. A mark on a whole section
+// names no value to give, so it is not counted.
+const untouched = (path: Path, c: Change & { given: unknown }, root: GroupField) => {
+  let w: Walk | undefined = {
+    field: root,
+    section: false,
+    before: c.before,
+    after: c.after,
+    given: c.given,
+    out: [],
+  }
+  for (const key of path) {
+    if (answers(w.given, w.field)) return
+    w = walkInto(w, key)
+    if (!w) return
+  }
+  if (w.given !== UNSAID || w.section || w.after === undefined) return
+  return same(w.before, w.after) ? w.out : undefined
 }
 
 export const yamlText = (
   source: string,
   fresh: boolean,
-  change: { before: Obj; after: Obj },
+  change: { before: Obj; after: Obj; given: Obj },
   root: GroupField,
-): { text: string; marked: (string | number)[][] } => {
+): { text: string; marked: Path[]; stripped: boolean } => {
   const doc: Document = parseDocument(source)
   const marks = fresh ? [] : markedPaths(doc)
   if (fresh)
@@ -174,6 +246,10 @@ export const yamlText = (
     const kept = untouched(path, change, root)
     return kept ? [kept] : []
   })
-  eachCommented(doc, unmark)
-  return { text: doc.toString(OPTIONS), marked: left }
+  let stripped = false
+  eachCommented(doc, (c) => {
+    stripped ||= marked(c.comment) || marked(c.commentBefore)
+    unmark(c)
+  })
+  return { text: doc.toString(OPTIONS), marked: left, stripped }
 }

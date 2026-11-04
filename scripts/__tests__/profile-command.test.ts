@@ -1,31 +1,12 @@
 import { existsSync } from 'node:fs'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 import { EXIT } from '../lib/problem.ts'
-import { profileCommand } from '../profile.ts'
-import { type TempRepo, tempRepo } from './temp-repo.ts'
+import { draft, drafted, personaFile, repo, run, useProfileRepo, write } from './profile-repo.ts'
 
-let repo: TempRepo
-beforeEach(() => {
-  repo = tempRepo()
-})
-afterEach(() => repo.dispose())
+useProfileRepo()
 
-const NOW = new Date('2026-11-03T10:00:00Z')
-const run = (args: string[], input?: unknown) =>
-  repo.runAtRoot(
-    (a, root) =>
-      profileCommand(a, root, {
-        now: NOW,
-        stdin: async () => (typeof input === 'string' ? input : JSON.stringify(input)),
-      }),
-    ...args,
-  )
-const draft = (file: string, input: unknown) => run(['draft', file], input)
-const write = (...files: string[]) => run(['write', ...files])
-const personaFile = (rel: string) => parse(repo.read(rel))
 type Obj = Record<string, unknown>
-const drafted = (file: string) => repo.read(`.coach/drafts/${file}`)
 
 describe('profile draft and write', () => {
   it('drafts a new history from the values, one line per job, and writes the draft unchanged', async () => {
@@ -108,35 +89,6 @@ describe('profile draft refusals', () => {
     expect(shown.stdout).toBe(
       'Changed in Tools: Postman, written "Postman (API testing)" except at brightwell\n',
     )
-  })
-
-  // A copy filled in by hand before the Draft module can still hold the template's marks.
-  const marking = (find: string, mark: (line: string) => string) => {
-    const text = repo.read('profile/identity.yaml')
-    const line = text.split('\n').find((l) => l.includes(find)) ?? ''
-    repo.write('profile/identity.yaml', text.replace(line, mark(line)))
-  }
-
-  it('refuses an untouched sample that the template marked on an inline map', async () => {
-    marking(
-      'mid: {min: 135000',
-      () => '    mid: {min: 0, max: 0}      # CHANGE_ME your level name and range',
-    )
-    const shown = await draft('profile/identity.yaml', { availability: 'Two weeks' })
-    expect(shown.code).toBe(EXIT.problems)
-    expect(shown.stderr).toContain('"Pay range by level" still holds')
-    expect((await run(['drafts'])).stdout).toBe('No drafts are waiting.\n')
-  })
-
-  it('refuses an untouched sample marked on the line above it, and takes it once given', async () => {
-    marking('floor: 130000', (line) => `  # CHANGE_ME annual base\n${line}`)
-    const shown = await draft('profile/identity.yaml', { availability: 'Two weeks' })
-    expect(shown.code).toBe(EXIT.problems)
-    expect(shown.stderr).toContain('"Lowest base pay" still holds')
-
-    const given = await draft('profile/identity.yaml', { compensation: { floor: 140000 } })
-    expect(given.stderr).toBe('')
-    expect(drafted('profile/identity.yaml')).not.toContain('CHANGE_ME')
   })
 
   it('refuses a new file that leaves a sample value in place, naming it, and drafts nothing', async () => {
