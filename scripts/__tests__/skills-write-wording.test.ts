@@ -102,7 +102,29 @@ describe('onboarding records each answer as given', () => {
     expect(step).toContain('do not ask for others')
   })
 
-  it('drafts the empty lessons list with an earlier yes, not on its own', () => {
-    expect(text).toContain('the empty list is never asked about on its own')
+  it('drafts the empty lessons list beside the last summary', () => {
+    expect(text).toContain('let that one yes cover both')
+  })
+
+  it('keeps offers, framing and the lessons draft out of the way of questions', () => {
+    expect(text).toContain('only thing asked in its reply')
+    expect(text).toContain('waits for a reply of its own, or for the end of setup')
+    expect(text).toContain('never mentions a command, a tool or printing')
+    expect(text).toContain('Never draft it before step 7 begins')
+    expect(text).toContain('ask about the list once more on its own')
+    expect(text).toContain('Say that nothing is left only when no draft or offer is waiting')
+  })
+
+  it('does not repeat settled identity questions and names the timezone exception', () => {
+    expect(text).toContain('the timezone follows from a city the user gave')
+    expect(text).toContain('already answered')
+    expect(text).toContain('the discipline (item 18) is not asked')
+  })
+
+  it('keeps file names out of the markdown templates the user reads', () => {
+    const dir = join(repoRoot(), 'templates', 'profile')
+    for (const f of readdirSync(dir).filter((n) => n.endsWith('.md'))) {
+      expect(readFileSync(join(dir, f), 'utf8'), f).not.toMatch(/`[^`]*\.(yaml|json)`/)
+    }
   })
 })
