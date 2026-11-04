@@ -48,6 +48,16 @@ const labelOf = (field: Field, key: string): string => (field.t === 'group' ? ke
 const scalar = (v: unknown) => ['string', 'number', 'boolean'].includes(typeof v)
 const marked = (v: unknown) => JSON.stringify(v ?? null).includes(PLACEHOLDER)
 
+// A year-month or a day that the calendar does not have. Other texts (a year, "present") are not
+// dates the summary rewords, so they stay as written.
+const notADate = (v: unknown): boolean => {
+  const m = typeof v === 'string' ? /^(\d{4})-(\d{2})(?:-(\d{2}))?$/.exec(v) : null
+  if (!m) return false
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), m[3] === undefined ? 1 : Number(m[3])]
+  const probe = new Date(Date.UTC(y, mo - 1, d))
+  return probe.getUTCMonth() !== mo - 1 || probe.getUTCDate() !== d
+}
+
 const keepSample = (field: Field, base: unknown, ctx: Ctx, label: string) => {
   if (!ctx.fromTemplate || base === undefined) return
   if (field.t !== 'group') {
@@ -75,6 +85,10 @@ const mergeField = (field: Field, at: At, ctx: Ctx, label: string): unknown => {
       ctx.problems.push(`${named(ctx.where, label)} needs a list`)
       return at.base
     case 'value':
+      if (field.date && notADate(at.given)) {
+        ctx.problems.push(`${named(ctx.where, label)} is not a real date: ${at.given}`)
+        return at.base
+      }
       if (scalar(at.given)) return at.given
       ctx.problems.push(`${named(ctx.where, label)} needs a single value`)
       return at.base

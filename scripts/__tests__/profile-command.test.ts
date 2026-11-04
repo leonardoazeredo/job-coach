@@ -164,6 +164,30 @@ describe('profile draft refusals', () => {
     expect(shown.stderr).toContain('"Start" (calder in Jobs) still holds')
   })
 
+  it('refuses a date that is not a real month or day, naming the field and the value as written', async () => {
+    const month = await draft('profile/identity.yaml', { location: { since: '2021-13' } })
+    expect(month.code).toBe(EXIT.problems)
+    expect(month.stdout).toBe('')
+    expect(month.stderr).toContain('"Living there since" is not a real date: 2021-13')
+    const day = await draft('profile/identity.yaml', { location: { since: '2024-02-31' } })
+    expect(day.code).toBe(EXIT.problems)
+    expect(day.stdout).toBe('')
+    expect(day.stderr).toContain('"Living there since" is not a real date: 2024-02-31')
+    expect(existsSync(repo.path('.coach/drafts/profile/identity.yaml'))).toBe(false)
+    const job = await draft('profile/history.yaml', {
+      roles: [{ id: 'brightwell', public: { start: '2024-00' } }],
+    })
+    expect(job.code).toBe(EXIT.problems)
+    expect(job.stderr).toContain('"Start" (brightwell in Jobs) is not a real date: 2024-00')
+  })
+
+  it('still takes a real day, a month, a year, present and null as dates', async () => {
+    for (const since of ['2024-02-29', '2021-12', '2021', 'present', null]) {
+      const shown = await draft('profile/identity.yaml', { location: { since } })
+      expect(shown.code, String(since)).not.toBe(EXIT.problems)
+    }
+  })
+
   it('takes null as leaving a sample out on purpose', async () => {
     const values = personaFile('profile/identity.yaml')
     values.location.since = null
