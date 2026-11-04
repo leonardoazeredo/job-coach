@@ -123,7 +123,7 @@ describe('profile draft refusals', () => {
       tools: [{ name: 'Postman', roles: ['brightwell'], claim_as: 'Postman (API testing)' }],
     })
     expect(shown.stdout).toBe(
-      'Changed in Tools: Postman, written "Postman (API testing)" except at brightwell\n',
+      'Changed in Tools: Postman: write it as "Postman (API testing)", except in Backend Engineer at Brightwell Logistics, where it may be written plainly\n',
     )
   })
 
@@ -249,15 +249,13 @@ describe('profile drafts, drop and the other kinds of input', () => {
 })
 
 describe('profile draft of every data file anew', () => {
-  // What the persona does not have is left out on purpose: some standard answers, the
-  // education, and a note on the jobs that had none.
+  // What the persona does not have is left out on purpose: some standard answers and the
+  // education.
   const leftOut = (file: string, values: Obj): Obj => {
     if (file === 'profile/standard-answers.yaml')
       return { ...values, work_authorization: null, career_gaps: null }
     if (file !== 'cv/master.json') return values
-    const jobs: unknown[] = Array.isArray(values.work) ? values.work : []
-    const work = jobs.map((job) => ({ note: null, ...(job ?? {}) }))
-    return { ...values, work, education: null }
+    return { ...values, education: null }
   }
   const files = [
     'profile/identity.yaml',

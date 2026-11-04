@@ -8,7 +8,10 @@ import {
   items,
   later,
   list,
+  ofJobs,
+  reading,
   type Shape,
+  saying,
   standingIn,
   type Table,
   value,
@@ -31,8 +34,8 @@ const identity: DataTable = {
   root: group({
     name: value('Name'),
     ...contact,
-    locale: value('Locale'),
-    competency_pack: later(value('Competency pack', 'default')),
+    locale: reading(value('Locale'), 'locale'),
+    competency_pack: later(reading(value('Competency pack', 'default'), 'pack')),
     location: group({
       city: value('City'),
       since: value('Living there since', 'sample', 'date'),
@@ -45,10 +48,10 @@ const identity: DataTable = {
     seniority_targets: list('Target levels'),
     compensation: group({
       currency: value('Currency'),
-      floor: value('Lowest base pay'),
+      floor: reading(value('Lowest base pay'), 'money'),
       by_level: entries('Pay range by level', '{key}: {min} to {max}', {
-        min: value('Lowest'),
-        max: value('Highest'),
+        min: reading(value('Lowest'), 'money'),
+        max: reading(value('Highest'), 'money'),
       }),
     }),
     work_setup: group({
@@ -98,11 +101,11 @@ const search: DataTable = {
 const stackItems = (label: string) =>
   items(label, {
     id: 'name',
-    frame: '{name}, written "{claim_as}"[ except at {roles}]',
+    frame: '{name}: write it as "{claim_as}"[, except in {roles}, where it may be written plainly]',
     fields: {
       name: value('Name', 'exempt'),
-      roles: list('Jobs where it may appear bare'),
-      claim_as: value('How to write it elsewhere'),
+      roles: ofJobs(list('Jobs where it may be written plainly')),
+      claim_as: value('How to write it everywhere else'),
     },
   })
 
@@ -116,11 +119,14 @@ const stack: DataTable = {
     past: stackItems('Past stack'),
     tools: stackItems('Tools'),
     do_not_claim: list('Never claim', 'sample', {
-      frame: '{item}; say instead: {allowed_framing}',
+      frame: '{item}; say instead: {allowed_framing}[ ({patterns})]',
       fields: {
         item: value('What is never claimed'),
         allowed_framing: value('What to say instead'),
-        patterns: list('Patterns that catch it'),
+        patterns: saying(
+          list('Patterns that catch it', 'exempt'),
+          'the coach checks CV text for this claim',
+        ),
       },
     }),
     adaptability_framing: value('When an ad asks for something you lack'),
@@ -160,15 +166,17 @@ const historyPrivate: DataTable = {
   root: group({
     roles: items('Private notes on jobs', {
       id: 'id',
-      frame: 'Private notes[, payroll title {payroll_title}]',
+      frame: 'Private notes on {id}[, payroll title {payroll_title}]',
       open: true,
       fields: {
-        id: value('Job id', 'exempt'),
-        payroll_title: value('Payroll title'),
-        why_it_ended: value('Why it ended'),
-        background_check_risk: value('Background-check risk'),
-        salary_history: value('Salary in this job'),
-        notes: value('Notes'),
+        id: reading(value('Job id', 'exempt'), 'job'),
+        // The template holds none of these, so a job with nothing private to say about one is
+        // not asked about it.
+        payroll_title: later(value('Payroll title', 'default')),
+        why_it_ended: later(value('Why it ended', 'default')),
+        background_check_risk: later(value('Background-check risk', 'default')),
+        salary_history: later(value('Salary in this job', 'default')),
+        notes: later(value('Notes', 'default')),
       },
     }),
   }),
@@ -239,7 +247,7 @@ const master: DataTable = {
         location: value('Location'),
         start: value('Start', 'sample', 'date'),
         end: value('End', 'sample', 'date'),
-        note: value('Note'),
+        note: later(value('Note', 'default')),
         tech: list('Technologies'),
         bullets: list('Bullets'),
       },
