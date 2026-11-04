@@ -26,6 +26,8 @@ const dateIn = (text: string, { locale }: Render): string => {
 
 const shown = (v: unknown, field: Field | undefined, r: Render): string => {
   if (Array.isArray(v)) return v.map((x) => shown(x, undefined, r)).join(', ')
+  const standIn = field?.t === 'value' ? field.standIn : undefined
+  if (standIn && standIn.text === v) return standIn.says
   if (typeof v === 'string' && field?.t === 'value' && field.date) return dateIn(v, r)
   return isObj(v) ? JSON.stringify(v) : String(v)
 }
