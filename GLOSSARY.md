@@ -41,7 +41,7 @@ One of core, secondary, past or tools: how deeply a stack item is known.
 _Avoid_: tier (a tier is a role's priority, 0 to 2)
 
 **Tier**:
-A role's priority, from 0 (career maker) to 2 (standard role), set at intake from the full ad. It decides how much preparation the role gets, so tier 0 is kept small: only the applications one person can prepare deeply.
+A role's priority, from 0 (career maker) to 2 (standard role), set at intake from the full ad. It decides how much preparation the role gets, so tier 0 is kept small: only the applications one person can prepare deeply. A Draft summary says "priority" for it, since the person reading it may not work in software.
 
 **Tier criterion**:
 One of the marks a user's search rules name for a career-making role, such as the product, the pay, the scope or prestige.

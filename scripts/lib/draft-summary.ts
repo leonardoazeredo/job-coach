@@ -62,6 +62,16 @@ const moneyIn = (n: number, { locale, currency }: Render): string => {
   }
 }
 
+// A code that is not a currency stays as written.
+const currencyName = (code: string): string => {
+  try {
+    const name = new Intl.DisplayNames('en', { type: 'currency' }).of(code)
+    return name && name !== code ? `${name} (${code})` : code
+  } catch {
+    return code
+  }
+}
+
 // A locale that is not a language tag stays as written.
 const languageOf = (tag: string): string => {
   try {
@@ -85,12 +95,14 @@ const READ: Record<Exclude<Reading, 'money'>, (v: string, r: Render) => string> 
   job: jobIn,
   pack: (v, r) => r.pack(v),
   locale: languageOf,
+  currency: currencyName,
 }
 
 const plain = (v: unknown): string => (isObj(v) ? JSON.stringify(v) : String(v))
 
 const valueShown = (v: unknown, field: ValueField, r: Render): string => {
   if (field.standIn && field.standIn.text === v) return field.standIn.says
+  if (typeof v === 'string' && field.words?.[v]) return field.words[v]
   if (typeof v === 'number' && field.as === 'money') return moneyIn(v, r)
   if (typeof v === 'string' && field.as && field.as !== 'money') return READ[field.as](v, r)
   if (typeof v === 'string' && field.date) return dateIn(v, r)
@@ -182,8 +194,12 @@ const entryLine = (f: EntriesField, key: string, v: unknown, r: Render) => {
 
 const bullet = ([head, ...rest]: string[]) => [`- ${head}`, ...pad(rest, '  ')]
 
+const isBare = (f: ItemsField, item: unknown): boolean =>
+  !!f.quiet && isObj(item) && Object.entries(item).every(([k, x]) => k === f.id || blank(x))
+
 const listLines = (f: Field, v: unknown[], r: Render): string[] => {
-  if (f.t === 'items') return v.flatMap((item) => bullet(itemLines(f, item, r)))
+  if (f.t === 'items')
+    return v.filter((item) => !isBare(f, item)).flatMap((item) => bullet(itemLines(f, item, r)))
   const frame = f.t === 'list' ? f.item : undefined
   return v.map((x) => `- ${frame && isObj(x) ? framed(frame, x, r).line : shown(x, undefined, r)}`)
 }
@@ -207,6 +223,7 @@ const groupLines = (g: GroupField, v: Obj, r: Render): string[] =>
 
 const itemChange = (f: ItemsField, b: unknown, a: unknown, r: Render): string[] => {
   if (b === undefined) {
+    if (isBare(f, a)) return []
     const [head = '', ...rest] = itemLines(f, a, r)
     return [`Added to ${f.label}: ${head}`, ...pad(rest, '  ')]
   }
@@ -333,7 +350,7 @@ const groupChanges = (g: GroupField, before: Obj, after: Obj, r: Render): string
 }
 
 export const NOTHING_SHOWN =
-  "Nothing you said changes. Only the coach's own tags and codes are updated."
+  "None of your answers change; only the coach's filing details (such as tags) are updated."
 
 export const dataSummary = (root: GroupField, before: Obj | undefined, after: Obj, r: Render) => {
   const lines =
