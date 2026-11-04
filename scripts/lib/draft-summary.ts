@@ -256,7 +256,7 @@ const itemsChanges = (f: ItemsField, before: unknown[], after: unknown[], r: Ren
   const kept = (list: unknown[], other: unknown[]) =>
     list.filter((x) => other.some((y) => id(y) === id(x))).map(id)
   const moved = !same(kept(before, after), kept(after, before))
-  return lines.length === 0 && moved ? [`${f.label}: order changed`] : lines
+  return moved ? [...lines, `${f.label}: order changed`] : lines
 }
 
 const entriesChanges = (f: EntriesField, before: Obj, after: Obj, r: Render): string[] => {
