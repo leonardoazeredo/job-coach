@@ -55,7 +55,7 @@ describe('profile draft and write', () => {
       ],
     })
     expect(win.stdout).toContain(
-      '  Metric: CI time on the main service down from 38 minutes to 12 (was CI time on the main service down from 38 minutes to 11)',
+      '  Figure: CI time on the main service down from 38 minutes to 12 (was CI time on the main service down from 38 minutes to 11)',
     )
     expect(win.stdout.split('\n').filter((l) => l.startsWith('Changed'))).toHaveLength(1)
     const tool = await draft('profile/stack.yaml', { tools: ['Make'] })
@@ -90,7 +90,7 @@ describe('profile draft and write', () => {
     })
     expect(added.stderr).toBe('')
     expect(added.stdout).toBe(
-      `Added to Wins: ${action} Result: no number yet\n  Job: Senior Backend Engineer at Cedarline Payments\n  Status: proposed\n`,
+      `Added to Wins: ${action}\n  Job: Senior Backend Engineer at Cedarline Payments\n  Approval: waiting for your yes\n  Figure: no number yet\n`,
     )
     await write('profile/wins.yaml')
     const saved = personaFile('profile/wins.yaml').wins.find(
@@ -102,13 +102,13 @@ describe('profile draft and write', () => {
       wins: [{ slug: 'bw-test-suite', metric: 'Not specified' }],
     })
     expect(lost.stdout).toContain(
-      '  Metric: no number yet (was CI time on the main service down from 38 minutes to 11)',
+      '  Figure: no number yet (was CI time on the main service down from 38 minutes to 11)',
     )
 
     const found = await draft('profile/wins.yaml', {
       wins: [{ slug: 'retry-queue', metric: 'up to 40%' }],
     })
-    expect(found.stdout).toContain('  Metric: up to 40% (was no number yet)')
+    expect(found.stdout).toContain('  Figure: up to 40% (was no number yet)')
   })
 
   it('removes an item only when told to', async () => {

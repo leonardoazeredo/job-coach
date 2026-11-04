@@ -32,7 +32,7 @@ describe('the summary reads properly as printed', () => {
     expect(shown.stderr).toBe('')
     expect(shown.stdout).toContain('Open to remote work: no\n')
     expect(shown.stdout).toContain('Lowest base pay: £38,000\n')
-    expect(shown.stdout).toContain('- mid: £40,000 to £46,000\n')
+    expect(shown.stdout).toContain('- At mid level: £40,000 to £46,000\n')
     expect(shown.stdout).toContain('Locale: British English\n')
     expect(shown.stdout).not.toMatch(/\b(true|false)\b/)
     const search = await fresh('profile/search.yaml', {})
@@ -72,7 +72,7 @@ describe('the summary reads properly as printed', () => {
       ],
     })
     expect(shown.stdout).toBe(
-      'Changed in Past stack: SQL Server: write it as "SQL Server", except in Software Developer at Harbor Health Network and Backend Engineer at Brightwell Logistics, where it may be written plainly\n',
+      'Changed in Skills and tools from earlier jobs: SQL Server: write it as "SQL Server", except in Software Developer at Harbor Health Network and Backend Engineer at Brightwell Logistics, where it may be written plainly\n',
     )
     expect(shown.stdout).not.toContain('harbor-health')
   })
@@ -114,7 +114,7 @@ describe('the summary reads properly as printed', () => {
     })
     expect(shown.stderr).toBe('')
     expect(shown.stdout).toBe(
-      'Private notes on jobs:\n- Private notes on Backend Engineer at Brightwell Logistics, payroll title Admin Assistant\n',
+      'Private notes on jobs:\n- Backend Engineer at Brightwell Logistics, payroll title Admin Assistant\n',
     )
     const pack = await draft('profile/identity.yaml', { competency_pack: 'road-freight-planning' })
     expect(pack.stdout).toBe('Competency pack: Road freight planning (was Backend)\n')
@@ -134,7 +134,7 @@ describe('the summary reads properly as printed', () => {
       wins: [{ slug: 'bw-test-suite', themes: ['quality', 'tooling'] }],
     })
     expect(shown.stdout).toBe(
-      "Nothing you said changes. Only the coach's own tags and codes are updated.\n",
+      "None of your answers change; only the coach's filing details (such as tags) are updated.\n",
     )
   })
 
@@ -176,7 +176,9 @@ describe('the summary of an odd or changing value', () => {
     const shown = await draft('profile/identity.yaml', {
       compensation: { currency: 'EUR', floor: 120000 },
     })
-    expect(shown.stdout).toBe('Currency: EUR (was USD)\nLowest base pay: €120,000 (was $130,000)\n')
+    expect(shown.stdout).toBe(
+      'Currency: Euro (EUR) (was US Dollar (USD))\nLowest base pay: €120,000 (was $130,000)\n',
+    )
   })
 
   it('prints no line for a blank entry of a map', async () => {
@@ -193,7 +195,9 @@ describe('the summary of an odd or changing value', () => {
     expect(shown.stdout).toContain(
       'Removed from Right to work: us: US citizen, no sponsorship needed',
     )
-    expect(shown.stdout).toContain('Removed from Pay range by level: mid: $135,000 to $160,000')
+    expect(shown.stdout).toContain(
+      'Removed from Pay range by level: At mid level: $135,000 to $160,000',
+    )
     expect(shown.stdout).not.toMatch(/[{}"]/)
   })
 
@@ -212,7 +216,7 @@ describe('the summary of an odd or changing value', () => {
       repo.remove('profile/history.yaml')
       const shown = await draft('profile/stack.yaml', postman(['harbor-health']))
       expect(shown.stdout).toContain(`\n  ${said}\n`)
-      expect(shown.stdout).not.toContain('Nothing you said')
+      expect(shown.stdout).not.toContain('None of your answers')
     })
 
     it('says so when neither id is in the job history', async () => {
@@ -248,14 +252,14 @@ describe('the summary of an odd or changing value', () => {
 
   it("shows a renamed tier, which is the user's own wording", async () => {
     const shown = await draft('profile/search.yaml', { tiers: { 0: { label: 'Dream' } } })
-    expect(shown.stdout).toMatch(/^Tier 0 name: Dream \(was .+\)$/m)
+    expect(shown.stdout).toMatch(/^Priority 0 name: Dream \(was .+\)$/m)
   })
 
   it('says so when items are only put in another order', async () => {
     const shown = await draft('profile/stack.yaml', {
       core: [{ remove: 'Python (8+ years)' }, 'Python (8+ years)'],
     })
-    expect(shown.stdout).toBe('Core stack: order changed\n')
+    expect(shown.stdout).toBe('Main skills and tools: order changed\n')
   })
 
   it('says a removed duplicate as a removal, not a reorder', async () => {
@@ -264,7 +268,7 @@ describe('the summary of an odd or changing value', () => {
       repo.read('profile/stack.yaml').replace('core:\n', 'core:\n  - Python (8+ years)\n'),
     )
     const shown = await draft('profile/stack.yaml', { core: [{ remove: 'Python (8+ years)' }] })
-    expect(shown.stdout).toBe('Removed from Core stack: Python (8+ years)\n')
+    expect(shown.stdout).toBe('Removed from Main skills and tools: Python (8+ years)\n')
   })
 
   it('does not report the surviving copy of a duplicate as changed', async () => {
@@ -284,7 +288,9 @@ describe('the summary of an odd or changing value', () => {
     const shown = await draft('profile/stack.yaml', {
       core: [{ remove: 'Python (8+ years)' }, 'Python (8+ years)', 'NewThing'],
     })
-    expect(shown.stdout).toBe('Added to Core stack: NewThing\nCore stack: order changed\n')
+    expect(shown.stdout).toBe(
+      'Added to Main skills and tools: NewThing\nMain skills and tools: order changed\n',
+    )
   })
 
   it('says a win changed job when two jobs read alike', async () => {
@@ -365,5 +371,89 @@ describe('the table and the summary agree', () => {
     const table = TABLES[file]
     if (!table || table.format === 'text') throw new Error('no table')
     expect(said(table.root, values).filter((s) => !shown.stdout.includes(s))).toEqual([])
+  })
+})
+
+describe("the summary uses the person's words, not the coach's", () => {
+  const lines = (out: string) => out.split('\n')
+  const fresh = async (file: string, patch: Obj) => {
+    const old = repo.read(file)
+    repo.remove(file)
+    const shown = await draft(file, { ...parse(old), ...patch })
+    repo.write(file, old)
+    return shown
+  }
+
+  it("does not repeat a value's words in its label", async () => {
+    const shown = await draft('profile/stack.yaml', {
+      adaptability_framing:
+        'When an ad asks for something I lack, say so plainly and show how fast I learn.',
+    })
+    expect(shown.stdout).toMatch(
+      /^Wording for a skill an ad asks for that you lack: When an ad asks/m,
+    )
+    expect(shown.stdout).not.toMatch(/When an ad asks for something you lack/)
+  })
+
+  it("prints a win's figure on its own line under a word that fits a scale, once when it changes", async () => {
+    const added = await draft('profile/wins.yaml', {
+      wins: [
+        {
+          slug: 'depot-fleet',
+          role: 'brightwell',
+          themes: ['scale'],
+          action: 'Planned routes for a depot.',
+          metric: '42 vehicles and 55 drivers',
+        },
+      ],
+    })
+    expect(added.stdout).toContain('\n  Figure: 42 vehicles and 55 drivers\n')
+    expect(added.stdout).not.toMatch(/Result|Metric/)
+    const changed = await draft('profile/wins.yaml', {
+      wins: [{ slug: 'bw-test-suite', metric: 'CI time down from 38 minutes to 9' }],
+    })
+    const said = lines(changed.stdout).filter((l) =>
+      l.includes('CI time down from 38 minutes to 9'),
+    )
+    expect(said).toHaveLength(1)
+    expect(said[0]).toContain('Figure: CI time down from 38 minutes to 9 (was ')
+    expect(changed.stdout).not.toMatch(/Result|Metric/)
+  })
+
+  it("says a win's approval, a currency and a pay level as words", async () => {
+    const win = await draft('profile/wins.yaml', {
+      wins: [{ slug: 'bw-test-suite', status: 'proposed' }],
+    })
+    expect(win.stdout).toContain('Approval: waiting for your yes (was approved)')
+    expect(win.stdout).not.toMatch(/: proposed|: approved/)
+    const pay = await draft('profile/identity.yaml', {
+      compensation: { currency: 'GBP', by_level: { senior: { min: 40000, max: 46000 } } },
+    })
+    expect(pay.stdout).toContain('Currency: British Pound (GBP) (was US Dollar (USD))')
+    expect(pay.stdout).toContain('At senior level: £40,000 to £46,000')
+    expect(pay.stdout).not.toMatch(/^Currency: GBP/m)
+  })
+
+  it('names fields without stack, tier or technologies', async () => {
+    const all: string[] = []
+    for (const file of ['profile/stack.yaml', 'profile/search.yaml', 'cv/master.json'])
+      all.push((await fresh(file, {})).stdout)
+    const text = all.join('\n')
+    // Only the labels are the engine's words; the values are the person's.
+    const labels = text.split('\n').flatMap((l) => (l.startsWith('- ') ? [] : [l.split(': ')[0]]))
+    expect(labels.filter((l) => /\b(stack|tier|technologies)\b/i.test(l ?? ''))).toEqual([])
+    expect(text).toContain('Main skills and tools:')
+    expect(text).toContain('Priority 0 name:')
+    expect(text).toContain('Least match with your skills, in percent:')
+  })
+
+  it('prints no entry for a private note with nothing in it', async () => {
+    const shown = await draft('profile/history-private.yaml', {
+      roles: [{ id: 'brightwell' }, { id: 'harbor-health', payroll_title: 'Support Analyst' }],
+    })
+    expect(shown.stdout).not.toContain('Brightwell')
+    expect(shown.stdout).toBe(
+      'Private notes on jobs:\n- Software Developer at Harbor Health Network, payroll title Support Analyst\n',
+    )
   })
 })

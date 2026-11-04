@@ -12,13 +12,15 @@ export type Kind = 'sample' | 'default' | 'exempt'
 type Common = { label: string; kind: Kind; later?: true }
 // A value a summary words rather than repeats: a pay in the draft's currency, a job id as the
 // job's title and company, a pack id as its name, a locale as its language.
-export type Reading = 'money' | 'job' | 'pack' | 'locale'
+export type Reading = 'money' | 'job' | 'pack' | 'locale' | 'currency'
 // `standIn` is the text the file keeps for an unknown value; a summary says `says` instead.
 export type ValueField = Common & {
   t: 'value'
   date?: true
   as?: Reading
   standIn?: { text: string; says: string }
+  // Words for fixed values the file keeps as codes a person would not say.
+  words?: Record<string, string>
 }
 // A list without an id key: given, it replaces the whole list. `item` frames object items.
 // `as` reads its entries as job ids; a frame shows `says` in place of the entries.
@@ -36,6 +38,8 @@ export type ItemsField = Common & {
   frame: string
   fields: Shape
   open?: true
+  // An item holding nothing but its id has nothing to show, so it is not shown.
+  quiet?: true
 }
 // A map keyed by the user's own words (countries, levels): merged key by key. The frame names
 // {key} and either {value} or the fields of `value`.
@@ -77,7 +81,7 @@ export const group = (fields: Shape, open?: 'open'): GroupField => ({
 })
 export const items = (
   label: string,
-  spec: { id: string; frame: string; fields: Shape; open?: true },
+  spec: { id: string; frame: string; fields: Shape; open?: true; quiet?: true },
   kind: Kind = 'sample',
 ): ItemsField => ({ t: 'items', label, kind, ...spec })
 export const entries = (label: string, frame: string, valueShape?: Shape): EntriesField => ({
@@ -90,6 +94,10 @@ export const entries = (label: string, frame: string, valueShape?: Shape): Entri
 export const later = <F extends Field>(field: F): F => ({ ...field, later: true })
 // A summary words this value instead of repeating it.
 export const reading = (field: ValueField, as: Reading): ValueField => ({ ...field, as })
+export const wording = (field: ValueField, words: Record<string, string>): ValueField => ({
+  ...field,
+  words,
+})
 export const ofJobs = (field: ListField): ListField => ({ ...field, as: 'job' })
 export const saying = (field: ListField, says: string): ListField => ({ ...field, says })
 // The file keeps `text` for an unknown value (cv-lint and the sources check compare against it);
