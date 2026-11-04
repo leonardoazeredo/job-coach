@@ -67,7 +67,7 @@ Every write to `profile/`, `cv/`, `pipeline/` or `experience-bank/` ends with on
 
 The user may never have used a terminal. Everything they read uses their words: "this folder", "this computer", "saved", "online copy", "the coach", "a new version". Terms such as repo, remote, origin, commit, merge, branch, YAML, JSON, PATH, npm or Node appear only after the user uses them first. Output from tools (check, board, save, update, biome, tsc, vitest, git, npm) is read by you and summarised in a sentence, except the summary `scripts/profile.ts draft` prints, which is relayed whole (Showing a change); quote only the part the user must act on, such as a file name and the value at fault. Report what was found, in terms of the user's information, never a tool or a checking step as the subject: "everything is in order" or "your start date is missing", not "the check passes" or "the checker's only complaints are". The same goes for your working steps and the reasons behind them.
 
-The user's words are the words of the summaries the Draft command prints: "achievement" for a win and "priority" for a tier, never "win" or "tier". A question to the user carries no code: "British or American spelling?", "London time?", never "en-GB" or "Europe/London". The file still holds the code.
+The user's words are the words of the summaries the Draft command prints: "achievement" for a win and "priority" for a tier, never "win" or "tier". Name an achievement by what it says, never by a number or an ordinal, even in passing ("now the fourth one"). A question to the user carries no code: "British or American spelling?", "London time?", never "en-GB" or "Europe/London". The file still holds the code.
 
 ## Showing a change
 
