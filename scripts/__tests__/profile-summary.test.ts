@@ -258,6 +258,15 @@ describe('the summary of an odd or changing value', () => {
     expect(shown.stdout).toBe('Core stack: order changed\n')
   })
 
+  it('says a removed duplicate as a removal, not a reorder', async () => {
+    repo.write(
+      'profile/stack.yaml',
+      repo.read('profile/stack.yaml').replace('core:\n', 'core:\n  - Python (8+ years)\n'),
+    )
+    const shown = await draft('profile/stack.yaml', { core: [{ remove: 'Python (8+ years)' }] })
+    expect(shown.stdout).toBe('Removed from Core stack: Python (8+ years)\n')
+  })
+
   it('says an order change beside an added item', async () => {
     const shown = await draft('profile/stack.yaml', {
       core: [{ remove: 'Python (8+ years)' }, 'Python (8+ years)', 'NewThing'],
