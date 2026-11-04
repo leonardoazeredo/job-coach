@@ -10,7 +10,12 @@ import { type Board, computeBoard } from './board.ts'
 import { type BuildResult, buildCv } from './cv-build.ts'
 import { findEvidence, type RequirementEvidence } from './cv-evidence.ts'
 import { lintVariant } from './cv-lint.ts'
-import type { BulletsFile, RequirementsFile } from './cv-schema.ts'
+import {
+  type BulletsFile,
+  HistoryFileSchema,
+  type HistoryRole,
+  type RequirementsFile,
+} from './cv-schema.ts'
 import { todayIn } from './dates.ts'
 import { type Discovery, discovery as discoveryOver } from './discovery.ts'
 import { type Identity, IdentitySchema, pdfFileName } from './identity.ts'
@@ -54,6 +59,8 @@ export type RoleCv = {
 
 export type Workspace = {
   identity: () => { identity: Identity | undefined; problems: Problem[] }
+  // The jobs in profile/history.yaml on their own, so a draft can name a job while other profile files are still to come.
+  history: () => { history: HistoryRole[] | undefined; problems: Problem[] }
   rules: () => { rules: Rules | undefined; problems: Problem[] }
   profile: () => { profile: Profile | undefined; problems: Problem[] }
   // Undefined when it cannot be told; see repo-visibility.ts.
@@ -257,6 +264,11 @@ const readIdentity = (root: string): ReturnType<Workspace['identity']> => {
   return { identity: read.data, problems: fileProblem('profile/identity.yaml', read) }
 }
 
+const readHistory = (root: string): ReturnType<Workspace['history']> => {
+  const read = readFile(join(root, 'profile/history.yaml'), yaml(HistoryFileSchema))
+  return { history: read.data?.roles, problems: fileProblem('profile/history.yaml', read) }
+}
+
 export const openWorkspace = (
   root = repoRoot(),
   probe: VisibilityProbe = repoVisibility,
@@ -264,6 +276,7 @@ export const openWorkspace = (
   const slugs = memo(() => listSlugs(root))
   const roles = memo(() => slugs().map((slug) => readRole(root, slug)))
   const identity = memo(() => readIdentity(root))
+  const history = memo(() => readHistory(root))
   const profile = memo(() => loadProfile(root, identity()))
   const cvProfile = () => cvProfileOf(identity().identity, profile)
   const rules = memo(() => loadRules(root))
@@ -358,6 +371,7 @@ export const openWorkspace = (
 
   return {
     identity,
+    history,
     rules,
     profile,
     visibility,

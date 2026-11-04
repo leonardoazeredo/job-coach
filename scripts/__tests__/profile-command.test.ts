@@ -81,7 +81,7 @@ describe('profile draft and write', () => {
       wins: [
         {
           slug: 'retry-queue',
-          role: 'cedarline',
+          role: 'cedarline-payments',
           themes: ['reliability'],
           action,
           metric: 'Not specified',
@@ -90,7 +90,7 @@ describe('profile draft and write', () => {
     })
     expect(added.stderr).toBe('')
     expect(added.stdout).toBe(
-      `Added to Wins: ${action} Result: no number yet\n  Status: proposed\n`,
+      `Added to Wins: ${action} Result: no number yet\n  Job: Senior Backend Engineer at Cedarline Payments\n  Status: proposed\n`,
     )
     await write('profile/wins.yaml')
     const saved = personaFile('profile/wins.yaml').wins.find(
@@ -125,7 +125,7 @@ describe('profile draft refusals', () => {
       tools: [{ name: 'Postman', roles: ['brightwell'], claim_as: 'Postman (API testing)' }],
     })
     expect(shown.stdout).toBe(
-      'Changed in Tools: Postman, written "Postman (API testing)" except at brightwell\n',
+      'Changed in Tools: Postman: write it as "Postman (API testing)", except in Backend Engineer at Brightwell Logistics, where it may be written plainly\n',
     )
   })
 
@@ -328,15 +328,13 @@ describe("a markdown template's own comment", () => {
 })
 
 describe('profile draft of every data file anew', () => {
-  // What the persona does not have is left out on purpose: some standard answers, the
-  // education, and a note on the jobs that had none.
+  // What the persona does not have is left out on purpose: some standard answers and the
+  // education.
   const leftOut = (file: string, values: Obj): Obj => {
     if (file === 'profile/standard-answers.yaml')
       return { ...values, work_authorization: null, career_gaps: null }
     if (file !== 'cv/master.json') return values
-    const jobs: unknown[] = Array.isArray(values.work) ? values.work : []
-    const work = jobs.map((job) => ({ note: null, ...(job ?? {}) }))
-    return { ...values, work, education: null }
+    return { ...values, education: null }
   }
   const files = [
     'profile/identity.yaml',

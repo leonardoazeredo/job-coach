@@ -78,9 +78,17 @@ describe('templates', () => {
     },
   )
 
-  it('cv/master.example.json carries the marker in its sample dates and note', () => {
+  it('cv/master.example.json carries the marker in its sample dates, and holds no note', () => {
     const work = JSON.parse(text(join(TEMPLATES, 'cv/master.example.json'))).work[0]
-    for (const key of ['start', 'end', 'note']) expect(work[key]).toContain(PLACEHOLDER)
+    for (const key of ['start', 'end']) expect(work[key]).toContain(PLACEHOLDER)
+    expect(work).not.toHaveProperty('note')
+  })
+
+  // A private note is written only for a job that has something private to say, so the template
+  // lists no example text a draft could carry into a user's file.
+  it('profile/history-private.example.yaml holds only the job id of its example job', () => {
+    const job = parse(text(join(TEMPLATES, 'profile/history-private.example.yaml'))).roles[0]
+    expect(Object.keys(job)).toEqual(['id'])
   })
 
   it('the search template presets no seniority level', () => {

@@ -10,14 +10,24 @@ export type Kind = 'sample' | 'default' | 'exempt'
 
 // `later` marks a key the template leaves out because a later step adds it.
 type Common = { label: string; kind: Kind; later?: true }
+// A value a summary words rather than repeats: a pay in the draft's currency, a job id as the
+// job's title and company, a pack id as its name, a locale as its language.
+export type Reading = 'money' | 'job' | 'pack' | 'locale'
 // `standIn` is the text the file keeps for an unknown value; a summary says `says` instead.
 export type ValueField = Common & {
   t: 'value'
   date?: true
+  as?: Reading
   standIn?: { text: string; says: string }
 }
 // A list without an id key: given, it replaces the whole list. `item` frames object items.
-export type ListField = Common & { t: 'list'; item?: { frame: string; fields: Shape } }
+// `as` reads its entries as job ids; a frame shows `says` in place of the entries.
+export type ListField = Common & {
+  t: 'list'
+  item?: { frame: string; fields: Shape }
+  as?: 'job'
+  says?: string
+}
 // A list whose items carry an id key: given items merge into it by that key. A string item is
 // its own id. `open` lets an item hold keys the template does not name.
 export type ItemsField = Common & {
@@ -78,6 +88,10 @@ export const entries = (label: string, frame: string, valueShape?: Shape): Entri
   ...(valueShape ? { value: valueShape } : {}),
 })
 export const later = <F extends Field>(field: F): F => ({ ...field, later: true })
+// A summary words this value instead of repeating it.
+export const reading = (field: ValueField, as: Reading): ValueField => ({ ...field, as })
+export const ofJobs = (field: ListField): ListField => ({ ...field, as: 'job' })
+export const saying = (field: ListField, says: string): ListField => ({ ...field, says })
 // The file keeps `text` for an unknown value (cv-lint and the sources check compare against it);
 // the user is told `says`.
 export const standingIn = (field: ValueField, says: string): ValueField => ({

@@ -1,12 +1,38 @@
 // The summary of a Draft, rendered from the same value that is written: every shown value of a
 // new file, or only what changes in an existing one. Scalars render as their label and value,
-// list items through their table's frame, ISO dates in the user's locale; the rest verbatim.
-import type { EntriesField, Field, GroupField, ItemsField, Shape } from './draft-fields.ts'
+// list items through their table's frame, ISO dates and pay in the user's locale, yes and no as
+// words, job ids as the job; the rest verbatim.
+import type {
+  EntriesField,
+  Field,
+  GroupField,
+  ItemsField,
+  Reading,
+  Shape,
+  ValueField,
+} from './draft-fields.ts'
 import { entryGroup, fieldIn, idOf, isObj, itemGroup, type Obj } from './draft-merge.ts'
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 
-type Render = { locale: string }
+export type Render = {
+  locale: string
+  // The currency of the draft's own pay, when it names one.
+  currency?: string
+  // The currency the file's pay was in before the draft, for the "was" side of a change.
+  wasCurrency?: string
+  // Title and company by job id; undefined when the job history cannot be read.
+  jobs?: Map<string, string>
+  pack: (id: string) => string
+}
+
+const blank = (v: unknown) =>
+  v === undefined || v === null || (typeof v === 'string' && v.trim() === '')
+
+const prior = (r: Render): Render => {
+  const { currency: _, wasCurrency, ...rest } = r
+  return wasCurrency ? { ...rest, currency: wasCurrency } : rest
+}
 
 const MONTH = /^(\d{4})-(\d{2})$/
 const DAY = /^(\d{4})-(\d{2})-(\d{2})$/
@@ -24,12 +50,61 @@ const dateIn = (text: string, { locale }: Render): string => {
   return new Intl.DateTimeFormat(locale, opts).format(Date.UTC(y, m - 1, d))
 }
 
+// A number with the digits grouped for the locale, in the draft's currency when it has one.
+const moneyIn = (n: number, { locale, currency }: Render): string => {
+  try {
+    const options: Intl.NumberFormatOptions = currency
+      ? { style: 'currency', currency, minimumFractionDigits: 0, maximumFractionDigits: 2 }
+      : {}
+    return new Intl.NumberFormat(locale, options).format(n)
+  } catch {
+    return new Intl.NumberFormat(locale).format(n)
+  }
+}
+
+// A locale that is not a language tag stays as written.
+const languageOf = (tag: string): string => {
+  try {
+    return (
+      new Intl.DisplayNames('en', { type: 'language', languageDisplay: 'dialect' }).of(tag) ?? tag
+    )
+  } catch {
+    return tag
+  }
+}
+
+const jobIn = (id: string, { jobs }: Render): string =>
+  jobs ? (jobs.get(id) ?? 'a job that is not in your job history') : 'a job'
+
+const jobsIn = (ids: unknown[], r: Render): string => {
+  if (r.jobs) return new Intl.ListFormat('en').format(ids.map((id) => jobIn(String(id), r)))
+  return ids.length === 1 ? 'one of your jobs' : `${ids.length} of your jobs`
+}
+
+const READ: Record<Exclude<Reading, 'money'>, (v: string, r: Render) => string> = {
+  job: jobIn,
+  pack: (v, r) => r.pack(v),
+  locale: languageOf,
+}
+
+const plain = (v: unknown): string => (isObj(v) ? JSON.stringify(v) : String(v))
+
+const valueShown = (v: unknown, field: ValueField, r: Render): string => {
+  if (field.standIn && field.standIn.text === v) return field.standIn.says
+  if (typeof v === 'number' && field.as === 'money') return moneyIn(v, r)
+  if (typeof v === 'string' && field.as && field.as !== 'money') return READ[field.as](v, r)
+  if (typeof v === 'string' && field.date) return dateIn(v, r)
+  return plain(v)
+}
+
 const shown = (v: unknown, field: Field | undefined, r: Render): string => {
-  if (Array.isArray(v)) return v.map((x) => shown(x, undefined, r)).join(', ')
-  const standIn = field?.t === 'value' ? field.standIn : undefined
-  if (standIn && standIn.text === v) return standIn.says
-  if (typeof v === 'string' && field?.t === 'value' && field.date) return dateIn(v, r)
-  return isObj(v) ? JSON.stringify(v) : String(v)
+  if (typeof v === 'boolean') return v ? 'yes' : 'no'
+  if (Array.isArray(v)) {
+    if (field?.t === 'list' && field.says) return field.says
+    if (field?.t === 'list' && field.as === 'job') return jobsIn(v, r)
+    return v.map((x) => shown(x, undefined, r)).join(', ')
+  }
+  return field?.t === 'value' ? valueShown(v, field, r) : plain(v)
 }
 
 const fieldAt = (shape: Shape, path: string[]): Field | undefined => {
@@ -58,7 +133,7 @@ const framed = ({ frame, fields }: Frame, item: Obj, r: Render) => {
     part.replace(TOKEN, (_, path: string) => {
       used.push(path)
       const v = valueAt(item, path.split('.'))
-      const empty = v === undefined || (Array.isArray(v) && v.length === 0)
+      const empty = blank(v) || (Array.isArray(v) && v.length === 0)
       return empty ? missing() : shown(v, fieldAt(fields, path.split('.')), r)
     })
   const optional = (_: string, part: string) => {
@@ -114,13 +189,15 @@ const listLines = (f: Field, v: unknown[], r: Render): string[] => {
 }
 
 const fieldLines = (f: Field, v: unknown, r: Render): string[] => {
-  if (v === undefined) return []
+  if (blank(v)) return []
   if (f.t === 'group') return groupLines(f, obj(v), r)
   if (f.kind === 'exempt') return []
   if (f.t === 'value') return [`${f.label}: ${shown(v, f, r)}`]
   const lines =
     f.t === 'entries'
-      ? Object.entries(obj(v)).map(([k, x]) => `- ${entryLine(f, k, x, r)}`)
+      ? Object.entries(obj(v))
+          .filter(([, x]) => !blank(x))
+          .map(([k, x]) => `- ${entryLine(f, k, x, r)}`)
       : listLines(f, arr(v), r)
   return lines.length === 0 ? [] : [`${f.label}:`, ...lines]
 }
@@ -140,52 +217,110 @@ const itemChange = (f: ItemsField, b: unknown, a: unknown, r: Render): string[] 
     const [head = '', ...rest] = itemLines(f, a, r)
     return [`Changed in ${f.label}: ${head}`, ...pad(rest, '  ')]
   }
-  const inner = groupChanges(itemGroup(f), b, a, r)
-  if (inner.length === 0) return []
+  // A list the frame already says, such as the jobs of a limit, is not repeated beneath it.
+  const said = framed({ frame: f.frame, fields: itemGroup(f).fields }, a, r).used
+  const skip = said.filter((p) => fieldAt(itemGroup(f).fields, p.split('.'))?.t === 'list')
+  const gone = skip.map((p) => p.split('.'))
+  // Different ids can read alike (no job history, or two jobs with one title and company), so
+  // a list that changed but reads the same is said to have changed.
+  const unseen = skip.flatMap((p) => {
+    const path = p.split('.')
+    const field = fieldAt(itemGroup(f).fields, path)
+    const [was, now] = [valueAt(b, path), valueAt(a, path)]
+    if (field?.t !== 'list') return []
+    const alike = shown(was, field, r) === shown(now, field, r)
+    return alike && !same(was, now) ? [`${field.label}: changed`] : []
+  })
+  const inner = [...unseen, ...groupChanges(itemGroup(f), without(b, gone), without(a, gone), r)]
+  // Only what the frame says may have changed, such as the jobs of a limit.
+  if (inner.length === 0)
+    return headOf(f, a, r) === headOf(f, b, r) ? [] : [`Changed in ${f.label}: ${headOf(f, a, r)}`]
   return [`Changed in ${f.label}: ${headOf(f, a, r)}`, ...pad(inner, '  ')]
+}
+
+// The places in `list` of copies of an id beyond the count `other` holds, for an id both hold:
+// a removal takes the first copy.
+const surplusCopies = (
+  list: unknown[],
+  other: unknown[],
+  id: (x: unknown) => unknown,
+): Set<number> => {
+  const spare = new Map<unknown, number>()
+  for (const x of list) spare.set(id(x), (spare.get(id(x)) ?? 0) + 1)
+  for (const y of other) spare.set(id(y), (spare.get(id(y)) ?? 0) - 1)
+  const out = new Set<number>()
+  list.forEach((x, i) => {
+    const n = spare.get(id(x)) ?? 0
+    if (n > 0 && other.some((y) => id(y) === id(x))) {
+      spare.set(id(x), n - 1)
+      out.add(i)
+    }
+  })
+  return out
 }
 
 const itemsChanges = (f: ItemsField, before: unknown[], after: unknown[], r: Render): string[] => {
   const id = (x: unknown) => idOf(f, x)
   const gone = before.filter((b) => !after.some((a) => id(a) === id(b)))
-  return [
+  const dropped = surplusCopies(before, after, id)
+  // Each item is compared with the copy that survives, not with one a removal took.
+  const left = before.filter((_, i) => !dropped.has(i))
+  const lines = [
     ...gone.map((b) => `Removed from ${f.label}: ${headOf(f, b, r)}`),
-    ...after.flatMap((a) =>
-      itemChange(
-        f,
-        before.find((b) => id(b) === id(a)),
-        a,
-        r,
-      ),
-    ),
+    ...[...dropped].map((i) => `Removed from ${f.label}: ${headOf(f, before[i], r)}`),
+    ...after.flatMap((a) => {
+      const at = left.findIndex((b) => id(b) === id(a))
+      const was = left[at]
+      if (at !== -1) left.splice(at, 1)
+      return itemChange(f, was, a, r)
+    }),
   ]
+  // Items kept in a different order change the file, and the order can matter.
+  const kept = (list: unknown[], other: unknown[]) =>
+    list.filter((x) => other.some((y) => id(y) === id(x))).map(id)
+  const moved = !same(
+    kept(
+      before.filter((_, i) => !dropped.has(i)),
+      after,
+    ),
+    kept(after, before),
+  )
+  return moved ? [...lines, `${f.label}: order changed`] : lines
 }
 
 const entriesChanges = (f: EntriesField, before: Obj, after: Obj, r: Render): string[] => {
-  const line = (k: string, v: unknown) => entryLine(f, k, v, r)
-  const gone = Object.keys(before).filter((k) => !(k in after))
-  const changed = Object.entries(after).filter(([k, a]) => !same(a, before[k]))
+  const line = (k: string, v: unknown, at = r) => entryLine(f, k, v, at)
+  const had = (o: Obj) => Object.fromEntries(Object.entries(o).filter(([, x]) => !blank(x)))
+  const [was, now] = [had(before), had(after)]
+  const gone = Object.keys(was).filter((k) => !(k in now))
+  const changed = Object.entries(now).filter(([k, a]) => !same(a, was[k]))
   return [
-    ...gone.map((k) => `Removed from ${f.label}: ${line(k, before[k])}`),
+    ...gone.map((k) => `Removed from ${f.label}: ${line(k, was[k], prior(r))}`),
     ...changed.map(([k, a]) =>
-      k in before
-        ? `${f.label}: ${line(k, a)} (was ${line(k, before[k])})`
+      k in was
+        ? `${f.label}: ${line(k, a)} (was ${line(k, was[k], prior(r))})`
         : `Added to ${f.label}: ${line(k, a)}`,
     ),
   ]
 }
 
-const valueChange = (f: Exclude<Field, GroupField>, b: unknown, a: unknown, r: Render): string => {
-  if (a === undefined) return `${f.label}: left out (was ${shown(b, f, r)})`
+// An empty value is no value, so it is neither shown nor said to have been.
+const valueChange = (f: ValueField, b: unknown, a: unknown, r: Render): string[] => {
+  const was = shown(b, f, prior(r))
+  if (blank(a)) return blank(b) ? [] : [`${f.label}: left out (was ${was})`]
+  // Different ids can read alike (no job history, or two jobs with one title and company),
+  // which would show no change.
+  if (f.as === 'job' && !blank(b) && a !== b && shown(a, f, r) === was)
+    return [`${f.label}: changed${r.jobs ? '' : ' (your job history could not be read)'}`]
   const now = `${f.label}: ${shown(a, f, r)}`
-  return b === undefined ? now : `${now} (was ${shown(b, f, r)})`
+  return [blank(b) ? now : `${now} (was ${was})`]
 }
 
 const fieldChanges = (f: Field, b: unknown, a: unknown, r: Render): string[] => {
   if (same(a, b)) return []
   if (f.t === 'group') return groupChanges(f, obj(b), obj(a), r)
   if (f.kind === 'exempt') return []
-  if (f.t === 'value' || a === undefined) return [valueChange(f, b, a, r)]
+  if (f.t === 'value') return valueChange(f, b, a, r)
   if (f.t === 'entries') return entriesChanges(f, obj(b), obj(a), r)
   if (f.t === 'items') return itemsChanges(f, arr(b), arr(a), r)
   const list = arr(a)
@@ -197,15 +332,10 @@ const groupChanges = (g: GroupField, before: Obj, after: Obj, r: Render): string
   return keys.flatMap((k) => fieldChanges(fieldIn(g.fields, k), before[k], after[k], r))
 }
 
-export const NOTHING_SHOWN = 'Only details the summary leaves out change.'
+export const NOTHING_SHOWN =
+  "Nothing you said changes. Only the coach's own tags and codes are updated."
 
-export const dataSummary = (
-  root: GroupField,
-  before: Obj | undefined,
-  after: Obj,
-  locale: string,
-) => {
-  const r = { locale }
+export const dataSummary = (root: GroupField, before: Obj | undefined, after: Obj, r: Render) => {
   const lines =
     before === undefined ? groupLines(root, after, r) : groupChanges(root, before, after, r)
   return lines.length > 0 ? lines : [NOTHING_SHOWN]
@@ -244,5 +374,5 @@ export const textSummary = (before: string | undefined, after: string): string[]
     } else if (removing) note('Removed', prev[i++])
     else note('Added', next[j++])
   }
-  return out.length > 0 ? out : [NOTHING_SHOWN]
+  return out.length > 0 ? out : ['Only blank lines or spaces change.']
 }

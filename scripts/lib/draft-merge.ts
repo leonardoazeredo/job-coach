@@ -155,7 +155,7 @@ const mergeEntries = (f: EntriesField, at: At, ctx: Ctx) => {
   const shape = entryGroup(f)
   for (const [key, v] of Object.entries(at.given)) {
     const inner = { ...ctx, fromTemplate: false, where: `${key} in ${f.label}` }
-    if (v === null) delete out[key]
+    if (v === null || (typeof v === 'string' && v.trim() === '')) delete out[key]
     else if (shape)
       out[key] = mergeGroup(shape, { base: out[key], given: v, tpl: undefined }, inner)
     else if (scalar(v)) out[key] = v

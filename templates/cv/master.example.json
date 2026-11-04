@@ -16,7 +16,6 @@
       "location": "CHANGE_ME Place as the source gives it, with nothing added; remove this key if it gives none",
       "start": "CHANGE_ME January 2020",
       "end": "CHANGE_ME January 2022",
-      "note": "CHANGE_ME contract",
       "tech": ["CHANGE_ME Language"],
       "bullets": ["CHANGE_ME One achievement from wins.yaml, worded with its exact metric."]
     }

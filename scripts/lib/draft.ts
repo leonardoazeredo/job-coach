@@ -8,7 +8,7 @@ import { parse } from 'yaml'
 import type { DataTable, Field, GroupField } from './draft-fields.ts'
 import { fieldIn, isObj, itemGroup, merge, type Obj } from './draft-merge.ts'
 import { keepDraft, type Open, readIfThere } from './draft-store.ts'
-import { dataSummary, textSummary } from './draft-summary.ts'
+import { dataSummary, type Render, textSummary } from './draft-summary.ts'
 import { TABLES } from './draft-table.ts'
 import { yamlText } from './draft-yaml.ts'
 import { PLACEHOLDER } from './onboarding.ts'
@@ -34,6 +34,51 @@ const localeOf = (file: string, data: Obj, open: () => Workspace): string => {
     )
   } catch {
     return FALLBACK_LOCALE
+  }
+}
+
+const PACK_ID = /^[a-z0-9][a-z0-9-]*$/
+
+// A pack's name: the label its own file gives, else the words of its id.
+const packName =
+  (root: string) =>
+  (id: string): string => {
+    try {
+      if (PACK_ID.test(id)) {
+        const file = parse(readFileSync(join(root, 'config/competencies', `${id}.yaml`), 'utf8'))
+        if (isObj(file) && typeof file.label === 'string' && file.label.trim()) return file.label
+      }
+    } catch {
+      // An unreadable pack file leaves the id's words.
+    }
+    const words = id.replaceAll('-', ' ')
+    return words.charAt(0).toUpperCase() + words.slice(1)
+  }
+
+// What a summary needs to word values the way the user reads them. The jobs come from the
+// history on disk, so a history drafted in the same turn does not name its jobs yet.
+const currencyOf = (data: Obj | undefined): string | undefined => {
+  const pay = data?.compensation
+  return isObj(pay) && typeof pay.currency === 'string' ? pay.currency : undefined
+}
+
+const renderFor = (
+  target: { root: string; file: string },
+  data: { now: Obj; was: Obj | undefined },
+  open: () => Workspace,
+): Render => {
+  const { root, file } = target
+  const currency = currencyOf(data.now)
+  const wasCurrency = currencyOf(data.was)
+  const { history } = open().history()
+  return {
+    locale: localeOf(file, data.now, open),
+    ...(currency ? { currency } : {}),
+    ...(wasCurrency ? { wasCurrency } : {}),
+    ...(history
+      ? { jobs: new Map(history.map((j) => [j.id, `${j.public.title} at ${j.company}`])) }
+      : {}),
+    pack: packName(root),
   }
 }
 
@@ -69,7 +114,7 @@ const still = (file: string, names: string[]): Problem[] =>
   )
 
 type Shaped = { text: string; summary: string[]; same: boolean } | { problems: Problem[] }
-type Target = { file: string; table: DataTable; existing: string | undefined }
+type Target = { root: string; file: string; table: DataTable; existing: string | undefined }
 
 const readBase = (
   { file, existing }: Target,
@@ -99,7 +144,7 @@ const readBack = (target: Target, text: string, data: Obj, read: (t: string) => 
 }
 
 const shapeData = (target: Target, input: Obj, open: () => Workspace): Shaped => {
-  const { file, table, existing } = target
+  const { root, file, table, existing } = target
   const read = table.format === 'json' ? (t: string) => JSON.parse(t) : (t: string) => parse(t)
   const tplText = readFileSync(join(TEMPLATES, table.template), 'utf8')
   const tpl = read(tplText)
@@ -120,12 +165,16 @@ const shapeData = (target: Target, input: Obj, open: () => Workspace): Shaped =>
   if (remaining.length > 0) return { problems: still(file, [...new Set(remaining)]) }
   const unread = readBack(target, text, merged.data, read)
   if (unread.length > 0) return { problems: unread }
-  const locale = localeOf(file, merged.data, open)
   return {
     text,
     // Taking out a mark alone still changes the file, and what onboarding counts.
     same: !fresh && !y?.stripped && JSON.stringify(base) === JSON.stringify(merged.data),
-    summary: dataSummary(table.root, fresh ? undefined : base, merged.data, locale),
+    summary: dataSummary(
+      table.root,
+      fresh ? undefined : base,
+      merged.data,
+      renderFor({ root, file }, { now: merged.data, was: fresh ? undefined : base }, open),
+    ),
   }
 }
 
@@ -174,7 +223,7 @@ export const makeDraft = (
   } else {
     const parsed = parseValues(input)
     if ('reason' in parsed) return { kind: 'not-values', reason: parsed.reason }
-    shaped = shapeData({ file, table, existing }, parsed.values, () => deps.open(root))
+    shaped = shapeData({ root, file, table, existing }, parsed.values, () => deps.open(root))
   }
   if ('problems' in shaped) return { kind: 'refused', problems: shaped.problems }
   if (shaped.same) return { kind: 'unchanged' }
