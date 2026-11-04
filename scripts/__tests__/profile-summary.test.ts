@@ -251,6 +251,13 @@ describe('the summary of an odd or changing value', () => {
     expect(shown.stdout).toMatch(/^Tier 0 name: Dream \(was .+\)$/m)
   })
 
+  it('says so when items are only put in another order', async () => {
+    const shown = await draft('profile/stack.yaml', {
+      core: [{ remove: 'Python (8+ years)' }, 'Python (8+ years)'],
+    })
+    expect(shown.stdout).toBe('Core stack: order changed\n')
+  })
+
   it('says a win changed job when two jobs read alike', async () => {
     const history = personaFile('profile/history.yaml')
     const twin = { ...history.roles[1], id: 'brightwell-again' }
