@@ -216,6 +216,8 @@ describe('profile drafts, drop and the other kinds of input', () => {
 
 describe("a markdown template's own comment", () => {
   const FILES = ['coach', 'voice', 'lessons', 'glossary']
+  // Reads the shipped templates because the Draft module strips their real comments, so a
+  // copy in the test could drift from them.
   const templateOf = (name: string) =>
     readFileSync(join(repoRoot(), 'templates', 'profile', `${name}.example.md`), 'utf8')
   const commentOf = (name: string) => templateOf(name).match(/^<!--[\s\S]*?-->\n/)?.[0] ?? ''
@@ -242,13 +244,35 @@ describe("a markdown template's own comment", () => {
     expect(repo.read('profile/lessons.md')).toBe(mine)
   })
 
-  it('drops the comment from a file that still has it on its next write, without calling that a change', async () => {
+  it('drops the comment from a file that still has it, without listing it as a change', async () => {
     const file = 'profile/lessons.md'
     repo.write(file, `${commentOf('lessons')}# Lessons\n\n- one\n`)
-    expect((await draft(file, '# Lessons\n\n- one\n')).stdout).toBe('No change.\n')
     expect((await draft(file, '# Lessons\n\n- one\n- two\n')).stdout).toBe('Added: - two\n')
     await write(file)
     expect(repo.read(file)).toBe('# Lessons\n\n- one\n- two\n')
+  })
+
+  it('drops the comment from a file that differs by nothing else, so a placeholder in it is cleared', async () => {
+    const file = 'profile/coach.md'
+    repo.write(file, `${commentOf('coach')}${bodyOf('coach').replaceAll('CHANGE_ME', 'Sam')}`)
+    const shown = await draft(file, bodyOf('coach').replaceAll('CHANGE_ME', 'Sam'))
+    expect(shown.stdout).not.toContain('<!--')
+    expect(shown.stdout).not.toBe('No change.\n')
+    await write(file)
+    expect(repo.read(file)).not.toContain('<!--')
+  })
+
+  it.each(FILES)('is recognised in %s when the coach altered it', async (name) => {
+    const file = `profile/${name}.md`
+    if (existsSync(repo.path(file))) repo.remove(file)
+    const altered = commentOf(name)
+      .replaceAll('CHANGE_ME', 'Sam')
+      .replace(/ [^ ]+ -->/, ' -->')
+      .replaceAll('\n', '\r\n')
+    const shown = await draft(file, `${altered}${bodyOf(name).replaceAll('CHANGE_ME', 'Sam')}`)
+    expect(shown.stdout).not.toContain('<!--')
+    await write(file)
+    expect(repo.read(file)).not.toContain('<!--')
   })
 })
 

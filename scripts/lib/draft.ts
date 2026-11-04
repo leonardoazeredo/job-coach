@@ -129,12 +129,11 @@ const shapeData = (target: Target, input: Obj, open: () => Workspace): Shaped =>
   }
 }
 
-const templateComment = (table: { template: string }): string =>
-  readFileSync(join(TEMPLATES, table.template), 'utf8').match(/^<!--[\s\S]*?-->\n*/)?.[0] ?? ''
+// Every template opens its comment with this line, so the comment is recognised even when the coach
+// changed its words or line endings on the way in; a comment the person wrote does not open so.
+const TEMPLATE_COMMENT = /^\s*<!--\s*Template for profile\/[\s\S]*?-->\s*/
 
-// Only the template's exact comment goes; one the person wrote stays.
-const withoutComment = (text: string, comment: string): string =>
-  comment !== '' && text.startsWith(comment) ? text.slice(comment.length) : text
+const withoutComment = (text: string): string => text.replace(TEMPLATE_COMMENT, '')
 
 export type DraftResult =
   | { kind: 'not-values'; reason: string }
@@ -167,12 +166,11 @@ export const makeDraft = (
   if (table.format === 'text') {
     // The template's own comment tells the person how to fill the file in; carried into the file
     // it would be shown to them and read at the start of every session.
-    const comment = templateComment(table)
-    const text = withoutComment(input, comment)
-    const before = existing === undefined ? undefined : withoutComment(existing, comment)
+    const text = withoutComment(input)
+    const before = existing === undefined ? undefined : withoutComment(existing)
     shaped = text.includes(PLACEHOLDER)
       ? { problems: still(file, ['The text']) }
-      : { text, same: text === before, summary: textSummary(before, text) }
+      : { text, same: text === existing, summary: textSummary(before, text) }
   } else {
     const parsed = parseValues(input)
     if ('reason' in parsed) return { kind: 'not-values', reason: parsed.reason }
