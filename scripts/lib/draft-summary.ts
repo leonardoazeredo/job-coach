@@ -261,14 +261,12 @@ const entriesChanges = (f: EntriesField, before: Obj, after: Obj, r: Render): st
 }
 
 // An empty value is no value, so it is neither shown nor said to have been.
-const valueChange = (
-  f: Exclude<Field, GroupField>,
-  b: unknown,
-  a: unknown,
-  r: Render,
-): string[] => {
+const valueChange = (f: ValueField, b: unknown, a: unknown, r: Render): string[] => {
   const was = shown(b, f, prior(r))
   if (blank(a)) return blank(b) ? [] : [`${f.label}: left out (was ${was})`]
+  // Without the job history both ids read "a job", which would show no change.
+  if (f.as === 'job' && !r.jobs && !blank(b) && a !== b)
+    return [`${f.label}: changed (your job history could not be read)`]
   const now = `${f.label}: ${shown(a, f, r)}`
   return [blank(b) ? now : `${now} (was ${was})`]
 }
@@ -277,7 +275,7 @@ const fieldChanges = (f: Field, b: unknown, a: unknown, r: Render): string[] => 
   if (same(a, b)) return []
   if (f.t === 'group') return groupChanges(f, obj(b), obj(a), r)
   if (f.kind === 'exempt') return []
-  if (f.t === 'value' || a === undefined) return valueChange(f, b, a, r)
+  if (f.t === 'value') return valueChange(f, b, a, r)
   if (f.t === 'entries') return entriesChanges(f, obj(b), obj(a), r)
   if (f.t === 'items') return itemsChanges(f, arr(b), arr(a), r)
   const list = arr(a)

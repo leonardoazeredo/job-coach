@@ -181,8 +181,28 @@ describe('the summary of an odd or changing value', () => {
 
   it('prints no line for a blank entry of a map', async () => {
     const shown = await draft('profile/identity.yaml', { right_to_work: { uk: '' } })
-    expect(shown.stdout).not.toContain('?')
-    expect(shown.stdout).not.toContain('uk')
+    expect(shown.stdout).toBe('No change.\n')
+  })
+
+  it('words a map or list left out entry by entry, never as raw values', async () => {
+    const shown = await draft('profile/identity.yaml', {
+      right_to_work: null,
+      compensation: { by_level: null },
+    })
+    expect(shown.stderr).toBe('')
+    expect(shown.stdout).toContain(
+      'Removed from Right to work: us: US citizen, no sponsorship needed',
+    )
+    expect(shown.stdout).toContain('Removed from Pay range by level: mid: $135,000 to $160,000')
+    expect(shown.stdout).not.toMatch(/[{}"]/)
+  })
+
+  it('says a win changed job when the job history cannot be read', async () => {
+    repo.remove('profile/history.yaml')
+    const shown = await draft('profile/wins.yaml', {
+      wins: [{ slug: 'bw-test-suite', role: 'harbor-health' }],
+    })
+    expect(shown.stdout).toContain('Job: changed (your job history could not be read)')
   })
 
   it('does not say "null" for a key the file holds with no value', async () => {
