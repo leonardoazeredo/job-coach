@@ -166,7 +166,7 @@ describe('rocketship search queries', () => {
       locations: 'United States',
       locationCity: 'Austin',
       showHybridJobs: 'true',
-      seniority: 'mid,senior',
+      seniority: 'mid-level,senior',
       employmentType: 'full-time',
       techStack: 'Python,Go,PostgreSQL',
       jobTitle: 'Frontend Engineer',
@@ -178,7 +178,7 @@ describe('rocketship search queries', () => {
     const { fetch, urls } = fakeFetch((u) => (isData(u) ? json(empty) : html(index)))
     await board(fetch).pull()
     expect(urls.filter(isData)[0]?.search).toBe(
-      '?page=1&sort=DateAdded&locations=United+States&seniority=mid%2Csenior&techStack=Python%2CGo%2CPostgreSQL&showHybridJobs=true&locationCity=Austin&employmentType=full-time&jobTitle=Frontend+Engineer',
+      '?page=1&sort=DateAdded&locations=United+States&seniority=mid-level%2Csenior&techStack=Python%2CGo%2CPostgreSQL&showHybridJobs=true&locationCity=Austin&employmentType=full-time&jobTitle=Frontend+Engineer',
     )
   })
 
