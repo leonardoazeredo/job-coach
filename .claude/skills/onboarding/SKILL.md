@@ -129,7 +129,7 @@ Draft, one file at a time:
 
 Hard limits hold only what the user says rules a role out, one plain sentence each, in their words. "I'd rather avoid", "prefer not" and "would like to avoid" state a preference, not a limit. When the words leave it open, ask once: "Would that rule a role out, or is it something you would rather avoid?". A preference goes into `ideal_role_criteria` in the user's words when it describes what they want, or is left out, and you say which. With no limit named, the list is empty and you say so plainly.
 
-A condition the user attaches to a title ("Transport Manager only at a small firm") is never dropped: the title stays out of the discovery titles, which have no place for a condition, and the condition goes into `ideal_role_criteria` in the user's words. Tell the user in one sentence where it went, or that it was left out.
+A condition the user attaches to a title ("Transport Manager only at a small firm") is never dropped silently: the title stays out of the discovery titles, which have no place for a condition, and the condition goes into `ideal_role_criteria` in the user's words. Tell the user in one sentence where it went, or that it was left out.
 
 Seniority is the level the user named, written in the board's own word (`docs/boards/rocketship.md`) and shown in plain words in the summary. The draft refuses while no level is given: when the user has named none, ask for it.
 
