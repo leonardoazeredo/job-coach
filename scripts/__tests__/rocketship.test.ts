@@ -170,7 +170,7 @@ describe('rocketship search queries', () => {
       showHybridJobs: 'true',
       seniority: 'mid-level,senior',
       employmentType: 'full-time',
-      techStack: 'Python,Go,PostgreSQL',
+      techStack: 'Python,Go,Postgres',
       jobTitle: 'Frontend Engineer',
     })
   })
@@ -180,7 +180,7 @@ describe('rocketship search queries', () => {
     const { fetch, urls } = fakeFetch((u) => (isData(u) ? json(empty) : html(index)))
     await board(fetch).pull()
     expect(urls.filter(isData)[0]?.search).toBe(
-      '?page=1&sort=DateAdded&locations=United+States&seniority=mid-level%2Csenior&techStack=Python%2CGo%2CPostgreSQL&showHybridJobs=true&locationCity=Austin&employmentType=full-time&jobTitle=Frontend+Engineer',
+      '?page=1&sort=DateAdded&locations=United+States&seniority=mid-level%2Csenior&techStack=Python%2CGo%2CPostgres&showHybridJobs=true&locationCity=Austin&employmentType=full-time&jobTitle=Frontend+Engineer',
     )
   })
 
@@ -200,7 +200,7 @@ describe('rocketship search queries', () => {
     }).pull()
     expect(Object.fromEntries(urls.filter(isData)[0]?.searchParams ?? [])).toMatchObject({
       locationCity: 'Denver',
-      techStack: 'Python,Go,PostgreSQL,Redis',
+      techStack: 'Python,Go,Postgres,Redis',
       showHybridJobs: 'false',
     })
   })
