@@ -26,6 +26,13 @@ describe('skills write profile files through the Draft command', () => {
     },
   )
 
+  it('lets the Draft summary escape the rule to summarise tool output', () => {
+    const plain = readFileSync(join(repoRoot(), 'CLAUDE.md'), 'utf8')
+      .split('## ')
+      .find((s) => s.startsWith('Plain words'))
+    expect(plain).toContain('relayed whole')
+  })
+
   it('names only scripts that exist', () => {
     const named = names.flatMap((name) =>
       [...skill(name).matchAll(/node (scripts\/[\w/.-]+\.ts)/g)].map((m) => m[1] as string),

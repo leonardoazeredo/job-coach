@@ -17,11 +17,12 @@ Collect the data the engine was published without, one section at a time, and wr
 
 - Every write to `profile/*` or `cv/master.json` goes through `node scripts/profile.ts`, run from the folder's root:
   1. `draft <file>` with the values as JSON on stdin (keys as in the file's template; a markdown file takes its whole text, under the headings its template shows). It prints the summary.
-  2. Relay the summary as printed, with at most one framing sentence (Showing a change in CLAUDE.md).
-  3. On the user's yes, `write <file>`. A no or a correction goes back to step 1 with the changed values. The step is done when the file is written or the user defers it.
+  2. Relay the summary: copy every line, in order, none dropped, merged or reworded, with at most one framing sentence of your own (Showing a change in CLAUDE.md). The user's yes covers only what they read.
+  3. On the user's next reply, if it is a yes, `write <file>`; `draft` and `write` never run in the same turn. A no or a correction goes back to step 1 with the changed values. The step is done when the file is written or the user defers it.
   4. After the section's writes, one `node scripts/save.ts`.
-- A draft that is refused names the value it still lacks: ask the user for that value, one question. Pass `null` for it only when the user says there is none. Give the draft only values the user or the source supplied; a key you leave out keeps the template's default.
-- The user's pasted CV, LinkedIn text or PDF is the source for this session. A value the source does not hold is asked, never inferred: one specific question at a time. Each reply asks one thing and waits; asking for a yes on a summary counts as that one thing, so a further question waits for the next reply. A value the user gave only in part (a year without a month) is written in the part they gave. The same goes for the location of a job or course: "Bradford" stays "Bradford", and a college's name does not give its location. If the source gives none, pass `null` for it; a CV reads fine without it. The same goes for a course's start date: if the source gives none, pass `null` for `start` and never an empty string.
+- A draft that is refused names each value it still lacks. Ask about them in turn, one per reply. `null` is the user's answer ("there is none"), never yours; the refusal's "or null" is for that case only. Give the draft only values the user or the source supplied; a key you leave out keeps the template's default.
+- Never state a reason on the user's behalf that they did not give ("as you have no LinkedIn", "because you didn't need one"). Say what is true of the file, or ask.
+- The user's pasted CV, LinkedIn text or PDF is the source for this session. A value the source does not hold is asked, never inferred: one specific question at a time. Each reply asks one thing and waits; asking for a yes on a summary counts as that one thing, so a further question waits for the next reply. A value the user gave only in part (a year without a month) is written in the part they gave. The same goes for the location of a job or course: "Bradford" stays "Bradford", and a college's name does not give its location. If the source gives none, ask once whether there is one; a CV reads fine without it, and the user's "none" is `null`. The same goes for a course's start date: `null` for `start` on the user's "none", never an empty string.
 - Required steps are 1, 2, 3, 6 and 8. Offer to defer each of 4, 5 and 7: a deferral is one line to the user ("It stays on your list for later") and changes no file.
 - A file that already exists is updated, never replaced: the input names only the values that change (Re-runs).
 
@@ -87,25 +88,31 @@ Ask these in this order, skipping what the source already gives. Each item is on
 
 1. Name.
 2. Pronouns.
-3. Spelling (`en-GB`, `en-US`).
-4. Language to be coached in.
-5. City.
-6. Timezone.
-7. Since when they have lived there.
-8. Right to work, one country per reply.
-9. Years of professional experience.
-10. Roles they want.
-11. Seniority.
-12. Discipline.
-13. Salary floor.
-14. Currency.
-15. Levels.
-16. Remote or hybrid.
-17. Office days, if hybrid.
-18. What a good role has.
-19. What would rule a role out, with examples from any field such as hours, travel or employers to avoid.
-20. Regions to look in.
-21. Job titles to look for.
+3. Email.
+4. Phone.
+5. Links: LinkedIn, then GitHub, one per reply.
+6. Spelling (`en-GB`, `en-US`).
+7. Language to be coached in.
+8. Languages they speak, with their level in each.
+9. City.
+10. Timezone.
+11. Since when they have lived there.
+12. Right to work, one country per reply.
+13. Notice period.
+14. Earliest start date.
+15. Years of professional experience.
+16. Roles they want.
+17. Seniority.
+18. Discipline.
+19. Salary floor.
+20. Currency.
+21. Levels: the pay range for each level they named in item 17. The level names in the pay ranges are those same words.
+22. Remote or hybrid.
+23. Office days, if hybrid.
+24. What a good role has.
+25. What would rule a role out, with examples from any field such as hours, travel or employers to avoid.
+26. Regions to look in.
+27. Job titles to look for.
 
 Draft, one file at a time:
 
@@ -119,7 +126,7 @@ Done when the three files exist, `timezone` is an IANA name and `locale` a langu
 
 ### 4. Wins
 
-Take the wins in `profile/wins.yaml` one by one. For each: show the action and the metric, then ask only "Is this exactly how you would say it?" and wait. The reply is the whole ask: request no further figure or detail in it. The metric is written word for word as the user says it, qualifiers included ("contributed to", "up to"); a correction replaces the wording, and a win left at `Not specified` gets its own ask for a number in the next reply. Ask for `never_say` inflations: the stronger version of the claim that a draft might drift into. A win the user cannot put a metric on keeps `Not specified`. Set `status: approved` only on the user's yes to that win. Add wins the user raises, with `role` matching a `history.yaml` id. Each approval or correction is a draft of `profile/wins.yaml` naming the win by `slug` with only the changed values.
+Take the wins in `profile/wins.yaml` one by one. For each: show the action and the metric, then ask only "Is this exactly how you would say it?" and wait. The reply is the whole ask: request no further figure or detail in it. The metric is written word for word as the user says it, qualifiers included ("contributed to", "up to"); a correction replaces the wording, and a win left at `Not specified` gets its own ask for a number in the next reply. Ask for `never_say` inflations: the stronger version of the claim that someone writing about it might put down. Say it to the user in those words. A win the user cannot put a metric on keeps `Not specified`. Set `status: approved` only on the user's yes to that win. Add wins the user raises, with `role` matching a `history.yaml` id. Each approval or correction is a draft of `profile/wins.yaml` naming the win by `slug` with only the changed values.
 
 Done when no win is `proposed` without the user's say-so.
 
@@ -141,8 +148,8 @@ This step is required: do not finish onboarding until `competency_pack` is set. 
 
 Offer each in one sentence on why it exists, and draft it only if the user opts in:
 
-- `profile/history-private.yaml`: facts about past roles that must never reach outward material, such as a payroll title that differs from the public one or a background-check risk. Only interview-prep and offer-review read it. After the opt-in, ask for each role in `history.yaml`, one per reply, whether the contract title differs from the public one. A title that differs goes in that role's `payroll_title`; otherwise leave the key out.
-- `profile/standard-answers.yaml`: answers to the questions every application form asks, so application-writer reuses the user's wording. Ask the earliest start date as its own question for `earliest_start`. Salary answers come from `identity.yaml` levels.
+- `profile/history-private.yaml`: facts about past roles that must never reach outward material, such as a payroll title that differs from the public one or a background-check risk. Only interview-prep and offer-review read it. After the opt-in, go through each role in `history.yaml`, one question per reply: whether the contract title differs from the public one, why the role ended, and each other value the refusal names. A title that differs goes in that role's `payroll_title`; the user's "none" for any of them is `null`.
+- `profile/standard-answers.yaml`: answers to the questions every application form asks, so application-writer reuses the user's wording. `earliest_start` is the answer to step 3 item 14; ask it again only if that step was skipped. Salary answers come from `identity.yaml` levels.
 - Salary history: kept in `history-private.yaml` per role under `salary_history`, only on request.
 
 Done when each of the three is written or declined.
