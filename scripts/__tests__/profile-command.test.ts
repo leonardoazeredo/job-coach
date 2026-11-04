@@ -1,7 +1,9 @@
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 import { EXIT } from '../lib/problem.ts'
+import { repoRoot } from '../lib/workspace.ts'
 import { draft, drafted, personaFile, repo, run, useProfileRepo, write } from './profile-repo.ts'
 
 useProfileRepo()
@@ -260,6 +262,68 @@ describe('profile drafts, drop and the other kinds of input', () => {
     expect((await draft('pipeline/x/record.yaml', {})).code).toBe(EXIT.usage)
     const unknown = await draft('profile/stack.yaml', { colour: 'blue' })
     expect(unknown.stderr).toContain('there is no place for "colour"')
+  })
+})
+
+describe("a markdown template's own comment", () => {
+  const FILES = ['coach', 'voice', 'lessons', 'glossary']
+  // Reads the shipped templates because the Draft module strips their real comments, so a
+  // copy in the test could drift from them.
+  const templateOf = (name: string) =>
+    readFileSync(join(repoRoot(), 'templates', 'profile', `${name}.example.md`), 'utf8')
+  const commentOf = (name: string) => templateOf(name).match(/^<!--[\s\S]*?-->\n/)?.[0] ?? ''
+  const bodyOf = (name: string) => templateOf(name).slice(commentOf(name).length)
+
+  it.each(FILES)('is left out of the %s summary and the saved file', async (name) => {
+    const file = `profile/${name}.md`
+    if (existsSync(repo.path(file))) repo.remove(file)
+    // The person fills the placeholders in the body; the comment arrives as the template has it.
+    const filled = `${commentOf(name)}${bodyOf(name).replaceAll('CHANGE_ME', 'Sam')}`
+    const shown = await draft(file, filled)
+    expect(shown.stderr).toBe('')
+    expect(shown.stdout).not.toContain('<!--')
+    expect(shown.stdout).not.toContain('Template for')
+    await write(file)
+    expect(repo.read(file)).toBe(bodyOf(name).replaceAll('CHANGE_ME', 'Sam'))
+  })
+
+  it('keeps a comment the user wrote, in the summary and the file', async () => {
+    const mine = '<!-- my own note -->\n# Lessons\n'
+    const shown = await draft('profile/lessons.md', mine)
+    expect(shown.stdout).toContain('<!-- my own note -->')
+    await write('profile/lessons.md')
+    expect(repo.read('profile/lessons.md')).toBe(mine)
+  })
+
+  it('drops the comment from a file that still has it, without listing it as a change', async () => {
+    const file = 'profile/lessons.md'
+    repo.write(file, `${commentOf('lessons')}# Lessons\n\n- one\n`)
+    expect((await draft(file, '# Lessons\n\n- one\n- two\n')).stdout).toBe('Added: - two\n')
+    await write(file)
+    expect(repo.read(file)).toBe('# Lessons\n\n- one\n- two\n')
+  })
+
+  it('drops the comment from a file that differs by nothing else, so a placeholder in it is cleared', async () => {
+    const file = 'profile/coach.md'
+    repo.write(file, `${commentOf('coach')}${bodyOf('coach').replaceAll('CHANGE_ME', 'Sam')}`)
+    const shown = await draft(file, bodyOf('coach').replaceAll('CHANGE_ME', 'Sam'))
+    expect(shown.stdout).not.toContain('<!--')
+    expect(shown.stdout).not.toBe('No change.\n')
+    await write(file)
+    expect(repo.read(file)).not.toContain('<!--')
+  })
+
+  it.each(FILES)('is recognised in %s when the coach altered it', async (name) => {
+    const file = `profile/${name}.md`
+    if (existsSync(repo.path(file))) repo.remove(file)
+    const altered = commentOf(name)
+      .replaceAll('CHANGE_ME', 'Sam')
+      .replace(/ [^ ]+ -->/, ' -->')
+      .replaceAll('\n', '\r\n')
+    const shown = await draft(file, `${altered}${bodyOf(name).replaceAll('CHANGE_ME', 'Sam')}`)
+    expect(shown.stdout).not.toContain('<!--')
+    await write(file)
+    expect(repo.read(file)).not.toContain('<!--')
   })
 })
 

@@ -20,7 +20,7 @@ Turn an interview into a record, an honest assessment and lessons.
    - Where an answer was vague, too long, or missed the question, show a tighter version using a win slug.
    - Be direct. Do not grade generously to reassure, and do not invent interviewer reactions.
 4. **Next step.** Who is next and when, according to the transcript. If the transcript does not say, write "Not stated" and suggest asking the recruiter.
-5. **Lessons.** Propose 1 to 3 new rows for `profile/lessons.md` (date, source, lesson). Say each lesson in a plain sentence and append them after the user says yes; the raw row appears only when the user asks or has shown they work in software (CLAUDE.md, Showing a change).
+5. **Lessons.** Propose 1 to 3 new rows for `profile/lessons.md` (date, source, lesson). Draft `profile/lessons.md` with `node scripts/profile.ts draft profile/lessons.md`, whole text on stdin: the file as it is now with the new rows added at the top of the table. Relay the printed summary as it is, with at most one framing sentence. On the user's yes, run `node scripts/profile.ts write profile/lessons.md`, and end the turn with `node scripts/save.ts`.
 6. **Write** `pipeline/<slug>/debrief-<date>.md` and log "Interview done" via pipeline-update.
 7. **Reply** with three short parts: how it went (2 lines), top fixes (up to 3), next step.
 

@@ -129,6 +129,12 @@ const shapeData = (target: Target, input: Obj, open: () => Workspace): Shaped =>
   }
 }
 
+// Every template opens its comment with this line, so the comment is recognised even when the coach
+// changed its words or line endings on the way in; a comment the person wrote does not open so.
+const TEMPLATE_COMMENT = /^\s*<!--\s*Template for profile\/[\s\S]*?-->\s*/
+
+const withoutComment = (text: string): string => text.replace(TEMPLATE_COMMENT, '')
+
 export type DraftResult =
   | { kind: 'not-values'; reason: string }
   | { kind: 'refused'; problems: Problem[] }
@@ -157,11 +163,15 @@ export const makeDraft = (
     return { kind: 'refused', problems: [error(file, 'is not a file a draft is made of')] }
   const existing = readIfThere(join(root, file))
   let shaped: Shaped
-  if (table.format === 'text')
-    shaped = input.includes(PLACEHOLDER)
+  if (table.format === 'text') {
+    // The template's own comment tells the person how to fill the file in; carried into the file
+    // it would be shown to them and read at the start of every session.
+    const text = withoutComment(input)
+    const before = existing === undefined ? undefined : withoutComment(existing)
+    shaped = text.includes(PLACEHOLDER)
       ? { problems: still(file, ['The text']) }
-      : { text: input, same: input === existing, summary: textSummary(existing, input) }
-  else {
+      : { text, same: text === existing, summary: textSummary(before, text) }
+  } else {
     const parsed = parseValues(input)
     if ('reason' in parsed) return { kind: 'not-values', reason: parsed.reason }
     shaped = shapeData({ file, table, existing }, parsed.values, () => deps.open(root))

@@ -21,7 +21,7 @@ git is optional. With it, the coach saves a history of every change it makes to 
 
 1. On GitHub, choose **Use this template** and create a **private** repository, then clone it. (Or clone `leonardoazeredo/job-coach` directly and keep it local; onboarding unlinks it from the public project.)
 2. Open the folder in Claude Code and send any first message. A fresh copy has no `profile/coach.md`, so `CLAUDE.md` starts the `onboarding` skill: prerequisites and keeping your data private, CV import, identity and targets, then wins, voice, a competency pack and optional sensitive sections, then a final check. Every file is shown to you and written only after your yes. Steps 1, 2, 3, 6 (the competency pack) and 8 (the final check) are required; the rest can wait.
-3. Later, `node scripts/board.ts` lists any onboarding section still unfinished, and `/onboarding` reruns one section, showing a diff before it overwrites anything.
+3. Later, `node scripts/board.ts` lists any onboarding section still unfinished, and `/onboarding` reruns one section, showing what would change before it overwrites anything.
 
 Onboarding installs or switches Node itself (24.11 or later in the 24 line, or 26 or later; the version in `.nvmrc`) and runs `npm ci`. Each write to your data is committed by `node scripts/save.ts`, and pushed only to an `origin` that is not public. Engine updates run through the `update-coach` skill; [docs/updating.md](docs/updating.md) is the same procedure by hand.
 
@@ -36,7 +36,7 @@ The engine (scripts, skills, config defaults, schemas, docs) is shared upstream.
 ```
 CLAUDE.md                  core prompt, always loaded
 .claude/skills/<name>/     one skill per task, onboarding and update-coach included (17)
-templates/                 commented *.example.* files onboarding copies into profile/ and cv/
+templates/                 commented *.example.* files that show the keys of each file in profile/ and cv/, which `scripts/profile.ts` starts a new file from
 config/rules.yaml          engine defaults: staleness, statuses, events and board groups
 config/competencies/<pack>.yaml   competencies an ad can ask for, evidence slots, interview questions
 config/cv.yaml             wording rules the CV lint enforces
