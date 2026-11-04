@@ -246,6 +246,17 @@ describe('the summary of an odd or changing value', () => {
     })
   })
 
+  it('says a win changed job when two jobs read alike', async () => {
+    const history = personaFile('profile/history.yaml')
+    const twin = { ...history.roles[1], id: 'brightwell-again' }
+    repo.write('profile/history.yaml', JSON.stringify({ roles: [...history.roles, twin] }))
+    const shown = await draft('profile/wins.yaml', {
+      wins: [{ slug: 'bw-test-suite', role: 'brightwell-again' }],
+    })
+    expect(shown.stdout).toContain('  Job: changed\n')
+    expect(shown.stdout).not.toContain('(was Backend Engineer')
+  })
+
   it('says a win changed job when the job history cannot be read', async () => {
     repo.remove('profile/history.yaml')
     const shown = await draft('profile/wins.yaml', {

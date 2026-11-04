@@ -232,7 +232,7 @@ const itemChange = (f: ItemsField, b: unknown, a: unknown, r: Render): string[] 
     return alike && !same(was, now) ? [`${field.label}: changed`] : []
   })
   const inner = [...unseen, ...groupChanges(itemGroup(f), without(b, gone), without(a, gone), r)]
-  // Only what the frame says may have changed, such as whether a claim is checked.
+  // Only what the frame says may have changed, such as the jobs of a limit.
   if (inner.length === 0)
     return headOf(f, a, r) === headOf(f, b, r) ? [] : [`Changed in ${f.label}: ${headOf(f, a, r)}`]
   return [`Changed in ${f.label}: ${headOf(f, a, r)}`, ...pad(inner, '  ')]
@@ -274,9 +274,10 @@ const entriesChanges = (f: EntriesField, before: Obj, after: Obj, r: Render): st
 const valueChange = (f: ValueField, b: unknown, a: unknown, r: Render): string[] => {
   const was = shown(b, f, prior(r))
   if (blank(a)) return blank(b) ? [] : [`${f.label}: left out (was ${was})`]
-  // Without the job history both ids read "a job", which would show no change.
-  if (f.as === 'job' && !r.jobs && !blank(b) && a !== b)
-    return [`${f.label}: changed (your job history could not be read)`]
+  // Different ids can read alike (no job history, or two jobs with one title and company),
+  // which would show no change.
+  if (f.as === 'job' && !blank(b) && a !== b && shown(a, f, r) === was)
+    return [`${f.label}: changed${r.jobs ? '' : ' (your job history could not be read)'}`]
   const now = `${f.label}: ${shown(a, f, r)}`
   return [blank(b) ? now : `${now} (was ${was})`]
 }
