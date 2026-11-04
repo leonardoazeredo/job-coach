@@ -5,25 +5,29 @@ description: Set up or update the user's profile, CV source, search targets and 
 
 # Onboarding
 
-Collect the data the engine was published without, one section at a time, and write it only with the user's yes. The files are the memory: this skill's state is which files exist and what is still in them.
+Collect the data the engine was published without, one section at a time, and write it only with the user's yes, through the Draft command. The files are the memory: this skill's state is which files exist and what is still in them.
 
 ## Read first
 
-- `node scripts/board.ts`: prints "Onboarding unfinished" with each section's id, whether it is required, and the file that is missing or still holds `CHANGE_ME`. A section absent from that list is done.
-- `templates/profile/*.example.*` and `templates/cv/master.example.json`: one template per file, with a comment on every field. Start every file from its template; the persona under `examples/austin-backend/` shows a filled one.
+- `node scripts/board.ts`: prints "Onboarding unfinished" with each section's id, whether it is required, and the file that is missing or has wins waiting for a yes. A section absent from that list is done.
+- `templates/profile/*.example.*` and `templates/cv/master.example.json`: the keys each file takes, with a comment on every field. The persona under `examples/austin-backend/` shows a filled one.
 - `config/competencies/`: the packs that exist.
 
 ## Rules for every step
 
-- For each file, draft its exact values first, then show a plain summary built from that draft (Showing a change in CLAUDE.md), then write the draft unchanged after the user says yes. The summary covers every value, including each sentence you drafted yourself, apart from the kinds Showing a change exempts. Do not compose the summary from the conversation and draft the file afterwards. The raw file appears only when the user asks or has shown they work in software. A no or a correction loops back to the summary; the step is done when the file is written or the user defers it.
-- The user's pasted CV, LinkedIn text or PDF is the source for this session. A value the source does not hold is asked, never inferred: one specific question at a time. Each reply asks one thing and waits; asking for a yes on a summary counts as that one thing, so a further question waits for the next reply. A value the user gave only in part (a year without a month) is written in the part they gave. The same goes for the location of a job or course: "Bradford" stays "Bradford", and a college's name does not give its location. If the source gives none, leave the key out; a CV reads fine without it. The same goes for a course's start date: if the source gives none, leave `start` out and never write an empty string.
-- Strip the template's explanatory comments when writing the file; keep the short ones that tell a later reader why a value is what it is. No `CHANGE_ME` survives in a finished file, comments included: the board counts the token anywhere, so the template header that names it goes too.
+- Every write to `profile/*` or `cv/master.json` goes through `node scripts/profile.ts`, run from the folder's root:
+  1. `draft <file>` with the values as JSON on stdin (keys as in the file's template; a markdown file takes its whole text, under the headings its template shows). It prints the summary.
+  2. Relay the summary as printed, with at most one framing sentence (Showing a change in CLAUDE.md).
+  3. On the user's yes, `write <file>`. A no or a correction goes back to step 1 with the changed values. The step is done when the file is written or the user defers it.
+  4. After the section's writes, one `node scripts/save.ts`.
+- A draft that is refused names the value it still lacks: ask the user for that value, one question. Pass `null` for it only when the user says there is none. Give the draft only values the user or the source supplied; a key you leave out keeps the template's default.
+- The user's pasted CV, LinkedIn text or PDF is the source for this session. A value the source does not hold is asked, never inferred: one specific question at a time. Each reply asks one thing and waits; asking for a yes on a summary counts as that one thing, so a further question waits for the next reply. A value the user gave only in part (a year without a month) is written in the part they gave. The same goes for the location of a job or course: "Bradford" stays "Bradford", and a college's name does not give its location. If the source gives none, pass `null` for it; a CV reads fine without it. The same goes for a course's start date: if the source gives none, pass `null` for `start` and never an empty string.
 - Required steps are 1, 2, 3, 6 and 8. Offer to defer each of 4, 5 and 7: a deferral is one line to the user ("It stays on your list for later") and changes no file.
-- A file that already exists is updated, never replaced: see Re-runs.
+- A file that already exists is updated, never replaced: the input names only the values that change (Re-runs).
 
 ## Re-runs
 
-At the start, run `node scripts/board.ts` and list each section as done, unfinished or never started, then ask which to work on. Before overwriting any existing file, write the proposed text to a scratch path outside the repo and compare it with the existing file yourself. Tell the user only the values that change, in plain words; the file is replaced only after a yes to that. Show `diff -u <existing> <proposed>` instead only when the user asks or has shown they work in software. Carry the user's existing values into the proposal, and change only what they asked to change.
+At the start, run `node scripts/board.ts` and list each section as done, unfinished or never started, then ask which to work on. Draft an existing file with only the values the user asked to change: the summary then lists just those, and anything not named stays as it is. Removing a job, win or tool needs an explicit remove entry in the input (`{"remove": "<id>"}` in the list).
 
 ## Steps
 
@@ -68,12 +72,12 @@ Done when Node is in range and `npm ci` has run, the data either stays on this c
 
 Ask: "Paste your CV or LinkedIn text, or give me a PDF path." For a PDF, read it with the Read tool, or with `pdftotext -layout <path> -` when poppler is present.
 
-Draft, from that source only, then summarise and write one file at a time:
+Draft, from that source only, one file at a time:
 
-1. `profile/history.yaml` from `templates/profile/history.example.yaml`: one entry per role, newest first, with `id`, `company` and the `public` block. Titles, dates and employment type are the public labels. Ask about one unclear date or title per reply.
+1. `profile/history.yaml`: one entry per role, newest first, with `id`, `company` and the `public` block. Titles, dates and employment type are the public labels. Ask about one unclear date or title per reply.
 2. `profile/stack.yaml`: core, secondary, past and tools, sorted by depth. Technologies the CV shows only briefly go to `secondary` or `past` with `roles` and `claim_as` limits. Ask one thing for `do_not_claim`: "What work would a recruiter for your kind of role assume you have done, that you have not?" Where the source names a tool only generically ("the route-planning package"), ask its name, one tool per reply; a name the user cannot give stays generic in the file, and you say so.
-3. `cv/master.json` from `templates/cv/master.example.json` (create `cv/` if needed): bullets reworded only from what the source says, metrics exactly as in the source.
-4. `profile/wins.yaml` from `templates/profile/wins.example.yaml`: candidate wins from the bullets, each `status: proposed`, `metric: "Not specified"` unless the source states one, with `# CHANGE_ME: metrics unconfirmed, finish onboarding step 4` as the first line. `check.ts` needs this file to exist, and the marker keeps the board listing step 4 until it is done. The marker is for you alone: never mention it, or a reminder it stands for, to the user.
+3. `cv/master.json`: bullets reworded only from what the source says, metrics exactly as in the source.
+4. `profile/wins.yaml`: candidate wins from the bullets, each `status: proposed`, `metric: "Not specified"` unless the source states one. `check.ts` needs this file to exist, and the board lists step 4 while any win is `proposed`. Never mention that listing, or a reminder it stands for, to the user.
 
 Done when the four files exist and each person-fact in them traces to the pasted source or an answer.
 
@@ -103,39 +107,39 @@ Ask these in this order, skipping what the source already gives. Each item is on
 20. Regions to look in.
 21. Job titles to look for.
 
-Write, from the templates:
+Draft, one file at a time:
 
 1. `profile/identity.yaml`. Leave `competency_pack` unset; step 6 sets it.
 2. `profile/search.yaml`: three tiers worded with the user's own criteria and currency, a `min_stack_overlap_pct`, a location rule in prose, `fit.hard_limits` (one plain sentence per limit the user named; an empty list if they named none, and say that plainly), and the discovery titles and search. The salary floor lives in `identity.yaml` only.
 3. `profile/coach.md`: the four bullets, in the user's language and tone. This file is the gate CLAUDE.md checks, so write it last.
 
-Seniority is the level the user named, written in the board's own word (`docs/boards/rocketship.md`) and shown in plain words in the summary. The templates hold no level: when the user has named none, ask for it.
+Seniority is the level the user named, written in the board's own word (`docs/boards/rocketship.md`) and shown in plain words in the summary. The draft refuses while no level is given: when the user has named none, ask for it.
 
 Done when the three files exist, `timezone` is an IANA name and `locale` a language tag (the scripts reject others).
 
 ### 4. Wins
 
-Take the wins in `profile/wins.yaml` one by one. For each: show the action and the metric, then ask only "Is this exactly how you would say it?" and wait. The reply is the whole ask: request no further figure or detail in it. The metric is written word for word as the user says it, qualifiers included ("contributed to", "up to"); a correction replaces the wording, and a win left at `Not specified` gets its own ask for a number in the next reply. Ask for `never_say` inflations: the stronger version of the claim that a draft might drift into. A win the user cannot put a metric on keeps `Not specified`. Set `status: approved` only on the user's yes to that win. Add wins the user raises, with `role` matching a `history.yaml` id. When the last win is settled, remove the `CHANGE_ME` marker line.
+Take the wins in `profile/wins.yaml` one by one. For each: show the action and the metric, then ask only "Is this exactly how you would say it?" and wait. The reply is the whole ask: request no further figure or detail in it. The metric is written word for word as the user says it, qualifiers included ("contributed to", "up to"); a correction replaces the wording, and a win left at `Not specified` gets its own ask for a number in the next reply. Ask for `never_say` inflations: the stronger version of the claim that a draft might drift into. A win the user cannot put a metric on keeps `Not specified`. Set `status: approved` only on the user's yes to that win. Add wins the user raises, with `role` matching a `history.yaml` id. Each approval or correction is a draft of `profile/wins.yaml` naming the win by `slug` with only the changed values.
 
-Done when no win is `proposed` without the user's say-so and the marker is gone.
+Done when no win is `proposed` without the user's say-so.
 
 ### 5. Voice
 
-Ask for two or three samples of the user's own writing (an email, a post, a cover note) Once those are in, ask in a reply of its own for a spoken answer typed out, which the user may skip. Draft `profile/voice.md` from `templates/profile/voice.example.md`: traits seen in the samples, written and spoken registers, words and habits to avoid. Quote a phrase from a sample for each trait so the user can check it.
+Ask for two or three samples of the user's own writing (an email, a post, a cover note) Once those are in, ask in a reply of its own for a spoken answer typed out, which the user may skip. Draft `profile/voice.md`: traits seen in the samples, written and spoken registers, words and habits to avoid. Quote a phrase from a sample for each trait so the user can check it.
 
 Done when every trait in the file traces to a sample.
 
 ### 6. Competency pack
 
-The pack is the list of competencies an ad can ask for and the evidence a bullet must show. List `config/competencies/`. The user chooses; do not pick one from their field. If one fits the user's discipline, set `competency_pack` to it (say the change in plain words, as for any overwrite). If none fits, draft `config/competencies/<name>.yaml` in the shape of `config/competencies/frontend.yaml`: 8 to 12 competencies, each with `id`, `label`, `ad_words`, `win_themes`, `slots` and one `questions` entry per slot, plus the top-level `themes` list. Use the user's discipline for `ad_words` and the questions; keep the ids that skills refer to (`stakeholder-management`, `technical-leadership`, `system-design`, `mentoring`, `ownership-delivery`, `influence-push-back`, `cross-functional-collaboration`) when they fit. Then set `competency_pack` in `identity.yaml` to the new name, and add `competencies` and `themes` that `wins.yaml` should use.
+The pack is the list of competencies an ad can ask for and the evidence a bullet must show. List `config/competencies/`. The user chooses; do not pick one from their field. If one fits the user's discipline, draft `competency_pack` as that pack. If none fits, write `config/competencies/<name>.yaml` (a pack is not a profile file, so the Draft command does not take it) in the shape of `config/competencies/frontend.yaml`: 8 to 12 competencies, each with `id`, `label`, `ad_words`, `win_themes`, `slots` and one `questions` entry per slot, plus the top-level `themes` list. Use the user's discipline for `ad_words` and the questions; keep the ids that skills refer to (`stakeholder-management`, `technical-leadership`, `system-design`, `mentoring`, `ownership-delivery`, `influence-push-back`, `cross-functional-collaboration`) when they fit. Then draft `competency_pack` in `identity.yaml` as the new name, and the `competencies` and `themes` that `wins.yaml` should use.
 
-Ask the yes for a drafted pack over the summary that Showing a change allows for it: the competency names, not the ad words, slots and questions.
+Ask the yes for a new pack over a summary of the competency names, saying that its ad words, evidence slots and questions come with it; show them in full only when the user asks.
 
 This step is required: do not finish onboarding until `competency_pack` is set. Done when `competency_pack` names a file that exists and every win's `competencies` and `themes` appear in it.
 
 ### 7. Optional sensitive sections
 
-Offer each in one sentence on why it exists, and write it only if the user opts in:
+Offer each in one sentence on why it exists, and draft it only if the user opts in:
 
 - `profile/history-private.yaml`: facts about past roles that must never reach outward material, such as a payroll title that differs from the public one or a background-check risk. Only interview-prep and offer-review read it. After the opt-in, ask for each role in `history.yaml`, one per reply, whether the contract title differs from the public one. A title that differs goes in that role's `payroll_title`; otherwise leave the key out.
 - `profile/standard-answers.yaml`: answers to the questions every application form asks, so application-writer reuses the user's wording. Ask the earliest start date as its own question for `earliest_start`. Salary answers come from `identity.yaml` levels.
@@ -145,8 +149,8 @@ Done when each of the three is written or declined.
 
 ### 8. Check and next step
 
-1. If `profile/lessons.md` is missing, say that you will start an empty list for lessons from interviews, which interview-debrief adds to, and write it from `templates/profile/lessons.example.md` on a yes. If `profile/glossary.md` is missing, offer it in one line (the terms only the user uses, such as named companies or the searches they keep for one tier) and write it from `templates/profile/glossary.example.md` on a yes; the board never lists it.
-2. Run `node scripts/check.ts`. Errors name the file; fix that file with the user, through the overwrite rule, and rerun until it exits 0. Warnings are read out and explained.
+1. If `profile/lessons.md` is missing, say that you will start an empty list for lessons from interviews, which interview-debrief adds to, and draft it as text in the shape of `templates/profile/lessons.example.md` on a yes. If `profile/glossary.md` is missing, offer it in one line (the terms only the user uses, such as named companies or the searches they keep for one tier) and draft it in the shape of `templates/profile/glossary.example.md` on a yes; the board never lists it.
+2. Run `node scripts/check.ts`. Errors name the file; fix that file with the user through a draft of the changed values, and rerun until it exits 0. Warnings are read out and explained.
 3. Run `node scripts/board.ts` and show the "Onboarding unfinished" list, if any, as what remains.
 4. End with one suggested next step: "Paste a job ad or a link and I'll check how well it fits what you're after."
 

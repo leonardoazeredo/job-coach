@@ -30,7 +30,8 @@ Then load the skill that fits the request; a skill may hand over to another when
 | CV source | `cv/master.json` |
 | Competencies for the user's field, evidence slots, CV wording rules | `config/competencies/<pack>.yaml` (pack named by `competency_pack` in `profile/identity.yaml`), `config/cv.yaml` |
 | A role's requirements and tailored CV | `pipeline/<slug>/requirements.yaml`, `pipeline/<slug>/cv/` |
-| Templates onboarding copies from | `templates/profile/*.example.*`, `templates/cv/master.example.json` |
+| What each profile file holds, key by key (the Draft command starts a new file from these) | `templates/profile/*.example.*`, `templates/cv/master.example.json` |
+| Drafting a profile file or the master CV, showing the user a summary, writing it on their yes | `scripts/profile.ts` (`draft`, `write`, `drop`, `drafts`; run with `node`) |
 | Record checker and board | `scripts/check.ts`, `scripts/board.ts` (run with `node`) |
 | CV evidence, build, provenance check, PDF export | `scripts/cv-evidence.ts`, `cv-build.ts`, `cv-lint.ts`, `cv-export.ts` |
 | Saving the user's data, checking for and applying coach updates | `scripts/save.ts`, `scripts/update.ts` |
@@ -68,17 +69,13 @@ The user may never have used a terminal. Everything they read uses their words: 
 
 ## Showing a change
 
-Every yes before a write to `profile/`, `cv/` or `experience-bank/` is asked over a plain summary: a short list of sentences in the user's words, one line per value, for example "Senior Customer Success Manager at Brightlane Software, March 2021 to now, permanent". The list has no keys, quotes, code formatting or file paths, and for a new file or entry it covers every value that file or entry will hold, so the yes covers exactly what was shown. An internal identifier (a win's slug, a role's id) is left out because it only names the entry. The other exempt kinds are listed below; any other tag or status is said by what it means.
+Every write to `profile/*` or `cv/master.json` goes through `node scripts/profile.ts`: `draft <file>` prints a plain summary of what would be written, and `write <file>` writes that draft unchanged after the user's yes. Relay the summary as printed, with at most one framing sentence of your own. A value changed after the yes, even a wording or a ranking, goes back through `draft`.
 
-- Draft, then show, then write. Draft the exact values first (kept outside the repo until the yes), build the summary from that draft, and write the draft unchanged. Nothing is drafted at write time. A value changed after the yes, even a wording or a ranking, goes back over a new summary.
-- Every value includes the sentences you drafted about the user: a CV headline, a role's summary, a framing line, a "never say" line, a standard answer, the tools a search matches, the tools listed for a job, a tier's action, a label you chose for an entry. Each is shown in the words it will have, grouped where they sit together (all of a win's "never say" lines in one sentence). Machine patterns that catch a claim in text are said by what they catch, not by their syntax.
-- A value the user gave only in part is written as given and no more: a year stays a year, "a shared spreadsheet" stays that. Never add a month, a product, a place, a level or an "only". If a file needs the rest, ask for it.
-- Exempt kinds, because they hold no fact about the user and the user's yes would check nothing: the tags on a win (competencies and themes), a tier's name, and a field left empty. A summary that does mention one uses the words that will be written: a tier shown as "Best outcome" is not written as "Career maker".
-- One exception: a competency pack you draft holds no fact about the user, so the summary names each competency in a short phrase and says that its ad words, evidence slots and questions come with it. The user sees those in full only when they ask.
-- Overwriting a file: say only what changes ("your notice period goes from 1 month to 3 months"); values that stay are not repeated.
-- An empty field holds no fact, so the list leaves it out and the file keeps it empty. A field holding a stand-in such as `Not specified` is said by what it means ("no number yet").
-- Show the raw file (and `diff -u` for an overwrite) only when the user asks, or once they have shown they work in software, by saying so or by using terms such as YAML or JSON first.
-- The write waits for a yes. A no or a correction loops back to the summary.
+- The four markdown files (`coach.md`, `voice.md`, `lessons.md`, `glossary.md`) are drafted as whole text. The summary is the text itself for a new file and the changed lines for an overwrite.
+- A value the user gave only in part goes into the draft as given and no more: a year stays a year, "a shared spreadsheet" stays that. Never add a month, a product, a place, a level or an "only". If a file needs the rest, ask for it.
+- Show the raw file or a `diff -u` only when the user asks, or once they have shown they work in software, by saying so or by using terms such as YAML or JSON first.
+- The write waits for a yes. A no or a correction loops back to a new draft.
+- `experience-bank/` and a competency pack you draft are not profile files, so the command does not take them. Ask the yes over a short plain summary in the user's words; for a pack, name each competency and say that its ad words, evidence slots and questions come with it.
 
 ## Guardrails
 

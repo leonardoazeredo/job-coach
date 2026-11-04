@@ -110,5 +110,5 @@ Shape: 2 to 5 bullets for each recent job (the newest `recent_jobs` in `config/c
 4. When the user says the CV was sent, hand over to pipeline-update.
 
 ## Rules
-- Never edit `cv/master.json` or `profile/` without the user's yes. Ask it over a plain summary of the change, and show the raw file only when the user asks or has shown they work in software (CLAUDE.md, Showing a change).
+- Never edit `cv/master.json` or `profile/` without the user's yes. Ask it over the summary that `node scripts/profile.ts draft` prints (CLAUDE.md, Showing a change).
 - `cv/cv.json` is built output; change `bullets.yaml` and rebuild instead of editing it. Wording changed in the PDF by hand goes back into `bullets.yaml` and is linted again.
