@@ -9,6 +9,7 @@ import {
   later,
   list,
   type Shape,
+  standingIn,
   type Table,
   value,
 } from './draft-fields.ts'
@@ -186,7 +187,7 @@ const wins: DataTable = {
         role: value('Job', 'exempt'),
         status: value('Status', 'default'),
         themes: list('Themes', 'exempt'),
-        metric: value('Metric', 'default'),
+        metric: standingIn(value('Metric', 'default'), 'no number yet'),
         action: value('What you did'),
         never_say: list('Never say', 'default'),
         competencies: list('Competencies', 'exempt'),
