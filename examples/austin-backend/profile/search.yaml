@@ -6,15 +6,15 @@ tiers:
     label: Stretch worth the effort
     when: >
       Payments, ledger or inventory systems at a company whose engineering she already respects,
-      with a stack she can show evidence for.
-    action: Deep preparation; company-research and a tailored application.
+      with skills she can show evidence for.
+    action: Deep preparation; research on the company and a tailored application.
   1:
     label: Strong match
     when: Base of $160k or more (or no range, at a company known to pay that), Python or Go on Postgres, and a service she would own.
     action: Tailored answers and company research.
   2:
     label: Worth a standard application
-    when: Stack and criteria fit, but the pay, scope or ownership is weaker.
+    when: Skills and criteria fit, but the pay, scope or ownership is weaker.
     action: Standard answers, lightly adjusted.
 
 fit:

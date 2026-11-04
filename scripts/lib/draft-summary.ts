@@ -98,6 +98,9 @@ const READ: Record<Exclude<Reading, 'money'>, (v: string, r: Render) => string> 
   currency: currencyName,
 }
 
+// A level name as a person writes it: the file keeps the board's lowercase word.
+const levelIn = (v: string): string => v.charAt(0).toUpperCase() + v.slice(1)
+
 const plain = (v: unknown): string => (isObj(v) ? JSON.stringify(v) : String(v))
 
 const valueShown = (v: unknown, field: ValueField, r: Render): string => {
@@ -109,12 +112,17 @@ const valueShown = (v: unknown, field: ValueField, r: Render): string => {
   return plain(v)
 }
 
+// One entry of a list with no frame.
+const listItem = (field: Field | undefined, x: unknown, r: Render): string =>
+  field?.t === 'list' && field.as === 'level' && typeof x === 'string'
+    ? levelIn(x)
+    : shown(x, undefined, r)
+
 const shown = (v: unknown, field: Field | undefined, r: Render): string => {
   if (typeof v === 'boolean') return v ? 'yes' : 'no'
   if (Array.isArray(v)) {
-    if (field?.t === 'list' && field.says) return field.says
     if (field?.t === 'list' && field.as === 'job') return jobsIn(v, r)
-    return v.map((x) => shown(x, undefined, r)).join(', ')
+    return v.map((x) => listItem(field, x, r)).join(', ')
   }
   return field?.t === 'value' ? valueShown(v, field, r) : plain(v)
 }
@@ -189,7 +197,8 @@ const itemLines = (f: ItemsField, item: unknown, r: Render): string[] => {
 
 const entryLine = (f: EntriesField, key: string, v: unknown, r: Render) => {
   const fields = entryGroup(f)?.fields ?? {}
-  return framed({ frame: f.frame, fields }, { key, value: v, ...obj(v) }, r).line
+  const name = f.levels ? levelIn(key) : key
+  return framed({ frame: f.frame, fields }, { key: name, value: v, ...obj(v) }, r).line
 }
 
 const bullet = ([head, ...rest]: string[]) => [`- ${head}`, ...pad(rest, '  ')]
@@ -201,8 +210,12 @@ const listLines = (f: Field, v: unknown[], r: Render): string[] => {
   if (f.t === 'items')
     return v.filter((item) => !isBare(f, item)).flatMap((item) => bullet(itemLines(f, item, r)))
   const frame = f.t === 'list' ? f.item : undefined
-  return v.map((x) => `- ${frame && isObj(x) ? framed(frame, x, r).line : shown(x, undefined, r)}`)
+  return v.map((x) => `- ${frame && isObj(x) ? framed(frame, x, r).line : listItem(f, x, r)}`)
 }
+
+// A list's lines and the note it says once beneath them.
+const noted = (f: Field, lines: string[]): string[] =>
+  f.t === 'list' && f.note && lines.length > 0 ? [...lines, f.note] : lines
 
 const fieldLines = (f: Field, v: unknown, r: Render): string[] => {
   if (blank(v)) return []
@@ -215,7 +228,7 @@ const fieldLines = (f: Field, v: unknown, r: Render): string[] => {
           .filter(([, x]) => !blank(x))
           .map(([k, x]) => `- ${entryLine(f, k, x, r)}`)
       : listLines(f, arr(v), r)
-  return lines.length === 0 ? [] : [`${f.label}:`, ...lines]
+  return lines.length === 0 ? [] : [`${f.label}:`, ...noted(f, lines)]
 }
 
 const groupLines = (g: GroupField, v: Obj, r: Render): string[] =>
@@ -341,7 +354,9 @@ const fieldChanges = (f: Field, b: unknown, a: unknown, r: Render): string[] => 
   if (f.t === 'entries') return entriesChanges(f, obj(b), obj(a), r)
   if (f.t === 'items') return itemsChanges(f, arr(b), arr(a), r)
   const list = arr(a)
-  return list.length === 0 ? [`${f.label}: none`] : [`${f.label}:`, ...listLines(f, list, r)]
+  return list.length === 0
+    ? [`${f.label}: none`]
+    : [`${f.label}:`, ...noted(f, listLines(f, list, r))]
 }
 
 const groupChanges = (g: GroupField, before: Obj, after: Obj, r: Render): string[] => {
@@ -349,8 +364,9 @@ const groupChanges = (g: GroupField, before: Obj, after: Obj, r: Render): string
   return keys.flatMap((k) => fieldChanges(fieldIn(g.fields, k), before[k], after[k], r))
 }
 
+// What changes is only what a summary never shows: ids, tags and the checks on CV text.
 export const NOTHING_SHOWN =
-  "None of your answers change; only the coach's filing details (such as tags) are updated."
+  'Nothing you wrote changes; the coach is only updating the labels it uses to find things in your files.'
 
 export const dataSummary = (root: GroupField, before: Obj | undefined, after: Obj, r: Render) => {
   const lines =

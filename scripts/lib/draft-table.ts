@@ -8,10 +8,11 @@ import {
   items,
   later,
   list,
+  noting,
   ofJobs,
+  ofLevels,
   reading,
   type Shape,
-  saying,
   standingIn,
   type Table,
   value,
@@ -46,14 +47,19 @@ const identity: DataTable = {
     availability: value('Availability'),
     languages: list('Languages'),
     experience_years: value('Years of experience'),
-    seniority_targets: list('Target levels'),
+    seniority_targets: ofLevels(list('Target levels')),
     compensation: group({
       currency: reading(value('Currency'), 'currency'),
       floor: reading(value('Lowest base pay'), 'money'),
-      by_level: entries('Pay range by level', 'At {key} level: {min} to {max}', {
-        min: reading(value('Lowest'), 'money'),
-        max: reading(value('Highest'), 'money'),
-      }),
+      by_level: entries(
+        'Pay range by level',
+        'At {key} level: {min} to {max}',
+        {
+          min: reading(value('Lowest'), 'money'),
+          max: reading(value('Highest'), 'money'),
+        },
+        'levels',
+      ),
     }),
     work_setup: group({
       office_days_ok: value('Office days a week'),
@@ -89,7 +95,7 @@ const search: DataTable = {
         city: value('Search city'),
         country: value('Search country'),
         regions: list('Search regions'),
-        seniority: list('Search levels'),
+        seniority: ofLevels(list('Search levels')),
         stack: list('Skills and tools searched'),
         employment: value('Employment searched'),
         hybrid: value('Include hybrid roles'),
@@ -119,18 +125,18 @@ const stack: DataTable = {
     secondary: stackItems('Other skills and tools'),
     past: stackItems('Skills and tools from earlier jobs'),
     tools: stackItems('Tools'),
-    do_not_claim: list('Never claim', 'sample', {
-      frame: '{item}; say instead: {allowed_framing}[ ({patterns})]',
-      fields: {
-        item: value('What is never claimed'),
-        allowed_framing: value('What to say instead'),
-        patterns: saying(
-          list('Patterns that catch it', 'exempt'),
-          'the coach checks CV text for this claim',
-        ),
-      },
-    }),
-    adaptability_framing: value('Wording for a skill an ad asks for that you lack'),
+    do_not_claim: noting(
+      list('Never claim', 'sample', {
+        frame: '{item}; say instead: {allowed_framing}',
+        fields: {
+          item: value('What is never claimed'),
+          allowed_framing: value('What to say instead'),
+          patterns: list('Patterns that catch it', 'exempt'),
+        },
+      }),
+      'The coach checks CV text for each of these claims.',
+    ),
+    adaptability_framing: value('Wording for a skill an ad asks for that is missing'),
   }),
 }
 
@@ -189,7 +195,7 @@ const wins: DataTable = {
   template: 'profile/wins.example.yaml',
   schema: WinsFileSchema,
   root: group({
-    wins: items('Wins', {
+    wins: items('Achievements', {
       id: 'slug',
       frame: '{action}',
       fields: {

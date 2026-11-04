@@ -90,7 +90,7 @@ describe('profile draft and write', () => {
     })
     expect(added.stderr).toBe('')
     expect(added.stdout).toBe(
-      `Added to Wins: ${action}\n  Job: Senior Backend Engineer at Cedarline Payments\n  Approval: waiting for your yes\n  Figure: no number yet\n`,
+      `Added to Achievements: ${action}\n  Job: Senior Backend Engineer at Cedarline Payments\n  Approval: waiting for your yes\n  Figure: no number yet\n`,
     )
     await write('profile/wins.yaml')
     const saved = personaFile('profile/wins.yaml').wins.find(
@@ -249,7 +249,7 @@ describe('profile draft with a seniority only one board ignores', () => {
     })
     expect(shown.stderr).toBe('')
     expect(shown.code).toBe(0)
-    expect(shown.stdout).toContain('lead')
+    expect(shown.stdout).toContain('Lead')
     await write('profile/search.yaml')
     expect(repo.workspace().check().problems).toEqual([])
   })

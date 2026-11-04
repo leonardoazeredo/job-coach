@@ -81,8 +81,8 @@ A source a line may cite now: an approved win, an answered bank question, any jo
 _Avoid_: claimable (that is for stack items), resolvable, valid
 
 **Win**:
-One achievement with its exact metric and the action behind it, belonging to one job. Approved wins are citable; proposed ones wait for the user's yes.
-_Avoid_: achievement, accomplishment, result
+One achievement with its exact metric and the action behind it, belonging to one job. Approved wins are citable; proposed ones wait for the user's yes. A Draft summary and the coach's replies to the user say "achievement" for it, since the person reading may not work in software; the term stays Win in code, files and between skills.
+_Avoid_ (in engine text): achievement, accomplishment, result
 
 **Never-say phrase**:
 An inflation of a win seen in a past draft, listed on that win so no outward material repeats it.
