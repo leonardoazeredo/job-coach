@@ -246,6 +246,11 @@ describe('the summary of an odd or changing value', () => {
     })
   })
 
+  it("shows a renamed tier, which is the user's own wording", async () => {
+    const shown = await draft('profile/search.yaml', { tiers: { 0: { label: 'Dream' } } })
+    expect(shown.stdout).toMatch(/^Tier 0 name: Dream \(was .+\)$/m)
+  })
+
   it('says a win changed job when two jobs read alike', async () => {
     const history = personaFile('profile/history.yaml')
     const twin = { ...history.roles[1], id: 'brightwell-again' }

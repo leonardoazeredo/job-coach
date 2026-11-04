@@ -64,7 +64,7 @@ const identity: DataTable = {
 
 const tier = (n: number, when: 'sample' | 'default') =>
   group({
-    label: value(`Tier ${n} name`, 'exempt'),
+    label: value(`Tier ${n} name`, 'default'),
     when: value(`When a role is tier ${n}`, when),
     action: value(`What a tier ${n} role gets`, 'default'),
   })
