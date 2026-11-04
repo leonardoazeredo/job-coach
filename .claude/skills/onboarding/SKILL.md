@@ -129,6 +129,8 @@ Draft, one file at a time:
 
 Hard limits hold only what the user says rules a role out, one plain sentence each, in their words. "I'd rather avoid", "prefer not" and "would like to avoid" state a preference, not a limit. When the words leave it open, ask once: "Would that rule a role out, or is it something you would rather avoid?". A preference goes into `ideal_role_criteria` in the user's words when it describes what they want, or is left out, and you say which. With no limit named, the list is empty and you say so plainly.
 
+A condition the user attaches to a title ("Transport Manager only at a small firm") is never dropped: the title stays out of the discovery titles, which have no place for a condition, and the condition goes into `ideal_role_criteria` in the user's words. Tell the user in one sentence where it went, or that it was left out.
+
 Seniority is the level the user named, written in the board's own word (`docs/boards/rocketship.md`) and shown in plain words in the summary. The draft refuses while no level is given: when the user has named none, ask for it.
 
 Done when the three files exist, `timezone` is an IANA name and `locale` a language tag (the scripts reject others).
@@ -151,7 +153,7 @@ Done when every trait in the file traces to a sample.
 
 The pack is the list of competencies an ad can ask for and the evidence a bullet must show. List `config/competencies/`. The user chooses; do not pick one from their field. If one fits the user's discipline, draft `profile/identity.yaml` with `competency_pack` set to that pack. If none fits, write `config/competencies/<name>.yaml` (a pack is not a profile file, so the Draft command does not take it) in the shape of `config/competencies/frontend.yaml`: 8 to 12 competencies, each with `id`, `label`, `ad_words`, `win_themes`, `slots` and one `questions` entry per slot, plus the top-level `themes` list. Use the user's discipline for `ad_words` and the questions; keep the ids that skills refer to (`stakeholder-management`, `technical-leadership`, `system-design`, `mentoring`, `ownership-delivery`, `influence-push-back`, `cross-functional-collaboration`) when they fit. Then draft `profile/identity.yaml` with `competency_pack` set to the new name, and `profile/wins.yaml` with the `competencies` and `themes` each win should use.
 
-Ask the yes for a new pack over a summary of the competency names, saying that its ad words, evidence slots and questions come with it; show them in full only when the user asks.
+Ask the yes for a new pack over a summary of the competency names, saying that its ad words, evidence slots and questions come with it; show them in full only when the user asks. The names in that summary are the `label` values exactly as they will be written. When the user rewords the list, write the file with their words in `label` and keep each `id`; the file is written only after the yes on the list the user last saw.
 
 This step is required: do not finish onboarding until `competency_pack` is set. Done when `competency_pack` names a file that exists and every win's `competencies` and `themes` appear in it.
 
