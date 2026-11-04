@@ -114,7 +114,7 @@ Ask these in this order, skipping what the source or an earlier answer already s
 26. Regions to look in.
 27. Job titles to look for.
 
-Two items are settled without a question unless the user's words leave them open. Item 7: the user wrote to you in one language, so coach in it. Item 12: the countries the user named are the whole list, so do not ask for others; "for now" or "and maybe elsewhere" leaves it open, and then ask once.
+Two items are settled without a question unless the user's words leave them open. Item 7: the language the user writes to you in counts as stated, so coach in it. Item 12: the countries the user named are the whole list, so do not ask for others; "for now" or "and maybe elsewhere" leaves it open, and then ask once.
 
 Each answer has one named place. Items 1, 3, 4 and 5 are `name`, `email`, `phone`, `linkedin` and `github`; 6 is `locale`; 8 is `languages`; 9 to 11 are `location`; 12 is `right_to_work`; 13 and 14 are `availability`; 15 is `experience_years`; 17 is `seniority_targets`; 19 to 21 are `compensation`; 22 is `work_setup.remote`; 23 is `work_setup.office_days_ok`; 24 is `ideal_role_criteria`; 25 is `fit.hard_limits` in `search.yaml` (Hard limits below). Items 16 and 18 go into the target line of `coach.md` and 16 also into the discovery titles of `search.yaml`; 26 goes into `location_rule` and 27 into the discovery titles. Pronouns (2) and the language to be coached in (7) go only into `profile/coach.md`, the one file with a place for them: leave them out of the `identity.yaml` input. A question that has no place in this list is not asked.
 
