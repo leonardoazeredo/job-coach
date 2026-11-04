@@ -197,6 +197,55 @@ describe('the summary of an odd or changing value', () => {
     expect(shown.stdout).not.toMatch(/[{}"]/)
   })
 
+  describe('a limit whose jobs change but read alike', () => {
+    const postman = (roles: string[], more: Obj = {}) => ({
+      tools: [{ name: 'Postman', roles, claim_as: 'Postman (API testing)', ...more }],
+    })
+    const limited = async () => {
+      await draft('profile/stack.yaml', postman(['brightwell']))
+      await run(['write', 'profile/stack.yaml'])
+    }
+    const said = 'Jobs where it may be written plainly: changed'
+
+    it('says so when there is no job history', async () => {
+      await limited()
+      repo.remove('profile/history.yaml')
+      const shown = await draft('profile/stack.yaml', postman(['harbor-health']))
+      expect(shown.stdout).toContain(`\n  ${said}\n`)
+      expect(shown.stdout).not.toContain('Nothing you said')
+    })
+
+    it('says so when neither id is in the job history', async () => {
+      await limited()
+      repo.write(
+        'profile/stack.yaml',
+        repo.read('profile/stack.yaml').replace('brightwell', 'gone-one'),
+      )
+      const shown = await draft('profile/stack.yaml', postman(['gone-two']))
+      expect(shown.stdout).toContain(`\n  ${said}\n`)
+    })
+
+    it('says so when two jobs share a title and company', async () => {
+      await limited()
+      const history = personaFile('profile/history.yaml')
+      const twin = { ...history.roles[1], id: 'brightwell-again' }
+      repo.write('profile/history.yaml', JSON.stringify({ roles: [...history.roles, twin] }))
+      const shown = await draft('profile/stack.yaml', postman(['brightwell-again']))
+      expect(shown.stdout).toContain(`\n  ${said}\n`)
+    })
+
+    it('says so beside a change of wording', async () => {
+      await limited()
+      repo.remove('profile/history.yaml')
+      const shown = await draft(
+        'profile/stack.yaml',
+        postman(['harbor-health'], { claim_as: 'Postman (testing)' }),
+      )
+      expect(shown.stdout).toContain(`  ${said}\n`)
+      expect(shown.stdout).toContain('How to write it everywhere else: Postman (testing)')
+    })
+  })
+
   it('says a win changed job when the job history cannot be read', async () => {
     repo.remove('profile/history.yaml')
     const shown = await draft('profile/wins.yaml', {

@@ -221,7 +221,17 @@ const itemChange = (f: ItemsField, b: unknown, a: unknown, r: Render): string[] 
   const said = framed({ frame: f.frame, fields: itemGroup(f).fields }, a, r).used
   const skip = said.filter((p) => fieldAt(itemGroup(f).fields, p.split('.'))?.t === 'list')
   const gone = skip.map((p) => p.split('.'))
-  const inner = groupChanges(itemGroup(f), without(b, gone), without(a, gone), r)
+  // Different ids can read alike (no job history, or two jobs with one title and company), so
+  // a list that changed but reads the same is said to have changed.
+  const unseen = skip.flatMap((p) => {
+    const path = p.split('.')
+    const field = fieldAt(itemGroup(f).fields, path)
+    const [was, now] = [valueAt(b, path), valueAt(a, path)]
+    if (field?.t !== 'list') return []
+    const alike = shown(was, field, r) === shown(now, field, r)
+    return alike && !same(was, now) ? [`${field.label}: changed`] : []
+  })
+  const inner = [...unseen, ...groupChanges(itemGroup(f), without(b, gone), without(a, gone), r)]
   // Only what the frame says may have changed, such as whether a claim is checked.
   if (inner.length === 0)
     return headOf(f, a, r) === headOf(f, b, r) ? [] : [`Changed in ${f.label}: ${headOf(f, a, r)}`]
