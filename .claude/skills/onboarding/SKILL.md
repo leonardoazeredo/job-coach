@@ -17,12 +17,13 @@ Collect the data the engine was published without, one section at a time, and wr
 
 - Every write to `profile/*` or `cv/master.json` goes through `node scripts/profile.ts`, run from the folder's root:
   1. `draft <file>` with the values as JSON on stdin (keys as in the file's template; a markdown file takes its whole text, under the headings its template shows). It prints the summary.
-  2. Relay the summary: copy every line, in order, none dropped, merged or reworded, with at most one framing sentence of your own (Showing a change in CLAUDE.md). The user's yes covers only what they read.
+  2. Relay the summary: copy every line, in order, none dropped, merged or reworded, with at most one framing sentence of your own (Showing a change in CLAUDE.md). The framing sentence never mentions a command, a tool or printing ("as the command printed it"). The user's yes covers only what they read.
   3. On the user's next reply, if it is a yes, `write <file>`; `draft` and `write` never run in the same turn. A no or a correction goes back to step 1 with the changed values. The step is done when the file is written or the user defers it.
   4. After the section's writes, one `node scripts/save.ts`.
 - A draft that is refused names each value it still lacks. Ask about them in turn, one per reply. `null` is the user's answer ("there is none"), never yours; the refusal's "or null" is for that case only. This holds for `career_gaps`: ask whether there is a gap to explain, or leave the entry out and say only that it was left out. "There are no gaps" is never yours to state. Give the draft only values the user or the source supplied; a key you leave out keeps the template's default.
+- A yes on a summary is the only thing asked in its reply. An offer (a change to the CV, saving, more phrases, the glossary) never shares a reply with a question or a summary: it waits for a reply of its own, or for the end of setup.
 - Never state a reason on the user's behalf that they did not give ("as you have no LinkedIn", "because you didn't need one"). Say what is true of the file, or ask.
-- The user's pasted CV, LinkedIn text or PDF is the source for this session. A value the source does not hold is asked, never inferred: one specific question at a time. Each reply asks one thing and waits; asking for a yes on a summary counts as that one thing, so a further question waits for the next reply. A value the user gave only in part (a year without a month) is written in the part they gave. The same goes for the location of a job or course: "Bradford" stays "Bradford", and a college's name does not give its location. If the source gives none, ask once whether there is one; a CV reads fine without it, and the user's "none" is `null`. The same goes for a course's start date: `null` for `start` on the user's "none", never an empty string.
+- The user's pasted CV, LinkedIn text or PDF is the source for this session. A value the source does not hold is asked, never inferred: one specific question at a time. Each reply asks one thing and waits (the wording-and-overclaim question in step 4 counts as one thing, as that step defines it); asking for a yes on a summary counts as that one thing, so a further question waits for the next reply. A value the user gave only in part (a year without a month) is written in the part they gave. The same goes for the location of a job or course: "Bradford" stays "Bradford", and a college's name does not give its location. If the source gives none, ask once whether there is one; a CV reads fine without it, and the user's "none" is `null`. The same goes for a course's start date: `null` for `start` on the user's "none", never an empty string.
 - Required steps are 1, 2, 3, 6 and 8. Offer to defer each of 4, 5 and 7: a deferral is one line to the user ("It stays on your list for later") and changes no file.
 - A file that already exists is updated, never replaced: the input names only the values that change (Re-runs).
 
@@ -84,7 +85,7 @@ Done when the four files exist and each person-fact in them traces to the pasted
 
 ### 3. Identity and targets
 
-Ask these in this order, skipping what the source already gives. Each item is one question and one reply; never put two items in one question.
+Ask these in this order, skipping what the source or an earlier answer already settles. A skipped value still appears in the summary for the user's yes, so nothing goes unseen. A value is settled only when it is stated: one you inferred stays a question, with the exceptions named here and below: the timezone follows from a city the user gave, so item 10 is not asked and the timezone is shown in the summary for a yes. A level the user already answered (item 17, or the same word given while answering another item) is not asked again, and the discipline (item 18) is not asked when the CV or an earlier answer states it. Each item is one question and one reply; never put two items in one question.
 
 1. Name.
 2. Pronouns.
@@ -114,6 +115,8 @@ Ask these in this order, skipping what the source already gives. Each item is on
 26. Regions to look in.
 27. Job titles to look for.
 
+Two more items are settled without a question unless the user's words leave them open. Item 7: the language the user writes to you in counts as stated, so coach in it. Item 12: the countries the user named are the whole list, so do not ask for others, and the list is shown in the summary for the user's yes; "for now" or "and maybe elsewhere" leaves it open, and then ask once.
+
 Each answer has one named place. Items 1, 3, 4 and 5 are `name`, `email`, `phone`, `linkedin` and `github`; 6 is `locale`; 8 is `languages`; 9 to 11 are `location`; 12 is `right_to_work`; 13 and 14 are `availability`; 15 is `experience_years`; 17 is `seniority_targets`; 19 to 21 are `compensation`; 22 is `work_setup.remote`; 23 is `work_setup.office_days_ok`; 24 is `ideal_role_criteria`; 25 is `fit.hard_limits` in `search.yaml` (Hard limits below). Items 16 and 18 go into the target line of `coach.md` and 16 also into the discovery titles of `search.yaml`; 26 goes into `location_rule` and 27 into the discovery titles. Pronouns (2) and the language to be coached in (7) go only into `profile/coach.md`, the one file with a place for them: leave them out of the `identity.yaml` input. A question that has no place in this list is not asked.
 
 A refused draft is put to the user as what you need from them, in their words ("I still need your notice period"), never naming a file or a key.
@@ -132,7 +135,9 @@ Done when the three files exist, `timezone` is an IANA name and `locale` a langu
 
 ### 4. Wins
 
-Take the wins in `profile/wins.yaml` one by one. For each: show the action and the metric, then ask only "Is this exactly how you would say it?" and wait. The reply is the whole ask: request no further figure or detail in it. The metric is written word for word as the user says it, qualifiers included ("contributed to", "up to"); a correction replaces the wording, and a win left at `Not specified` gets its own ask for a number in the next reply. Ask for `never_say` inflations: the stronger version of the claim that someone writing about it might put down. Say it to the user in those words. A win the user cannot put a metric on keeps `Not specified`. Set `status: approved` only on the user's yes to that win. Add wins the user raises, with `role` matching a `history.yaml` id. Each approval or correction is a draft of `profile/wins.yaml` naming the win by `slug` with only the changed values.
+Take the wins in `profile/wins.yaml` one by one, two turns each. In the first, show the action and the metric and ask one question that covers both the wording and the overclaim: "Is this exactly how you would say it, and what is the stronger version someone might put down that you would not claim?" One reply answers it. When the reply answers only part, take what it gave and ask for the other part in the next reply, as that one question alone. The metric is written word for word as the user says it, qualifiers included ("contributed to", "up to"); a correction replaces the wording, and a win left at `Not specified` gets its own ask for a number in the next reply. The stronger version goes into `never_say`; say it to the user in those words. A win the user cannot put a metric on keeps `Not specified`.
+
+In the second turn, draft `profile/wins.yaml` naming the win by `slug` with only the changed values, and relay the summary for a yes. A win with nothing to change (right wording, nothing for `never_say`) spends no further turn: its summary, showing only `status: approved`, is the second turn. `status: approved` is set only on the user's yes to that summary. Add wins the user raises, with `role` matching a `history.yaml` id.
 
 Done when no win is `proposed` without the user's say-so.
 
@@ -162,9 +167,9 @@ Done when each of the three is written or declined.
 
 ### 8. Check and next step
 
-1. If `profile/lessons.md` is missing, say that you will start an empty list for lessons from interviews, which interview-debrief adds to, and draft it as text in the shape of `templates/profile/lessons.example.md` on a yes. If `profile/glossary.md` is missing, offer it in one line (the terms only the user uses, such as named companies or the searches they keep for one tier) and draft it in the shape of `templates/profile/glossary.example.md` on a yes; the board never lists it.
+1. If `profile/lessons.md` is missing, draft it as text in the shape of `templates/profile/lessons.example.md`, an empty list for lessons from interviews, which interview-debrief adds to. Never draft it before step 7 begins. Draft it in the same turn as the last summary of step 7 (the last section the user opted into), relay both summaries, and let that one yes cover both. When step 7 shows no summary, draft it alone here. When the reply is a yes to only one, or ignores the list, write what was agreed and ask about the list once more on its own. If `profile/glossary.md` is missing, offer it in one line, in a reply of its own after the lessons list is settled (the terms only the user uses, such as named companies or the searches they keep for one tier) and draft it in the shape of `templates/profile/glossary.example.md` on a yes; the board never lists it.
 2. Run `node scripts/check.ts`. Errors name the file; fix that file with the user through a draft of the changed values, and rerun until it exits 0. Warnings are read out and explained.
 3. Run `node scripts/board.ts` and show the "Onboarding unfinished" list, if any, as what remains.
-4. End with one suggested next step: "Paste a job ad or a link and I'll check how well it fits what you're after."
+4. Say that nothing is left only when no draft or offer is waiting, the lessons list and the glossary offer included. End with one suggested next step: "Paste a job ad or a link and I'll check how well it fits what you're after."
 
 Done when `check.ts` exits 0 and the unfinished list holds only sections the user deferred, never step 6.

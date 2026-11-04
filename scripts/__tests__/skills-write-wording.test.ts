@@ -84,4 +84,47 @@ describe('onboarding records each answer as given', () => {
   it('tells the user what a refusal needs without naming a file', () => {
     expect(text).toContain('never naming a file or a key')
   })
+
+  it('asks wording and overclaim as one question and says what a partial reply does', () => {
+    const wins = text.split('### 4. Wins')[1]?.split('### 5.')[0] ?? ''
+    expect(wins).toContain('one question that covers both the wording and the overclaim')
+    expect(wins).toContain('answers only part')
+    expect(wins).not.toContain('request no further figure')
+    expect(wins).toMatch(/nothing to change[^.]*spends no further turn/)
+    expect(wins).toContain("only on the user's yes")
+  })
+
+  it('skips settled identity answers but keeps them in the summary and asks about inferred ones', () => {
+    const step = text.split('### 3. Identity and targets')[1] ?? ''
+    expect(step).toContain('source or an earlier answer already settles')
+    expect(step).toContain('still appears in the summary')
+    expect(step).toContain('inferred stays a question')
+    expect(step).toContain('do not ask for others')
+  })
+
+  it('drafts the empty lessons list beside the last summary', () => {
+    expect(text).toContain('let that one yes cover both')
+  })
+
+  it('keeps offers, framing and the lessons draft out of the way of questions', () => {
+    expect(text).toContain('only thing asked in its reply')
+    expect(text).toContain('waits for a reply of its own, or for the end of setup')
+    expect(text).toContain('never mentions a command, a tool or printing')
+    expect(text).toContain('Never draft it before step 7 begins')
+    expect(text).toContain('ask about the list once more on its own')
+    expect(text).toContain('Say that nothing is left only when no draft or offer is waiting')
+  })
+
+  it('does not repeat settled identity questions and names the timezone exception', () => {
+    expect(text).toContain('the timezone follows from a city the user gave')
+    expect(text).toContain('already answered')
+    expect(text).toContain('the discipline (item 18) is not asked')
+  })
+
+  it('keeps file names out of the markdown templates the user reads', () => {
+    const dir = join(repoRoot(), 'templates', 'profile')
+    for (const f of readdirSync(dir).filter((n) => n.endsWith('.md'))) {
+      expect(readFileSync(join(dir, f), 'utf8'), f).not.toMatch(/`[^`]*\.(yaml|json)`/)
+    }
+  })
 })

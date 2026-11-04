@@ -9,7 +9,7 @@ Two registers. Pick by medium: **written** for forms, cover notes, emails and th
 - CHANGE_ME A second trait
 
 ## Written
-CHANGE_ME Sentence length, verbs, structure. Numbers exactly as in `wins.yaml`.
+CHANGE_ME Sentence length, verbs, structure. Numbers exactly as in your list of achievements.
 
 Avoid:
 - CHANGE_ME Words or habits that are not yours
