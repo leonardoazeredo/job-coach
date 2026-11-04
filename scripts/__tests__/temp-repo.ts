@@ -41,6 +41,8 @@ export type WorkedExample = RoleFolder & {
 }
 export type Row = [date: string, event: string]
 export type Run = { code: number; stdout: string; stderr: string }
+// A command over the folder itself (ADR 0006), with its deps already bound.
+export type RootCommand = (args: string[], root: string) => number | Promise<number>
 export type TempRepo = Files & {
   // Fresh each call, because a workspace memoises what it has read.
   workspace: () => Workspace
@@ -51,6 +53,7 @@ export type TempRepo = Files & {
   editSearch: (edit: (search: Search) => void) => void
   // Runs a command in-process on a fresh workspace, with what it printed.
   run: (command: Command, ...args: string[]) => Promise<Run>
+  runAtRoot: (command: RootCommand, ...args: string[]) => Promise<Run>
   dispose: () => void
 }
 
@@ -183,6 +186,7 @@ export const tempRepo = (): TempRepo => {
           openWorkspace(root, async () => 'private'),
         ),
       ),
+    runAtRoot: (command, ...args) => capture(() => command(args, root)),
     dispose: () => rmSync(root, { recursive: true, force: true }),
   }
 }

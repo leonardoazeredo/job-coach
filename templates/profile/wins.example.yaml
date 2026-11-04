@@ -2,7 +2,8 @@
 # `metric` is quoted exactly as you confirmed it, qualifiers included ("contributed to", "up to").
 # Write "Not specified" when you have no number: a win with no metric is still a win.
 # `never_say` lists inflations a draft might drift into, for example a userbase metric stated as revenue.
-# status: approved | proposed (proposed wins need your yes before outward use)
+# status: approved | proposed (proposed wins need your yes before outward use; while one is proposed,
+# onboarding lists its wins step as unfinished)
 # themes: pick from config/competencies/<pack>.yaml `themes`
 # competencies: ids from config/competencies/<pack>.yaml
 

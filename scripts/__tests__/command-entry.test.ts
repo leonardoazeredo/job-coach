@@ -26,6 +26,7 @@ const usageErrors: [string, string[]][] = [
   ['cv-export.ts', []],
   ['discovery/pull.ts', []],
   ['discovery/shortlist.ts', []],
+  ['profile.ts', []],
   ['save.ts', []],
   ['update.ts', []],
 ]
@@ -34,7 +35,7 @@ describe('command entry lines', () => {
   it('start every command, which refuses a usage error with exit 64', async () => {
     const codes = await Promise.all(usageErrors.map(([script, args]) => exitCode(script, args)))
     expect(codes).toEqual(usageErrors.map(() => EXIT.usage))
-    // Nine node start-ups race the other test files for CPU, so the 5s default flakes under the
+    // Ten node start-ups race the other test files for CPU, so the 5s default flakes under the
     // pre-push run.
   }, 30_000)
 
