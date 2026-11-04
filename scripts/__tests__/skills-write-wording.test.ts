@@ -127,4 +127,14 @@ describe('onboarding records each answer as given', () => {
       expect(readFileSync(join(dir, f), 'utf8'), f).not.toMatch(/`[^`]*\.(yaml|json)`/)
     }
   })
+
+  it('writes a pack with the labels the user saw', () => {
+    expect(text).toContain('the `label` values exactly as they will be written')
+    expect(text).toContain('write the file with their words in `label` and keep each `id`')
+  })
+
+  it('keeps a condition on a title or says it was left out', () => {
+    expect(text).toContain('is never dropped')
+    expect(text).toContain("the condition goes into `ideal_role_criteria` in the user's words")
+  })
 })
