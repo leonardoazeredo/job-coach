@@ -46,7 +46,7 @@ discovery:
     city: Austin
     country: United States
     regions: [North America, Remote]
-    seniority: [mid, senior]
+    seniority: [mid-level, senior]
     stack: [Python, Go, PostgreSQL]
     employment: full-time
     hybrid: true
