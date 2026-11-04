@@ -15,6 +15,7 @@ import {
   standingIn,
   type Table,
   value,
+  wording,
 } from './draft-fields.ts'
 import { IdentitySchema } from './identity.ts'
 import { SearchSchema } from './schema.ts'
@@ -47,9 +48,9 @@ const identity: DataTable = {
     experience_years: value('Years of experience'),
     seniority_targets: list('Target levels'),
     compensation: group({
-      currency: value('Currency'),
+      currency: reading(value('Currency'), 'currency'),
       floor: reading(value('Lowest base pay'), 'money'),
-      by_level: entries('Pay range by level', '{key}: {min} to {max}', {
+      by_level: entries('Pay range by level', 'At {key} level: {min} to {max}', {
         min: reading(value('Lowest'), 'money'),
         max: reading(value('Highest'), 'money'),
       }),
@@ -64,9 +65,9 @@ const identity: DataTable = {
 
 const tier = (n: number, when: 'sample' | 'default') =>
   group({
-    label: value(`Tier ${n} name`, 'default'),
-    when: value(`When a role is tier ${n}`, when),
-    action: value(`What a tier ${n} role gets`, 'default'),
+    label: value(`Priority ${n} name`, 'default'),
+    when: value(`When a role is priority ${n}`, when),
+    action: value(`What a priority ${n} role gets`, 'default'),
   })
 
 const search: DataTable = {
@@ -76,7 +77,7 @@ const search: DataTable = {
   root: group({
     tiers: group({ 0: tier(0, 'sample'), 1: tier(1, 'sample'), 2: tier(2, 'default') }),
     fit: group({
-      min_stack_overlap_pct: value('Least stack overlap, in percent', 'default'),
+      min_stack_overlap_pct: value('Least match with your skills, in percent', 'default'),
       location_rule: value('Where you can work'),
       hard_limits: list('Hard limits', 'default'),
     }),
@@ -89,7 +90,7 @@ const search: DataTable = {
         country: value('Search country'),
         regions: list('Search regions'),
         seniority: list('Search levels'),
-        stack: list('Search technologies'),
+        stack: list('Skills and tools searched'),
         employment: value('Employment searched'),
         hybrid: value('Include hybrid roles'),
       }),
@@ -114,9 +115,9 @@ const stack: DataTable = {
   template: 'profile/stack.example.yaml',
   schema: StackFileSchema,
   root: group({
-    core: stackItems('Core stack'),
-    secondary: stackItems('Secondary stack'),
-    past: stackItems('Past stack'),
+    core: stackItems('Main skills and tools'),
+    secondary: stackItems('Other skills and tools'),
+    past: stackItems('Skills and tools from earlier jobs'),
     tools: stackItems('Tools'),
     do_not_claim: list('Never claim', 'sample', {
       frame: '{item}; say instead: {allowed_framing}[ ({patterns})]',
@@ -129,7 +130,7 @@ const stack: DataTable = {
         ),
       },
     }),
-    adaptability_framing: value('When an ad asks for something you lack'),
+    adaptability_framing: value('Wording for a skill an ad asks for that you lack'),
   }),
 }
 
@@ -166,8 +167,9 @@ const historyPrivate: DataTable = {
   root: group({
     roles: items('Private notes on jobs', {
       id: 'id',
-      frame: 'Private notes on {id}[, payroll title {payroll_title}]',
+      frame: '{id}[, payroll title {payroll_title}]',
       open: true,
+      quiet: true,
       fields: {
         id: reading(value('Job id', 'exempt'), 'job'),
         // The template holds none of these, so a job with nothing private to say about one is
@@ -189,13 +191,16 @@ const wins: DataTable = {
   root: group({
     wins: items('Wins', {
       id: 'slug',
-      frame: '{action} Result: {metric}',
+      frame: '{action}',
       fields: {
         slug: value('Slug', 'exempt'),
         role: reading(value('Job'), 'job'),
-        status: value('Status', 'default'),
+        status: wording(value('Approval', 'default'), {
+          proposed: 'waiting for your yes',
+          approved: 'approved',
+        }),
         themes: list('Themes', 'exempt'),
-        metric: standingIn(value('Metric', 'default'), 'no number yet'),
+        metric: standingIn(value('Figure', 'default'), 'no number yet'),
         action: value('What you did'),
         never_say: list('Never say', 'default'),
         competencies: list('Competencies', 'exempt'),
@@ -248,7 +253,7 @@ const master: DataTable = {
         start: value('Start', 'sample', 'date'),
         end: value('End', 'sample', 'date'),
         note: later(value('Note', 'default')),
-        tech: list('Technologies'),
+        tech: list('Skills and tools used'),
         bullets: list('Bullets'),
       },
     }),
