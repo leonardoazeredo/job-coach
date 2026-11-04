@@ -366,7 +366,7 @@ const groupChanges = (g: GroupField, before: Obj, after: Obj, r: Render): string
 
 // What changes is only what a summary never shows: ids, tags and the checks on CV text.
 export const NOTHING_SHOWN =
-  'Nothing you wrote changes; the coach is only updating the labels it uses to find things in your files.'
+  'Nothing you wrote changes; the coach only updates its own notes on what you wrote.'
 
 export const dataSummary = (root: GroupField, before: Obj | undefined, after: Obj, r: Render) => {
   const lines =

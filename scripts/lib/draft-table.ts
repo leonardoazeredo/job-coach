@@ -127,16 +127,16 @@ const stack: DataTable = {
     tools: stackItems('Tools'),
     do_not_claim: noting(
       list('Never claim', 'sample', {
-        frame: '{item}; say instead: {allowed_framing}',
+        frame: '{item}; you say instead: {allowed_framing}',
         fields: {
-          item: value('What is never claimed'),
-          allowed_framing: value('What to say instead'),
+          item: value('What you never claim'),
+          allowed_framing: value('What you say instead'),
           patterns: list('Patterns that catch it', 'exempt'),
         },
       }),
-      'The coach checks CV text for each of these claims.',
+      'The coach makes sure your CV never says any of these.',
     ),
-    adaptability_framing: value('Wording for a skill an ad asks for that is missing'),
+    adaptability_framing: value('What you say when an ad asks for a skill you lack'),
   }),
 }
 
@@ -227,7 +227,7 @@ const standardAnswers: DataTable = {
       notice_period: value('Notice period'),
       earliest_start: value('Earliest start'),
       years_experience: value('Years of experience'),
-      salary_expectation: entries('Salary expectation', '{key}: {value}'),
+      salary_expectation: entries('Salary expectation', '{key}: {value}', undefined, 'levels'),
       office_attendance: value('Office attendance'),
       employment_type: value('Employment type'),
       links: group({ linkedin: value('LinkedIn'), github: value('GitHub') }),

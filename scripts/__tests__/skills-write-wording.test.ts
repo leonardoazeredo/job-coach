@@ -137,4 +137,25 @@ describe('onboarding records each answer as given', () => {
     expect(text).toContain('is never dropped')
     expect(text).toContain("the condition goes into `ideal_role_criteria` in the user's words")
   })
+
+  it('never says nothing is left in the reply that makes an offer', () => {
+    expect(text).toContain('never in the reply that makes an offer')
+  })
+
+  it('drafts the lessons list in the turn of the last summary, not after it', () => {
+    expect(text).toContain('never in the turn after it')
+  })
+
+  it('states no reason for the user, framing sentences included', () => {
+    expect(text).toContain("in a summary's framing sentence or anywhere else")
+  })
+})
+
+describe('the coach names an achievement by its words', () => {
+  it('forbids a number or an ordinal, even in passing', () => {
+    const plain = readFileSync(join(repoRoot(), 'CLAUDE.md'), 'utf8')
+      .split('## ')
+      .find((s) => s.startsWith('Plain words'))
+    expect(plain).toContain('never by a number or an ordinal, even in passing')
+  })
 })
