@@ -20,7 +20,7 @@ Collect the data the engine was published without, one section at a time, and wr
   2. Relay the summary: copy every line, in order, none dropped, merged or reworded, with at most one framing sentence of your own (Showing a change in CLAUDE.md). The user's yes covers only what they read.
   3. On the user's next reply, if it is a yes, `write <file>`; `draft` and `write` never run in the same turn. A no or a correction goes back to step 1 with the changed values. The step is done when the file is written or the user defers it.
   4. After the section's writes, one `node scripts/save.ts`.
-- A draft that is refused names each value it still lacks. Ask about them in turn, one per reply. `null` is the user's answer ("there is none"), never yours; the refusal's "or null" is for that case only. Give the draft only values the user or the source supplied; a key you leave out keeps the template's default.
+- A draft that is refused names each value it still lacks. Ask about them in turn, one per reply. `null` is the user's answer ("there is none"), never yours; the refusal's "or null" is for that case only. This holds for `career_gaps`: ask whether there is a gap to explain, or leave the entry out and say only that it was left out. "There are no gaps" is never yours to state. Give the draft only values the user or the source supplied; a key you leave out keeps the template's default.
 - Never state a reason on the user's behalf that they did not give ("as you have no LinkedIn", "because you didn't need one"). Say what is true of the file, or ask.
 - The user's pasted CV, LinkedIn text or PDF is the source for this session. A value the source does not hold is asked, never inferred: one specific question at a time. Each reply asks one thing and waits; asking for a yes on a summary counts as that one thing, so a further question waits for the next reply. A value the user gave only in part (a year without a month) is written in the part they gave. The same goes for the location of a job or course: "Bradford" stays "Bradford", and a college's name does not give its location. If the source gives none, ask once whether there is one; a CV reads fine without it, and the user's "none" is `null`. The same goes for a course's start date: `null` for `start` on the user's "none", never an empty string.
 - Required steps are 1, 2, 3, 6 and 8. Offer to defer each of 4, 5 and 7: a deferral is one line to the user ("It stays on your list for later") and changes no file.
@@ -114,11 +114,17 @@ Ask these in this order, skipping what the source already gives. Each item is on
 26. Regions to look in.
 27. Job titles to look for.
 
+Each answer has one named place. Items 1, 3, 4 and 5 are `name`, `email`, `phone`, `linkedin` and `github`; 6 is `locale`; 8 is `languages`; 9 to 11 are `location`; 12 is `right_to_work`; 13 and 14 are `availability`; 15 is `experience_years`; 17 is `seniority_targets`; 19 to 21 are `compensation`; 22 is `work_setup.remote`; 23 is `work_setup.office_days_ok`; 24 is `ideal_role_criteria`. Items 16 and 18 go into the target line of `coach.md` and 16 also into the discovery titles of `search.yaml`; 26 goes into `location_rule` and 27 into the discovery titles. Pronouns (2) and the language to be coached in (7) go only into `profile/coach.md`, the one file with a place for them: leave them out of the `identity.yaml` input. A question that has no place in this list is not asked.
+
+A refused draft is put to the user as what you need from them, in their words ("I still need your notice period"), never naming a file or a key.
+
 Draft, one file at a time:
 
 1. `profile/identity.yaml`. Leave `competency_pack` unset; step 6 sets it.
-2. `profile/search.yaml`: three tiers worded with the user's own criteria and currency, a `min_stack_overlap_pct`, a location rule in prose, `fit.hard_limits` (one plain sentence per limit the user named; an empty list if they named none, and say that plainly), and the discovery titles and search. The salary floor lives in `identity.yaml` only.
+2. `profile/search.yaml`: three tiers worded with the user's own criteria and currency, a `min_stack_overlap_pct`, a location rule in prose, `fit.hard_limits` (see below), and the discovery titles and search. The salary floor lives in `identity.yaml` only.
 3. `profile/coach.md`: the four bullets, in the user's language and tone. This file is the gate CLAUDE.md checks, so write it last.
+
+Hard limits hold only what the user says rules a role out, one plain sentence each, in their words. "I'd rather avoid", "prefer not" and "would like to avoid" state a preference, not a limit. When the words leave it open, ask once: "Would that rule a role out, or is it something you would rather avoid?". A preference goes into `ideal_role_criteria` in the user's words when it describes what they want, or is left out, and you say which. With no limit named, the list is empty and you say so plainly.
 
 Seniority is the level the user named, written in the board's own word (`docs/boards/rocketship.md`) and shown in plain words in the summary. The draft refuses while no level is given: when the user has named none, ask for it.
 
