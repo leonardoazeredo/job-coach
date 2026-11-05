@@ -39,7 +39,7 @@ export type SaveOptions = {
 
 // Without an email set, git may refuse to commit when it cannot work one out; until one is
 // set, every save commits under a stand-in name and email, replacing any name already set.
-const fallbackCommitter = (git: Git): string[] =>
+export const fallbackCommitter = (git: Git): string[] =>
   git(['config', 'user.email']).stdout.trim()
     ? []
     : ['-c', 'user.name=Job coach', '-c', 'user.email=job-coach@localhost']

@@ -233,7 +233,7 @@ export const runIn =
   }
 
 // The record check once onboarding has made a profile, else the same check on the example.
-const recordCheck = (root: string, run: Run) =>
+export const recordCheck = (root: string, run: Run) =>
   existsSync(join(root, 'profile/identity.yaml'))
     ? run('node', ['scripts/check.ts'])
     : run('node', ['scripts/check.ts', '--root', 'examples/austin-backend'])

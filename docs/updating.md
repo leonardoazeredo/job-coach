@@ -2,7 +2,7 @@
 
 A copy made with **Use this template** starts with its own history, so it does not follow `leonardoazeredo/job-coach` on its own. Engine updates (scripts, skills, config defaults, schemas, docs) are pulled in with git.
 
-Asked to "update the coach", the coach runs this procedure itself through the `update-coach` skill, and updates a ZIP download with `node scripts/update.ts zip`. This page is the same procedure by hand.
+Asked to "update the coach", the coach runs this procedure itself through the `update-coach` skill: `node scripts/update.ts changes`, `merge` and `finish` (with `take` for each clash and `cancel` to stop), and `node scripts/update.ts zip` for a ZIP download. `finish` undoes the update when the install or the record check fails afterwards. This page is the same procedure by hand.
 
 Once, in your copy:
 

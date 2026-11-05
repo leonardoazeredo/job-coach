@@ -21,46 +21,43 @@ Done when the save has answered and the path is chosen.
 
 ## With history
 
-### 2. Connect and fetch
+Each step below is one `node scripts/update.ts` command; read its first line.
 
-Find the engine's name in this folder: `git remote -v`, and pick the name whose URL is `github.com/leonardoazeredo/job-coach` (onboarding names it `upstream`). With none, run `git remote add upstream https://github.com/leonardoazeredo/job-coach.git`. Below, `upstream` stands for that name.
+### 2. Look for changes
 
-Run `git fetch -q upstream main`. If it fails, say the coach could not reach the internet to look for a new version and stop. If `git merge-base --is-ancestor upstream/main HEAD` succeeds, say "You're on the latest version of the coach." and stop.
+Run `node scripts/update.ts changes`.
 
-### 3. Summarise and ask
+- `latest`: say "You're on the latest version of the coach." and stop.
+- `not fetched: …`: say the coach could not reach the internet to look for a new version, and stop.
+- `available`, then one `- ` line per change: summarise those lines in two to five plain bullets of what the user will notice (new abilities, fixed problems, changed defaults), then ask: "Update now?" A no ends the skill with nothing changed.
 
-Note `BEFORE=$(git rev-parse HEAD)`. A **first update** is one where `git merge-base HEAD upstream/main` prints nothing: the folder was copied with "Use this template" and shares no history with the engine yet.
+### 3. Merge
 
-- First update: read `git log --no-merges --format='%ad %s' --date=short --since=<date of this folder's first commit> upstream/main` (first commit: `git log --reverse --format=%ad --date=short | head -1`).
-- Otherwise: read `git log --no-merges --format=%s HEAD..upstream/main`.
+Run `node scripts/update.ts merge`.
 
-Summarise in two to five plain bullets of what the user will notice (new abilities, fixed problems, changed defaults), then ask: "Update now?" A no ends the skill with nothing changed.
+- `merged`: go to step 4.
+- `clashes: <files>`: the user or the coach edited each of these files, and so did the new version. Take them one at a time. The file now holds both versions between clash markers. Read them and describe the difference by what it does ("how many days before a role counts as stale: yours says 21, the new version says 14"), then offer three choices:
+  - **Keep yours**: `node scripts/update.ts take ours <file>`.
+  - **Take the new one**: `node scripts/update.ts take theirs <file>`.
+  - **Keep both**: write the file with the user's changed values and everything new from the other side, with no clash markers left.
 
-### 4. Merge
+  Each `take` prints the clashes still left. Once every file is settled, go to step 4.
+- `not merged: …` or `not fetched: …`: say in one line that the update could not start and nothing changed.
 
-Run `git merge --no-commit --no-ff upstream/main`, adding `--allow-unrelated-histories` on a first update. Then list clashes with `git diff --name-only --diff-filter=U`.
+If the user wants to stop at any point before step 4, run `node scripts/update.ts cancel` and say in one line that the update was cancelled and nothing changed.
 
-On a first update every engine file that changed upstream since the copy clashes, even ones nobody touched. For each clashing file, compare this folder's version with the one in its first commit (`git rev-list --max-parents=0 HEAD`): when they are identical, nobody edited it, so take the new one silently with `git checkout --theirs -- <file> && git add <file>`.
+### 4. Finish
 
-For each clash that remains, the user or the coach edited that file. Read both sides and describe the difference by what it does ("how many days before a role counts as stale: yours says 21, the new version says 14"), then offer three choices:
+Run `node scripts/update.ts finish`. It saves the update, installs the coach's tools when they changed, and checks the records.
 
-- **Keep yours**: `git checkout --ours -- <file>`.
-- **Take the new one**: `git checkout --theirs -- <file>`.
-- **Keep both**: write the file with the user's changed values and everything new from the other side, with no clash markers left.
+- `updated`: go to step 5.
+- `clashes left: <files>`: a file still holds clash markers; settle it as in step 3 and run `finish` again.
+- `not committed: …`: the update was cancelled and nothing changed. Say so in one line.
+- `undone: …`: the new version did not work with this folder, so everything was put back. Say so in one line and offer to write a short problem report for the coach's authors from the check's output.
 
-Then `git add <file>`. Done when `git diff --name-only --diff-filter=U` prints nothing; then `git commit --no-edit -m "Updated the coach"`.
+### 5. Confirm
 
-If the user wants to stop, or the merge or the commit fails at any point, run `git merge --abort` and confirm with `git status` that no merge is in progress. Say in one line that the update was cancelled and nothing changed.
-
-### 5. Install and check
-
-If `git diff --quiet "$BEFORE" HEAD -- package-lock.json` fails, the coach's tools changed: run `npm ci`. Then run the record check: `node scripts/check.ts`, or `node scripts/check.ts --root examples/austin-backend` when `profile/identity.yaml` does not exist yet.
-
-If either fails, undo the update with `git reset --keep "$BEFORE"`, and run `npm ci` again if the lockfile had changed. Say in one line that the new version did not work with this folder and was undone, and offer to write a short problem report for the coach's authors from the check's output.
-
-### 6. Confirm
-
-Run `node scripts/save.ts "Updated the coach"`; the merge is already committed, so there is nothing new to commit, and the save still sends the merge and the commits it brought to a private online copy. Read its first line as in Saving in CLAUDE.md: `nothing new to save` here means the online copy already had them. Confirm in one line: "The coach is updated." plus the most useful change from step 3.
+Run `node scripts/save.ts "Updated the coach"`; the update is already saved here, and this sends it to a private online copy. Read its first line as in Saving in CLAUDE.md: `nothing new to save` here means the online copy already had it. Confirm in one line: "The coach is updated." plus the most useful change from step 2.
 
 ## Without history
 
