@@ -243,6 +243,28 @@ describe('mergeEngine and finishUpdate', () => {
     expect(existsSync(join(work(), 'config/rules.yaml'))).toBe(false)
   })
 
+  it('removes a guide the engine removed, though its heading underline looks like a marker', () => {
+    cloned({ 'docs/guide.md': 'Guide\n=======\n\nStep one.\n' })
+    userCommit({ 'docs/guide.md': 'Guide\n=======\n\nMy step one.\n' }, 'Saved: guide')
+    g(upstream(), 'rm', '-q', 'docs/guide.md')
+    commitAll(upstream(), 'Drop guide')
+    const git = gitOf()
+    engineChanges(git, opts())
+    mergeEngine(git, opts())
+    expect(takeSide(git, 'theirs', 'docs/guide.md')).toEqual({ kind: 'taken', left: [] })
+    expect(existsSync(join(work(), 'docs/guide.md'))).toBe(false)
+  })
+
+  it('leaves a clash in a guide whole, settling no line of it alone', () => {
+    cloned({ 'docs/guide.md': 'Step: one\nThen: two\n' })
+    userCommit({ 'docs/guide.md': 'Step: mine\nThen: two\n' }, 'Saved: guide')
+    engineCommit({ 'docs/guide.md': 'Step: one\nThen: new\n' }, 'Clearer guide')
+    const git = gitOf()
+    engineChanges(git, opts())
+    expect(mergeEngine(git, opts())).toEqual({ kind: 'clashes', files: ['docs/guide.md'] })
+    expect(read('docs/guide.md')).toContain('Step: mine\nThen: two\n||||||| before')
+  })
+
   it('refuses to take a side of a file that does not clash', () => {
     cloned()
     userCommit({ 'config/rules.yaml': 'stale_after_days: 30\n' }, 'Saved: settings')

@@ -16,7 +16,7 @@ When a run finds a new fault, add a line here and fix the skill or the command. 
 
 4. The setting both sides changed was described by what it does, with her value and the new one ("yours says 10, the new version says 21"), not by a file or key name.
 5. The change to the follow-up after an interview, which sits beside her setting, was also shown to her before the file was settled. Say whether the coach noticed it or settled it silently.
-6. She was offered keeping hers, taking the new one, or keeping both, and the reply asked one thing.
+6. She was offered keeping hers or taking the new one, with keeping both only if the clash she was shown held more than one value, and the reply asked one thing.
 7. Her answer was carried out: `config/rules.yaml` in `written/rules.yaml` holds 10 days for a role with no reply and 3 working days for an interview follow-up, with no clash marker left. Say whether the coach used `take` or wrote the file.
 8. No file other than the clashing one was put to her: what only the engine changed came in without a question.
 

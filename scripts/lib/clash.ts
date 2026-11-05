@@ -85,12 +85,22 @@ const settledLine = (ours: string, before: string, theirs: string): string | und
   return ours === before ? theirs : undefined
 }
 
-// Line by line where the three parts line up: a line one side left as it started takes the other
-// side's line, and only a line both sides changed stays a clash. Blocks that do not line up, or
-// that carry no starting lines, are left whole for the coach.
+// A setting written on one line, "key: value", with its indent; undefined for anything else,
+// including the first line of a folded or literal paragraph, whose value runs on below it.
+const keyOf = (line: string): string | undefined => line.match(/^(\s*[\w.-]+):[ \t]+[^\s>|]/)?.[1]
+
+// Each side kept the same key on every line, so its lines can be paired by position with the
+// version both started from; a moved, added or removed line breaks the pairing.
+const linesUp = (side: string[], start: string[]) =>
+  side.length === start.length &&
+  side.every((line, i) => keyOf(line) !== undefined && keyOf(line) === keyOf(start[i] ?? ''))
+
+// Setting by setting where the three parts line up: a setting one side left as it started takes
+// the other side's value, and only a setting both sides changed stays a clash. Anything else,
+// such as prose, whose neighbouring lines depend on each other, is left whole for the coach.
 const narrowBlock = (b: Block, settled: SettledLine[]): Part[] => {
   const start = b.start
-  if (!start || b.ours.length !== start.length || b.theirs.length !== start.length) return [b]
+  if (!start || !linesUp(b.ours, start) || !linesUp(b.theirs, start)) return [b]
   const out: Part[] = []
   let open: Block | undefined
   b.ours.forEach((ours, i) => {
@@ -116,9 +126,15 @@ const narrowBlock = (b: Block, settled: SettledLine[]): Part[] => {
 }
 
 // The narrowed text, and each line settled from one side, for the coach to tell the user.
-export const narrow = (text: string): { text: string; settled: SettledLine[] } => {
+// lineByLine is off for a file that is not settings, where a line that reads "Note: x" is prose.
+export const narrow = (
+  text: string,
+  { lineByLine = true }: { lineByLine?: boolean } = {},
+): { text: string; settled: SettledLine[] } => {
   const settled: SettledLine[] = []
-  const parts = parse(text).flatMap((p) => (typeof p === 'string' ? [p] : narrowBlock(p, settled)))
+  const parts = parse(text).flatMap((p) =>
+    typeof p === 'string' || !lineByLine ? [p] : narrowBlock(p, settled),
+  )
   return { text: print(parts), settled }
 }
 

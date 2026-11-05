@@ -127,6 +127,24 @@ const startOf = (git: Git, file: string, stagesHeld: Set<string>, first: boolean
 
 const LABELS = ['-L', 'yours', '-L', 'before', '-L', 'new version']
 
+// The file as merge-file shows it against the start version, narrowed; undefined when a side
+// could not be read or merge-file failed, so git's own clash markers stay.
+const showOne = (git: Git, file: string, start: string, scratch: string) => {
+  const saved = (rev: string, name: string): string | undefined => {
+    const shown = git(['show', rev])
+    if (shown.status !== 0) return undefined
+    const path = join(scratch, name)
+    writeFileSync(path, shown.stdout)
+    return path
+  }
+  const sides = [saved(`:2:${file}`, 'ours'), saved(start, 'start'), saved(`:3:${file}`, 'theirs')]
+  if (!sides.every((side) => side !== undefined)) return
+  const shown = git(['merge-file', '-p', '--diff3', ...LABELS, ...sides])
+  // merge-file exits with the number of clashes it left; only a signal or 255 is a failure.
+  if (shown.status === null || shown.status >= 128) return
+  return narrow(shown.stdout, { lineByLine: /\.ya?ml$/.test(file) })
+}
+
 // Each clash is rewritten with the file as both sides started from it, under labels the coach can
 // read out. Two sides alone cannot show which values the user changed, so the old default would
 // be credited to them. A first update has no shared start, so the copy's first commit stands in.
@@ -135,25 +153,12 @@ const showStart = (git: Git, first: boolean): Settled[] => {
   const top = git(['rev-parse', '--show-toplevel']).stdout.trim()
   const held = stages(git)
   const scratch = mkdtempSync(join(tmpdir(), 'coach-clash-'))
-  const saved = (rev: string, name: string) => {
-    const path = join(scratch, name)
-    writeFileSync(path, git(['show', rev]).stdout)
-    return path
-  }
   try {
     for (const file of unmerged(git)) {
       const at = held.get(file) ?? new Set()
       const start = at.has('2') && at.has('3') ? startOf(git, file, at, first) : ''
-      if (!start) continue
-      const sides = [
-        saved(`:2:${file}`, 'ours'),
-        saved(start, 'start'),
-        saved(`:3:${file}`, 'theirs'),
-      ]
-      const shown = git(['merge-file', '-p', '--diff3', ...LABELS, ...sides])
-      // merge-file exits with the number of clashes it left; only a signal or 255 is a failure.
-      if (shown.status === null || shown.status >= 128) continue
-      const narrowed = narrow(shown.stdout)
+      const narrowed = start ? showOne(git, file, start, scratch) : undefined
+      if (!narrowed) continue
       writeFileSync(join(top, file), narrowed.text)
       for (const line of narrowed.settled) settled.push({ file, ...line })
       // Every line was changed on one side only, so nothing is left to ask about.
@@ -193,7 +198,8 @@ export const takeSide = (git: Git, side: 'ours' | 'theirs', file: string): TakeR
   if (!inMerge(git)) return { kind: 'no-merge' }
   if (!unmerged(git).includes(file)) return { kind: 'not-clashing' }
   const path = join(git(['rev-parse', '--show-toplevel']).stdout.trim(), file)
-  const text = existsSync(path) ? readFileSync(path, 'utf8') : ''
+  const held = stages(git).get(file)
+  const text = held?.has('2') && held.has('3') && existsSync(path) ? readFileSync(path, 'utf8') : ''
   // Only the clash blocks are the user's choice; the rest of the file already holds both sides'
   // changes. A file one side removed has no blocks and is taken whole.
   if (hasClash(text)) {
