@@ -8,7 +8,9 @@ import {
   type GroupField,
   group,
   type ItemsField,
+  type ListField,
   type Shape,
+  type ValueField,
   value,
 } from './draft-fields.ts'
 import { PLACEHOLDER } from './onboarding.ts'
@@ -68,6 +70,12 @@ const keepSample = (field: Field, base: unknown, ctx: Ctx, label: string) => {
     for (const [k, f] of Object.entries(field.fields)) keepSample(f, base[k], ctx, labelOf(f, k))
 }
 
+const breaksRule = (field: ValueField | ListField, v: unknown, ctx: Ctx, label: string) => {
+  if (!field.rule || field.rule.holds(v)) return false
+  ctx.problems.push(`${named(ctx.where, label)} needs ${field.rule.needs}: ${String(v)}`)
+  return true
+}
+
 const mergeField = (field: Field, at: At, ctx: Ctx, label: string): unknown => {
   if (at.given === undefined) {
     keepSample(field, at.base, ctx, label)
@@ -81,14 +89,18 @@ const mergeField = (field: Field, at: At, ctx: Ctx, label: string): unknown => {
     case 'entries':
       return mergeEntries(field, at, ctx)
     case 'list':
-      if (Array.isArray(at.given)) return at.given
-      ctx.problems.push(`${named(ctx.where, label)} needs a list`)
-      return at.base
+      if (!Array.isArray(at.given)) {
+        ctx.problems.push(`${named(ctx.where, label)} needs a list`)
+        return at.base
+      }
+      for (const entry of at.given) breaksRule(field, entry, ctx, label)
+      return at.given
     case 'value':
       if (field.date && notADate(at.given)) {
         ctx.problems.push(`${named(ctx.where, label)} is not a real date: ${at.given}`)
         return at.base
       }
+      if (breaksRule(field, at.given, ctx, label)) return at.base
       if (scalar(at.given)) return at.given
       ctx.problems.push(`${named(ctx.where, label)} needs a single value`)
       return at.base

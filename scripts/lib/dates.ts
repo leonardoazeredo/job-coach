@@ -36,6 +36,24 @@ export const businessDaysBetween = (from: string, to: string): number => {
   return count
 }
 
+export const isLanguageTag = (tag: string): boolean => {
+  try {
+    Intl.getCanonicalLocales(tag)
+    return true
+  } catch {
+    return false
+  }
+}
+
+export const isTimezone = (name: string): boolean => {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: name })
+    return true
+  } catch {
+    return false
+  }
+}
+
 // The calendar day at `now` in an IANA timezone. The UTC day is already tomorrow in the
 // evening west of Greenwich, and still yesterday just after midnight east of it, which
 // would shift every date rule by a day. The locale comes from identity.yaml; Latin digits

@@ -95,6 +95,33 @@ const toCard = (x: unknown): Card | undefined => {
 // search has to say so itself.
 export const ROCKETSHIP_SENIORITY = ['entry-level', 'junior', 'mid-level', 'senior', 'expert']
 
+// The user's words for what this board will do with a place or a skill it does not know. They are
+// notes rather than refusals: a real skill can be missing from its list, and another board can
+// know the place.
+export const searchNotes = (
+  now: Record<string, unknown>,
+  was: Record<string, unknown> | undefined,
+): string[] => {
+  const { country, stack } = now
+  const knownBefore = Array.isArray(was?.stack) ? was.stack : []
+  const place =
+    typeof country === 'string' &&
+    country !== '' &&
+    country !== was?.country &&
+    !ROCKETSHIP_COUNTRIES.includes(country)
+      ? [`One job site doesn't know ${country}, so it will show worldwide-remote roles only.`]
+      : []
+  const skills = (Array.isArray(stack) ? stack : [])
+    .filter((s) => typeof s === 'string' && !knownBefore.includes(s))
+    .filter((s) => !ROCKETSHIP_STACK.includes(s))
+    .map((s) => {
+      const right = ROCKETSHIP_STACK.find((k) => k.toLowerCase() === s.toLowerCase())
+      const hint = right ? `; it writes it ${right}` : ''
+      return `One job site doesn't know ${s}, so it won't search by it${hint}.`
+    })
+  return [...place, ...skills]
+}
+
 const quoted = (words: string[]): string => {
   const marked = words.map((w) => `"${w}"`)
   return marked.length < 2
@@ -102,8 +129,8 @@ const quoted = (words: string[]): string => {
     : `${marked.slice(0, -1).join(', ')} and ${marked.at(-1)}`
 }
 
-// Checked here rather than in the schema because the search is shared by every board and
-// the board is named only when the pull runs.
+// Warned here as well as at the Draft because a file the Draft did not write reaches the pull
+// unchecked. Not in the schema, because that would stop such a file from loading at all.
 const seniorityWarning = (seniority: string[]): string | undefined => {
   const unknown = seniority.filter((x) => !ROCKETSHIP_SENIORITY.includes(x))
   if (unknown.length === 0) return undefined

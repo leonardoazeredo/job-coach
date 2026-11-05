@@ -156,10 +156,13 @@ describe('the summary reads properly as printed', () => {
 })
 
 describe('the summary of an odd or changing value', () => {
-  it('keeps a locale that is not a language tag as written', async () => {
-    const shown = await draft('profile/identity.yaml', { locale: 'en_GB' })
+  it('keeps an old locale that is not a language tag as written', async () => {
+    repo.editYaml<{ locale: string }>('profile/identity.yaml', (id) => {
+      id.locale = 'en_GB'
+    })
+    const shown = await draft('profile/identity.yaml', { locale: 'en-GB' })
     expect(shown.stderr).toBe('')
-    expect(shown.stdout).toBe('Locale: en_GB (was American English)\n')
+    expect(shown.stdout).toBe('Locale: British English (was en_GB)\n')
   })
 
   it('names the jobs of a limit that changes, once', async () => {

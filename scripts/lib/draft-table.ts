@@ -1,5 +1,6 @@
 // One table per template a Draft is made from: every key the template holds, plus the keys a
 // later step adds. A test holds each table and its template in step.
+import { ROCKETSHIP_EMPLOYMENT, ROCKETSHIP_SENIORITY, searchNotes } from './boards/rocketship.ts'
 import { CvDataSchema, HistoryFileSchema, WinsFileSchema } from './cv-schema.ts'
 import {
   type DataTable,
@@ -12,12 +13,15 @@ import {
   ofJobs,
   ofLevels,
   reading,
+  ruled,
   type Shape,
   standingIn,
   type Table,
   value,
   wording,
 } from './draft-fields.ts'
+import { isObj } from './draft-merge.ts'
+import { CURRENCY, EMPLOYMENT_TYPES, LOCALE, MONEY, oneOf, TIMEZONE } from './draft-rules.ts'
 import { IdentitySchema } from './identity.ts'
 import { SearchSchema } from './schema.ts'
 import { StackFileSchema } from './stack.ts'
@@ -36,12 +40,12 @@ const identity: DataTable = {
   root: group({
     name: value('Name'),
     ...contact,
-    locale: reading(value('Locale'), 'locale'),
+    locale: ruled(reading(value('Locale'), 'locale'), LOCALE),
     competency_pack: later(reading(value('Competency pack', 'default'), 'pack')),
     location: group({
       city: value('City'),
       since: value('Living there since', 'sample', 'date'),
-      timezone: value('Timezone'),
+      timezone: ruled(value('Timezone'), TIMEZONE),
     }),
     right_to_work: entries('Right to work', '{key}: {value}'),
     availability: value('Availability'),
@@ -49,14 +53,14 @@ const identity: DataTable = {
     experience_years: value('Years of experience'),
     seniority_targets: ofLevels(list('Target levels')),
     compensation: group({
-      currency: reading(value('Currency'), 'currency'),
-      floor: reading(value('Lowest base pay'), 'money'),
+      currency: ruled(reading(value('Currency'), 'currency'), CURRENCY),
+      floor: ruled(reading(value('Lowest base pay'), 'money'), MONEY),
       by_level: entries(
         'Pay range by level',
         'At {key} level: {min} to {max}',
         {
-          min: reading(value('Lowest'), 'money'),
-          max: reading(value('Highest'), 'money'),
+          min: ruled(reading(value('Lowest'), 'money'), MONEY),
+          max: ruled(reading(value('Highest'), 'money'), MONEY),
         },
         'levels',
       ),
@@ -76,10 +80,17 @@ const tier = (n: number, when: 'sample' | 'default') =>
     action: value(`What a priority ${n} role gets`, 'default'),
   })
 
+const searchIn = (file: Record<string, unknown>) => {
+  const { discovery } = file
+  const found = isObj(discovery) ? discovery.search : undefined
+  return isObj(found) ? found : {}
+}
+
 const search: DataTable = {
   format: 'yaml',
   template: 'profile/search.example.yaml',
   schema: SearchSchema,
+  notes: (now, was) => searchNotes(searchIn(now), was && searchIn(was)),
   root: group({
     tiers: group({ 0: tier(0, 'sample'), 1: tier(1, 'sample'), 2: tier(2, 'default') }),
     fit: group({
@@ -97,9 +108,9 @@ const search: DataTable = {
         city: value('Search city'),
         country: value('Search country'),
         regions: list('Search regions'),
-        seniority: ofLevels(list('Search levels')),
+        seniority: ruled(ofLevels(list('Search levels')), oneOf(ROCKETSHIP_SENIORITY)),
         stack: list('Skills and tools searched'),
-        employment: value('Employment searched'),
+        employment: ruled(value('Employment searched'), oneOf(ROCKETSHIP_EMPLOYMENT)),
         hybrid: value('Include hybrid roles'),
       }),
     }),
@@ -156,7 +167,7 @@ const history: DataTable = {
         company: value('Company'),
         public: group({
           title: value('Title'),
-          employment_type: value('Employment type'),
+          employment_type: ruled(value('Employment type'), oneOf(EMPLOYMENT_TYPES)),
           start: value('Start', 'sample', 'date'),
           end: value('End', 'sample', 'date'),
           location: value('Location'),
