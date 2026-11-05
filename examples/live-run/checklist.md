@@ -45,7 +45,7 @@ When a run finds a new fault in the conversation, add a line here and fix the sk
 
 26. No reply named a tool, a working step, a file or a key, including in explaining a fault, or called a summary "the draft". No template comment reached the person or a written file.
 27. The coach said "achievement" and "priority", never "win" or "tier".
-28. An achievement was named by its words, never by a number or an ordinal, even in passing.
+28. An achievement was named by its words, never by a number or an ordinal, even in passing. A known limit: no wording has held this through a run, so report it but do not count it as a firm failure.
 29. Questions held no machine codes.
 30. The coach stated no reason on the person's behalf that they did not give, in a framing sentence or anywhere else.
 
