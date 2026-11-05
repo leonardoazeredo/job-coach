@@ -1,7 +1,9 @@
 #!/bin/bash
 # usage: start.sh <run-dir>  builds what a brand-new user has, from this checkout's HEAD:
 # no profile, no installed packages, no remote. The coach installs what it needs itself.
+# Needs CLAUDE_CODE_OAUTH_TOKEN in the environment, for up.sh.
 set -euo pipefail
+: "${CLAUDE_CODE_OAUTH_TOKEN:?run this with the token in the environment}"
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(git -C "$HERE" rev-parse --show-toplevel)
 RUN=$1
@@ -22,4 +24,5 @@ git -C "$RUN/copy" -c user.name=Persona -c user.email=persona@example.com \
   commit -q --no-verify -m "Initial copy"
 chmod -R a+rwX "$RUN"
 git -C "$ROOT" rev-parse --short HEAD >"$RUN/commit.txt"
+"$HERE/up.sh" "$RUN"
 echo "[$(date +%T)] ready: commit $(cat "$RUN/commit.txt") in $RUN"

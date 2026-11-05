@@ -2,13 +2,13 @@
 
 The proof that a change to the coach's conversation works: a fictional person is played through a whole onboarding against a copy of the engine, then a separate reader judges it. All of it uses fictional data; never point it at a real user's copy.
 
-A run takes about an hour and costs about $1 to $2 on `claude-sonnet-5-5`. It stops itself at $5 (`LIVE_RUN_BUDGET_USD`).
+A run takes about an hour if nothing stops to ask for permission, and costs about $1 to $2 on `claude-sonnet-5-5`. It stops itself at $5 (`LIVE_RUN_BUDGET_USD`).
 
-It needs Docker and a Claude Code token in `CLAUDE_CODE_OAUTH_TOKEN`. `examples/live-run/turn.sh` is the only script that reads the token, and it never prints it.
+It needs Docker and a Claude Code token in `CLAUDE_CODE_OAUTH_TOKEN`. Give the token to `examples/live-run/start.sh` once. `examples/live-run/up.sh` puts it in the run's container, where it stays until `finish.sh` removes the container, so no turn needs it and no script prints it.
 
 ## Steps
 
-1. Commit the change. Run `examples/live-run/start.sh <run-dir>`, with a new folder outside this checkout as `<run-dir>`. It copies this checkout's HEAD.
+1. Commit the change. Run `examples/live-run/start.sh <run-dir>` with the token in its environment, with a new folder outside this checkout as `<run-dir>`. It copies this checkout's HEAD.
 2. Start one agent with the player's brief below. It plays until the coach finishes, then runs `examples/live-run/finish.sh <run-dir>`.
 3. Start a different agent with the judge's brief below.
 4. Read the report and spot-check its quotes. A line that fails is either fixed in the skill or filed as an issue.
@@ -19,7 +19,7 @@ It needs Docker and a Claude Code token in `CLAUDE_CODE_OAUTH_TOKEN`. `examples/
 >
 > Read only this brief, in full, and stay in character: `examples/personas/leeds-transport-planner.md`. Read nothing else: not the coach's skills, not `<run-dir>/copy` or `<run-dir>/raw`, not GitHub issues, not any earlier run. What you know of the coach is what the script prints.
 >
-> Each turn, write your message and nothing else to `<run-dir>/r.txt`, then run `examples/live-run/turn.sh <run-dir> <n> <run-dir>/r.txt`, with `n` starting at 1 and a timeout of ten minutes. It prints the coach's reply and the cost so far.
+> Each turn, write your message and nothing else to `<run-dir>/r.txt` as its own step, then run `examples/live-run/turn.sh <run-dir> <n> <run-dir>/r.txt` as one command with full paths and no variable, chaining or redirect, with `n` starting at 1 and a timeout of ten minutes. It prints the coach's reply and the cost so far.
 >
 > Answer what is asked, the way the brief says this person would. Volunteer nothing else: if the coach never asks for something, the person never mentions it. Never coach the coach, mention the test, or use technical words this person would not use. If asked something the brief does not cover, say you are not sure or would rather not say, and invent no fact or figure.
 >

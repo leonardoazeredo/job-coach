@@ -1,8 +1,5 @@
 #!/bin/bash
 # usage: turn.sh <run-dir> <n> <reply-file>  turn 1 starts the session, later turns resume it.
-# Needs CLAUDE_CODE_OAUTH_TOKEN in the environment, and never prints it.
-set -u
-: "${CLAUDE_CODE_OAUTH_TOKEN:?run this with the token in the environment}"
 RUN=$(cd "$1" && pwd)
 N=$2
 REPLY=$3
@@ -19,9 +16,7 @@ fi
 RESUME=()
 [ "$N" -gt 1 ] && RESUME=(--resume "$(cat "$RUN/session.id")")
 echo "[$(date +%T)] turn $N starts (expected 20-90 s, up to ~5 min); tail -f $RUN/raw/turn$N.jsonl"
-docker run --rm -e CLAUDE_CODE_OAUTH_TOKEN \
-  -v "$RUN/copy":/w -v "$RUN/claudehome":/home/node/.claude \
-  -v "$RUN/tmpd":/tmp -v "$RUN/cachehome":/home/node/.cache -w /w coach-live-run \
+docker exec "coach-live-run-$(basename "$RUN")" \
   claude -p "$(cat "$REPLY")" "${RESUME[@]+"${RESUME[@]}"}" --model "$MODEL" \
   --max-budget-usd "$BUDGET" --dangerously-skip-permissions --output-format stream-json \
   --verbose >"$RUN/raw/turn$N.jsonl" 2>"$RUN/raw/turn$N.err"

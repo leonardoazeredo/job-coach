@@ -1,7 +1,8 @@
 #!/bin/bash
 # usage: finish.sh <run-dir>  gathers what the coach wrote and the run's cost for the judge.
 set -eu
-RUN=$1
+RUN=$(cd "$1" && pwd)
+docker rm -f "coach-live-run-$(basename "$RUN")" >/dev/null
 mkdir -p "$RUN/written/config"
 cp -R "$RUN/copy/profile" "$RUN/copy/cv" "$RUN/written/"
 cp -R "$RUN/copy/config/competencies" "$RUN/written/config/"
