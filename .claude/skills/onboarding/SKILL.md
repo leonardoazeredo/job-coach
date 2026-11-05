@@ -50,7 +50,7 @@ Done when the four files exist and each person-fact in them traces to the pasted
 
 ### 3. Identity and targets
 
-Ask these in this order, skipping what the source or an earlier answer already settles. A skipped value still appears in the summary for the user's yes, so nothing goes unseen. A value is settled only when it is stated: one you inferred stays a question, with the exceptions named here and below: the timezone follows from a city the user gave, so item 10 is not asked and the timezone is shown in the summary for a yes. A level the user already answered (item 17, or the same word given while answering another item) is not asked again, and the discipline (item 18) is not asked when the CV or an earlier answer states it. Each item is one question and one reply; never put two items in one question.
+Ask these in this order, skipping what the source or an earlier answer already settles. A skipped value still appears in the summary for the user's yes, so nothing goes unseen. A value is settled only when it is stated: one you inferred stays a question, and an answer that gives no number to a question that needs one ("any of it really") is put back as your reading in one question ("So up to five days a week?") before a number is written, with the exceptions named here and below: the timezone follows from a city the user gave, so item 10 is not asked and the timezone is shown in the summary for a yes. A level the user already answered (item 17, or the same word given while answering another item) is not asked again, and the discipline (item 18) is not asked when the CV or an earlier answer states it. Each item is one question and one reply; never put two items in one question.
 
 | # | Ask | Goes in |
 | --- | --- | --- |

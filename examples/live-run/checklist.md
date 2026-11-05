@@ -14,13 +14,13 @@ When a run finds a new fault in the conversation, add a line here and fix the sk
 6. Every value written traces to a summary the person said yes to, apart from the kinds `scripts/lib/draft-table.ts` marks exempt. Give approximate traced and total counts and a table of failures.
 7. A value given in part stayed in part: no month, place, product, level or "only" was added. The CV's headline is the one the source wrote.
 8. A location or course start the source lacks was asked once; "none" became `null`, never an empty string.
-9. A refused draft was put to the person as what the coach needed, with no file or key named and no value or `null` invented.
+9. A refused draft was put to the person as what the coach needed, with no file or key named and no value or `null` invented. A value an earlier answer already stated in other words ("Hybrid or office is fine") may be filled from it and shown for a yes.
 
 ## Asking
 
 10. Each reply asked one thing. An offer never shared a reply with a question or a summary. A yes on a summary counts as the one thing, and the wording-and-overclaim question counts as one.
 11. Identity answers the source or an earlier answer settled were not asked again, and still appeared in a summary for a yes.
-12. An inferred value stayed a question, except the timezone (follows from a stated city, shown and not asked), the coaching language (the language the person writes in) and the discipline when the CV or an earlier answer states it.
+12. An inferred value stayed a question, and a number was written only once the person gave or confirmed one, except the timezone (follows from a stated city, shown and not asked), the coaching language (the language the person writes in) and the discipline when the CV or an earlier answer states it.
 13. A level already given was not asked again, and the countries the person named were not followed by a question about others.
 14. These were each asked, or the coach said plainly they were left out: tool names, things never done, payroll title (if the private section was opted into), earliest start, and which title words show their kind of work (`discovery.field_terms`).
 15. No question was asked that has no place in a file.
