@@ -2,7 +2,8 @@
 // steps the coach drives across turns, because a file both sides changed needs the user's choice.
 // Nothing is stored between the steps: git's own merge state says where an update stands, and the
 // merge commit's first parent is the folder as it was before.
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ENGINE, ENGINE_URL, type Git, gitHubRepo, output } from './history.ts'
 import { fallbackCommitter } from './save.ts'
@@ -111,6 +112,47 @@ const settleOneSided = (git: Git) => {
   }
 }
 
+// Where a clashing file started: the shared version when git found one, else on a first update
+// the copy's first commit, else nothing to show.
+const startOf = (git: Git, file: string, stagesHeld: Set<string>, first: boolean): string => {
+  if (stagesHeld.has('1')) return `:1:${file}`
+  const root = rootCommit(git)
+  return first && root && blob(git, root, file) ? `${root}:${file}` : ''
+}
+
+const LABELS = ['-L', 'yours', '-L', 'before', '-L', 'new version']
+
+// Each clash is rewritten with the file as both sides started from it, under labels the coach can
+// read out. Two sides alone cannot show which values the user changed, so the old default would
+// be credited to them. A first update has no shared start, so the copy's first commit stands in.
+const showStart = (git: Git, first: boolean) => {
+  const top = git(['rev-parse', '--show-toplevel']).stdout.trim()
+  const held = stages(git)
+  const scratch = mkdtempSync(join(tmpdir(), 'coach-clash-'))
+  const saved = (rev: string, name: string) => {
+    const path = join(scratch, name)
+    writeFileSync(path, git(['show', rev]).stdout)
+    return path
+  }
+  try {
+    for (const file of unmerged(git)) {
+      const at = held.get(file) ?? new Set()
+      const start = at.has('2') && at.has('3') ? startOf(git, file, at, first) : ''
+      if (!start) continue
+      const sides = [
+        saved(`:2:${file}`, 'ours'),
+        saved(start, 'start'),
+        saved(`:3:${file}`, 'theirs'),
+      ]
+      const shown = git(['merge-file', '-p', '--diff3', ...LABELS, ...sides])
+      // merge-file exits with the number of clashes it left; only a signal or 255 is a failure.
+      if (shown.status !== null && shown.status < 128) writeFileSync(join(top, file), shown.stdout)
+    }
+  } finally {
+    rmSync(scratch, { recursive: true, force: true })
+  }
+}
+
 export const mergeEngine = (git: Git, opts: GitUpdateOptions = {}): MergeResult => {
   if (inMerge(git)) return mergeState(git)
   const remote = engineRemote(git, opts.url ?? ENGINE_URL)
@@ -127,6 +169,7 @@ export const mergeEngine = (git: Git, opts: GitUpdateOptions = {}): MergeResult 
   ])
   if (!inMerge(git)) return { kind: 'not-merged', output: output(merge) }
   if (first) settleOneSided(git)
+  showStart(git, first)
   return mergeState(git)
 }
 
@@ -142,7 +185,7 @@ export const takeSide = (git: Git, side: 'ours' | 'theirs', file: string): TakeR
   return { kind: 'taken', left: unmerged(git) }
 }
 
-const MARKER = /^(<{7}|>{7})( |$)|^={7}$/m
+const MARKER = /^(<{7}|>{7}|\|{7})( |$)|^={7}$/m
 
 // Unmerged paths with the git stage numbers each still holds (1 base, 2 ours, 3 theirs).
 const stages = (git: Git): Map<string, Set<string>> => {

@@ -152,6 +152,30 @@ describe('mergeEngine and finishUpdate', () => {
     expect(read('config/rules.yaml')).toBe('stale_after_days: 30\n')
   })
 
+  // Without the file as it was before either side changed it, a clash cannot say which
+  // values the user changed, and the coach credits them with the engine's old default.
+  it('shows each clash with the version both sides started from', () => {
+    cloned()
+    userCommit({ 'config/rules.yaml': 'stale_after_days: 30\n' }, 'Saved: settings')
+    engineCommit({ 'config/rules.yaml': 'stale_after_days: 21\n' }, 'New default')
+    const git = gitOf()
+    engineChanges(git, opts())
+    mergeEngine(git, opts())
+    expect(read('config/rules.yaml')).toBe(
+      '<<<<<<< yours\nstale_after_days: 30\n||||||| before\nstale_after_days: 14\n=======\nstale_after_days: 21\n>>>>>>> new version\n',
+    )
+  })
+
+  it('shows the clash of a first update with the version the copy was made from', () => {
+    templated()
+    userCommit({ 'config/rules.yaml': 'stale_after_days: 30\n' }, 'Saved: settings')
+    engineCommit({ 'config/rules.yaml': 'stale_after_days: 21\n' }, 'New default')
+    const git = gitOf()
+    engineChanges(git, opts())
+    mergeEngine(git, opts())
+    expect(read('config/rules.yaml')).toContain('||||||| before\nstale_after_days: 14\n')
+  })
+
   it('accepts a file the coach wrote by hand once no clash marker is left in it', () => {
     cloned()
     userCommit({ 'config/rules.yaml': 'stale_after_days: 30\n' }, 'Saved: settings')
