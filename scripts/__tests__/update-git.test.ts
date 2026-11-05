@@ -219,6 +219,17 @@ describe('mergeEngine and finishUpdate', () => {
     expect(g(work(), 'merge-base', '--is-ancestor', 'upstream/main', 'HEAD')).toBe('')
   })
 
+  it('keeps a file only the user changed on a first update, without asking', () => {
+    templated()
+    userCommit({ 'config/rules.yaml': 'stale_after_days: 30\n' }, 'Saved: settings')
+    engineCommit({ 'CLAUDE.md': 'new prompt\n' }, 'Sharper prompt')
+    const git = gitOf()
+    engineChanges(git, opts())
+    expect(mergeEngine(git, opts())).toEqual({ kind: 'merged' })
+    expect(read('config/rules.yaml')).toBe('stale_after_days: 30\n')
+    expect(read('CLAUDE.md')).toBe('new prompt\n')
+  })
+
   it('asks for the changes first when nothing has been fetched', () => {
     templated()
     expect(mergeEngine(gitOf(), opts())).toEqual({ kind: 'not-fetched' })

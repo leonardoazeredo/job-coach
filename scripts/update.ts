@@ -19,8 +19,8 @@
 //   merge    merges the new version and prints merged, clashes: <files>, latest, not fetched (run
 //            changes first) or not merged.
 //   take     settles one clashing file with the user's version (ours) or the new one (theirs).
-//   finish   commits, installs, runs the record check and prints updated, or clashes left when a
-//            clash marker remains, or undone when the install or check failed and the folder went
+//   finish   commits, installs, runs the record check and prints updated, or clashes left while a
+//            file holds a clash marker or one side removed it, or undone when the install or check failed and the folder went
 //            back to how it was, or not undone when that putting back failed too.
 //   cancel   abandons a merge in progress; nothing changes.
 // Exit 64 on a usage error, zip in a folder that keeps history, or a history step in one without.

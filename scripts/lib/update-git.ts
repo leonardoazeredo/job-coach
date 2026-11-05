@@ -34,7 +34,9 @@ const connect = (git: Git, url: string): string => {
 const ok = (git: Git, args: string[]) => git(args).status === 0
 const lines = (text: string) => text.split('\n').filter(Boolean)
 const inMerge = (git: Git) => ok(git, ['rev-parse', '-q', '--verify', 'MERGE_HEAD'])
-const unmerged = (git: Git) => lines(git(['diff', '--name-only', '--diff-filter=U']).stdout)
+// -z keeps a path with unusual characters unquoted, so it matches the stages listing.
+const unmerged = (git: Git) =>
+  lines(git(['diff', '--name-only', '--diff-filter=U', '-z']).stdout.replaceAll('\0', '\n'))
 const upToDate = (git: Git, ref: string) => ok(git, ['merge-base', '--is-ancestor', ref, 'HEAD'])
 // A copy made with "Use this template" shares no commit with the engine until its first update.
 const sharesHistory = (git: Git, ref: string) => ok(git, ['merge-base', 'HEAD', ref])
@@ -109,12 +111,15 @@ export const mergeEngine = (git: Git, opts: GitUpdateOptions = {}): MergeResult 
   ])
   if (!inMerge(git)) return { kind: 'not-merged', output: output(merge) }
   if (first) {
-    // On a first update every engine file changed since the copy was made clashes, edited or
-    // not. One still as it was in the copy's first commit was never edited, so the new one wins.
+    // With no shared commit, git sees every file the two sides hold differently as a clash, even
+    // when only one side changed it. The copy's first commit shows which: a file the user never
+    // edited takes the new version, and one the engine never changed keeps the user's.
     const root = rootCommit(git) ?? 'HEAD'
     for (const file of unmerged(git)) {
       const original = blob(git, root, file)
-      if (original && original === blob(git, 'HEAD', file)) resolve(git, 'theirs', file)
+      if (!original) continue
+      if (original === blob(git, 'HEAD', file)) resolve(git, 'theirs', file)
+      else if (original === blob(git, 'MERGE_HEAD', file)) resolve(git, 'ours', file)
     }
   }
   return mergeState(git)
@@ -162,8 +167,8 @@ export const finishUpdate = (root: string, git: Git, opts: FinishOptions = {}): 
   if (!inMerge(git)) return { kind: 'no-merge' }
   const files = unmerged(git)
   const held = stages(git)
-  // A file one side removed, or one git cannot merge line by line, carries no markers, so
-  // finishing on what is left in the folder would choose for the user. Only take settles it.
+  // A file one side removed carries no markers, so finishing on what is left in the folder would
+  // choose for the user. Only take settles it. A binary file both sides changed is not caught.
   const left = files.filter(
     (file) =>
       !(held.get(file)?.has('2') && held.get(file)?.has('3')) ||
