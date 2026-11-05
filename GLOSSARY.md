@@ -178,8 +178,14 @@ _Avoid_: seed
 **Title expansion**:
 Titles that count as relevant to the user's field without saying so, listed in `profile/search.yaml` `discovery.title_expansion`. A last word "Engineer" also admits "Engineering" ("Product Engineer" admits "Product Engineering Lead"). A missed title form is added to that list first; the pattern changes only for a class of titles that can't be listed.
 
+**Field term**:
+A word in a job title that shows it is the user's kind of work, such as a language, a tool or a speciality, listed in `profile/search.yaml` `discovery.field_terms`. It qualifies a title but is never sent to a board as a search. An empty list means the user has none; no list means they were never asked.
+
+**Excluded word**:
+A word in a job title that rules it out. The engine holds words about level and function, and one stops applying when a Search title or Field term of the user's contains it. The user's own, in `profile/search.yaml` `discovery.excluded_words`, always apply, even to their own Search title.
+
 **Qualifying title**:
-A title worth shortlisting: it names a term of the user's field or an expansion title, and none of the excluded words. An unclear title is let in, because a shortlist is read by a person and a dropped listing is never seen. A full-stack title qualifies only through an explicit front-end term or an expansion title; a language or framework alone doesn't outweigh full-stack.
+A title worth shortlisting: it names a Search title or a Field term, and no Excluded word that applies. Words match whole, and hyphens, spaces and joined spelling count as the same ("Frontend", "Front-End", "Front End"). The shortlist reports what it drops.
 _Avoid_: relevant, field-relevant
 
 **Expired listing**:

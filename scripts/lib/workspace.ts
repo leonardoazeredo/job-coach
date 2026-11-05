@@ -29,6 +29,7 @@ import { listSlugs, missing, readCvFile, readRole, rolePaths } from './role-fold
 import { loadRules } from './rules.ts'
 import type { Rules } from './schema.ts'
 import { type StatusRules, statusRules } from './status-rules.ts'
+import { titleGateProblems } from './title-gate.ts'
 import { checkRecords } from './validate.ts'
 
 export type { Discovery, ListingMatch, TrackedRole } from './discovery.ts'
@@ -295,6 +296,7 @@ export const openWorkspace = (
     const p = profile()
     const s = statusRulesOf()
     const problems = [...r.problems, ...p.problems, ...s.problems]
+    if (r.rules) problems.push(...titleGateProblems(r.rules.discovery))
     if (s.sr) problems.push(...checkRecords(s.sr, p.profile, roles()))
     if (p.profile) problems.push(...lintCvsWith(p.profile, slugs()).problems)
     return { problems, roles: roles().length }

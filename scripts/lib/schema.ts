@@ -21,6 +21,9 @@ const searchDiscovery = z.object({
   search_titles: z.array(str),
   title_expansion: z.array(str),
   agentic_keywords: strList,
+  // Optional, not defaulted: absent says the user was never asked, and [] says they have none.
+  field_terms: z.array(str).optional(),
+  excluded_words: strList,
   search: z.object({
     city: str,
     country: str,

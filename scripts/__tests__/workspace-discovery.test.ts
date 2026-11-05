@@ -109,24 +109,172 @@ describe('discovery title qualifying', () => {
     expect(qualifies('Senior Payments Engineer')).toBe(true)
     expect(qualifies('Senior Software Engineer, Ledger Core')).toBe(true)
   })
+})
 
-  it('rejects an excluded title even when it names a frontend term', () => {
+// A search for another field, so the gate is shown to hold no field of its own.
+const searchFor = (lists: {
+  titles: string[]
+  expansion?: string[]
+  terms?: string[]
+  excluded?: string[]
+}) =>
+  repo.editSearch((r) => {
+    r.discovery.search_titles = lists.titles
+    r.discovery.title_expansion = lists.expansion ?? []
+    r.discovery.field_terms = lists.terms ?? []
+    r.discovery.excluded_words = lists.excluded ?? []
+  })
+
+describe("a qualifying title names the user's own words", () => {
+  it('qualifies every Search title of the example persona', () => {
+    const { search_titles, title_expansion } = repo.workspace().rules().rules?.discovery ?? {
+      search_titles: [],
+      title_expansion: [],
+    }
+    const titles = [...search_titles, ...title_expansion]
+    expect(titles.length).toBeGreaterThan(0)
+    expect(titles.filter((t) => !discovery().qualifies(t))).toEqual([])
+  })
+
+  it('holds no field of its own', () => {
+    searchFor({ titles: ['Transport Planner'] })
+    const { qualifies } = discovery()
+    expect(qualifies('Senior Transport Planner')).toBe(true)
+    expect(qualifies('Frontend Engineer')).toBe(false)
+    expect(qualifies('React Developer')).toBe(false)
+  })
+
+  it('lets a title lift an engine word for that word only', () => {
+    searchFor({ titles: ['Transport Manager'] })
+    const { qualifies } = discovery()
+    expect(qualifies('Regional Transport Manager')).toBe(true)
+    expect(qualifies('Engineering Manager')).toBe(false)
+    expect(qualifies('Junior Transport Manager')).toBe(false)
+  })
+
+  it('lets a Field term qualify a title and lift an engine word', () => {
+    searchFor({ titles: ['Web Engineer'], terms: ['React', 'designer'] })
+    const { qualifies } = discovery()
+    expect(qualifies('Senior React Developer')).toBe(true)
+    expect(qualifies('Product Designer')).toBe(true)
+    expect(qualifies('Junior React Developer')).toBe(false)
+  })
+
+  it('lifts every form of an engine word', () => {
+    searchFor({ titles: ['Test Engineer'] })
+    expect(discovery().qualifies('Testing Test Engineer')).toBe(true)
+  })
+
+  it("lets the user's own Excluded word beat a Search title and a Field term", () => {
+    searchFor({
+      titles: ['Software Engineer'],
+      terms: ['React'],
+      excluded: ['mobile', 'full-stack'],
+    })
+    const { qualifies } = discovery()
+    expect(qualifies('Software Engineer')).toBe(true)
+    expect(qualifies('Software Engineer, Mobile')).toBe(false)
+    expect(qualifies('Full Stack React Developer')).toBe(false)
+    expect(qualifies('Fullstack Software Engineer')).toBe(false)
+  })
+
+  it('has no full-stack rule of its own', () => {
+    searchFor({ titles: ['Software Engineer'], terms: ['JavaScript'] })
+    expect(discovery().qualifies('Senior Full Stack Engineer (Javascript)')).toBe(true)
+  })
+
+  it('keeps a front-end search working from its own lists', () => {
+    searchFor({
+      titles: ['Frontend Engineer'],
+      expansion: ['Product Engineer'],
+      terms: ['front-end', 'UI', 'React', 'design system'],
+      excluded: ['back-end', 'mobile', 'iOS', 'Android'],
+    })
     const { qualifies } = discovery()
     expect(qualifies('Senior Frontend Engineer')).toBe(true)
     expect(qualifies('Junior Frontend Engineer')).toBe(false)
-    expect(qualifies('Full-stack React Developer')).toBe(false)
     expect(qualifies('Frontend Engineering Manager')).toBe(false)
+    expect(qualifies('Senior Front-End/Full-Stack Engineer')).toBe(true)
+    expect(qualifies('Full-Stack Engineer (Frontend-Leaning)')).toBe(true)
+    expect(qualifies('Full-Stack Product Engineering Manager')).toBe(false)
+    expect(qualifies('Backend Product Engineer')).toBe(false)
+    expect(qualifies('Staff Design Systems Engineer')).toBe(false)
+  })
+})
+
+describe('a title is matched by its words, however they are spelled', () => {
+  it.each([
+    ['Frontend', 'Front-End Developer'],
+    ['Frontend', 'Front End Developer'],
+    ['front-end', 'Frontend Developer'],
+    ['front end', 'Senior Frontend-Leaning Developer'],
+    ['React Native', 'ReactNative Developer'],
+    ['Vue.js', 'Vuejs Developer'],
+    ['C#', 'Senior C# Developer'],
+  ])('term %s admits %s', (term, title) => {
+    searchFor({ titles: ['Web Engineer'], terms: [term] })
+    expect(discovery().qualifies(title)).toBe(true)
   })
 
-  it('lets a full-stack title in only through an explicit front-end term or an expansion title', () => {
+  it.each([
+    ['UI', 'Building Engineer'],
+    ['React', 'ReactJS Developer'],
+    ['C#', 'Senior C Developer'],
+  ])('term %s does not admit %s', (term, title) => {
+    searchFor({ titles: ['Web Engineer'], terms: [term] })
+    expect(discovery().qualifies(title)).toBe(false)
+  })
+
+  it('spells a Search title and an Excluded word the same way', () => {
+    searchFor({ titles: ['Front End Engineer'], excluded: ['full-stack'] })
     const { qualifies } = discovery()
-    expect(qualifies('Senior Front-End/Full-Stack Engineer')).toBe(true)
-    expect(qualifies('Product Engineer – Front-End, Full-Stack')).toBe(true)
-    expect(qualifies('Full-Stack Engineer (Frontend-Leaning) - CreativeMusic')).toBe(true)
-    expect(qualifies('Senior Full Stack Product Engineer (TypeScript)')).toBe(true)
-    expect(qualifies('Full-Stack Product Engineer, AI Tools')).toBe(true)
-    expect(qualifies('Senior Full Stack Engineer (Javascript)')).toBe(false)
-    expect(qualifies('Full-Stack Product Engineering Manager')).toBe(false)
+    expect(qualifies('Frontend Engineer')).toBe(true)
+    expect(qualifies('Front-End Platform Engineer')).toBe(true)
+    expect(qualifies('Front End Fullstack Engineer')).toBe(false)
+  })
+
+  it('does not find an engine word inside another word', () => {
+    searchFor({ titles: ['Engineer'] })
+    const { qualifies } = discovery()
+    expect(qualifies('Salesforce Engineer')).toBe(true)
+    expect(qualifies('Latest Stack Engineer')).toBe(true)
+    expect(qualifies('Internal Tools Engineer')).toBe(true)
+    expect(qualifies('Sales Engineer')).toBe(false)
+    expect(qualifies('Test Engineer')).toBe(false)
+    expect(qualifies('Engineer Intern')).toBe(false)
+  })
+})
+
+describe("the record check on the gate's lists", () => {
+  const gateWarnings = () =>
+    repo
+      .workspace()
+      .check()
+      .problems.filter((p) => p.slug === 'profile/search.yaml' && p.level === 'warning')
+      .map((p) => p.message)
+
+  it('is silent on the example persona', () => {
+    expect(gateWarnings()).toEqual([])
+  })
+
+  it('warns when no Field terms were ever chosen, and not when the choice was none', () => {
+    repo.editSearch((r) => {
+      delete r.discovery.field_terms
+    })
+    expect(gateWarnings()).toEqual([expect.stringMatching(/field_terms/)])
+    expect(repo.workspace().discovery().discovery?.qualifies('Backend Engineer')).toBe(true)
+    repo.editSearch((r) => {
+      r.discovery.field_terms = []
+    })
+    expect(gateWarnings()).toEqual([])
+  })
+
+  it("warns when a Search title or Field term holds the user's own Excluded word", () => {
+    searchFor({ titles: ['Backend Engineer'], terms: ['Mobile'], excluded: ['back-end', 'mobile'] })
+    expect(gateWarnings()).toEqual([
+      expect.stringMatching(/"Backend Engineer".*"back-end"/),
+      expect.stringMatching(/"Mobile".*"mobile"/),
+    ])
   })
 })
 
