@@ -20,6 +20,8 @@ node scripts/discovery/shortlist.ts listings.json... [--today=YYYY-MM-DD]
 
 Tests run against the fictional persona in `examples/austin-backend`, never against a real user's data. A test reads engine files outside its own fixture only to guard drift (a shipped copy must match the engine's) or to exercise an engine entry point or stylesheet, and says which in a comment where it reads them.
 
+A fault in the coach's conversation gets a line in `examples/live-run/checklist.md` and is proven by a live run (`examples/live-run/README.md`). A test pins only facts the repo can check, never the words of a skill.
+
 ## For maintainers: agent skills
 
 Engineering skills used when working on the engine read these files. A user of the coach does not need them.

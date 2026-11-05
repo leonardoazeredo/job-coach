@@ -15,15 +15,11 @@ Collect the data the engine was published without, one section at a time, and wr
 
 ## Rules for every step
 
-- Every write to `profile/*` or `cv/master.json` goes through `node scripts/profile.ts`, run from the folder's root:
-  1. `draft <file>` with the values as JSON on stdin (keys as in the file's template; a markdown file takes its whole text, under the headings its template shows). It prints the summary.
-  2. Relay the summary: copy every line, in order, none dropped, merged or reworded, with at most one framing sentence of your own (Showing a change in CLAUDE.md). The framing sentence never mentions a command, a tool or printing ("as the command printed it"). The user's yes covers only what they read.
-  3. On the user's next reply, if it is a yes, `write <file>`; `draft` and `write` never run in the same turn. A no or a correction goes back to step 1 with the changed values. The step is done when the file is written or the user defers it.
-  4. After the section's writes, one `node scripts/save.ts`.
+- Every write to `profile/*` or `cv/master.json` follows Showing a change in CLAUDE.md, run from the folder's root: `node scripts/profile.ts draft <file>` takes the values as JSON on stdin (keys as in the file's template; a markdown file takes its whole text, under the headings its template shows). The step is done when the file is written or the user defers it. After the section's writes, one `node scripts/save.ts`.
 - A draft that is refused names each value it still lacks. Ask about them in turn, one per reply. `null` is the user's answer ("there is none"), never yours; the refusal's "or null" is for that case only. This holds for `career_gaps`: ask whether there is a gap to explain, or leave the entry out and say only that it was left out. "There are no gaps" is never yours to state. Give the draft only values the user or the source supplied; a key you leave out keeps the template's default.
 - A yes on a summary is the only thing asked in its reply. An offer (a change to the CV, saving, more phrases, the glossary) never shares a reply with a question or a summary: it waits for a reply of its own, or for the end of setup.
 - Never state a reason on the user's behalf that they did not give ("as you have no LinkedIn", "because you didn't need one"), in a summary's framing sentence or anywhere else. Say what is true of the file, or ask.
-- The user's pasted CV, LinkedIn text or PDF is the source for this session. A value the source does not hold is asked, never inferred: one specific question at a time. Each reply asks one thing and waits (the wording-and-overclaim question in step 4 counts as one thing, as that step defines it); asking for a yes on a summary counts as that one thing, so a further question waits for the next reply. A value the user gave only in part (a year without a month) is written in the part they gave. The same goes for the location of a job or course: "Bradford" stays "Bradford", and a college's name does not give its location. If the source gives none, ask once whether there is one; a CV reads fine without it, and the user's "none" is `null`. The same goes for a course's start date: `null` for `start` on the user's "none", never an empty string.
+- The user's pasted CV, LinkedIn text or PDF is the source for this session. A value the source does not hold is asked, never inferred: one specific question at a time. Each reply asks one thing and waits (the wording-and-overclaim question in step 4 counts as one thing, as that step defines it); asking for a yes on a summary counts as that one thing, so a further question waits for the next reply. CLAUDE.md's rule for a value given only in part covers the location of a job or course too: "Bradford" stays "Bradford", and a college's name does not give its location. If the source gives none, ask once whether there is one; a CV reads fine without it, and the user's "none" is `null`. The same goes for a course's start date: `null` for `start` on the user's "none", never an empty string.
 - Required steps are 1, 2, 3, 6 and 8. Offer to defer each of 4, 5 and 7: a deferral is one line to the user ("It stays on your list for later") and changes no file.
 - A file that already exists is updated, never replaced: the input names only the values that change (Re-runs).
 
@@ -35,38 +31,7 @@ At the start, run `node scripts/board.ts` and list each section as done, unfinis
 
 ### 1. Prerequisites and keeping the data private
 
-The user may know nothing about git, GitHub or Node. Run the checks yourself, act on what they show, and talk in plain words (Plain words in CLAUDE.md): "this folder", "this computer", "online", "public" and "private". Ask only what the user can answer.
-
-Run these and keep the results to yourself until a bullet below says what to tell the user:
-
-```sh
-node --version                      # needs ^24.11 or >=26 (package.json engines)
-# On a Mac without developer tools, plain `git` opens an install dialog; the guard skips it.
-if command -v git >/dev/null && { [ "$(uname)" != Darwin ] || xcode-select -p >/dev/null 2>&1; }; then
-  git rev-parse --show-toplevel; git remote get-url origin   # no origin: the folder lives only on this computer
-else echo "no git"; fi
-ls -d "${NVM_DIR:-$HOME/.nvm}" 2>/dev/null; command -v fnm volta brew   # which Node managers exist
-for p in "${CHROME_PATH:-}" "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" /usr/bin/google-chrome /usr/bin/google-chrome-stable /usr/bin/chromium /usr/bin/chromium-browser; do [ -n "$p" ] && [ -x "$p" ] && echo "chrome: $p" && break; done
-command -v pdftotext pdfinfo
-```
-
-For a GitHub `origin` that is not the engine, check it without `gh` or a login: `curl -s -o /dev/null -w '%{http_code}' https://api.github.com/repos/<owner>/<name>` answers 200 for a public repository and 404 for a private one (or one that does not exist).
-
-- Node missing, or outside the range (Node 25 is outside it too): install or switch it yourself, and continue onboarding once it is in range. Tell the user one line ("The coach needs a newer version of a program it runs on; I'm installing it now."); the version and the tool are your choice, never a question. Each shell command starts fresh, so load the manager in the same command as the step that needs it. Use the first manager the check found:
-  - nvm: `. "${NVM_DIR:-$HOME/.nvm}/nvm.sh" && nvm install && nvm alias default "$(cat .nvmrc)"` (it reads `.nvmrc`).
-  - fnm: `eval "$(fnm env)" && fnm install && fnm default "$(cat .nvmrc)"`.
-  - volta: `volta install node@"$(cat .nvmrc)"`.
-  - Homebrew: `brew upgrade node`, or `brew install node` when Homebrew has none.
-  - None, on macOS: download `https://nodejs.org/dist/v<version>/node-v<version>.pkg` (version from `.nvmrc`) into a scratch folder outside this one. The installer needs the user's computer password, so hand over exactly one line with its reason: "This step asks for your computer password, so it has to be typed by you: `! sudo installer -pkg <path> -target /`".
-  - None, on Linux or WSL: download `node-v<version>-linux-x64.tar.xz` (`linux-arm64` when `uname -m` says `aarch64`) from the same place, unpack it into `$HOME/.local/node`, and add `export PATH="$HOME/.local/node/bin:$PATH"` to the shell's startup file (`~/.bashrc` or `~/.zshrc`). No password is needed.
-
-  Then check in a fresh command: `node --version` must be in range. If an old version still shows, `which -a node` lists every copy; the first one is hiding the new one. Fix the order yourself (the manager's default, or the new folder first on the path in the startup file) and check again. Finally run `npm ci` to install the coach's own tools; it takes a minute or two, so say so first.
-- No git (the check printed `no git`), or `git rev-parse --show-toplevel` names a folder other than this one: this folder keeps no history, and the coach saves nothing beyond the files themselves. Say nothing about it, never suggest installing anything for it, and skip the bullets about the online copy.
-- No `origin`: the data stays on this computer. Tell the user that in one line; nothing to ask.
-- `origin` is `leonardoazeredo/job-coach` (copied straight from the public project): nobody else's data can reach it, but unlink it so nothing ever can. Say: "This folder was copied from the public project online. I'll unlink it so what you add here stays on this computer; updates to the coach still work." On a yes, run `git remote rename origin upstream`; the update-coach skill finds the engine under that name.
-- Any other `origin` that answers 200 (public): stop and say plainly that this folder is linked to a public page online, where anything saved could be seen by anyone, and that nothing personal goes in until that is fixed. If the user made it with **Use this template**, `gh repo edit --visibility private --accept-visibility-change-consequences` (or the repository's Settings page) makes it private; a fork cannot be made private, so the user starts again from the template, or unlinks with `git remote rename origin public-copy` and keeps the data local.
-- `origin` answers 404, or is not on GitHub: say the online copy is private or cannot be checked, and ask one plain question: "Is the online copy of this folder set to private, or would you rather keep everything on this computer?" Keeping it local means `git remote rename origin unused-online-copy` after a yes.
-- No Chrome or no poppler is a warning, not a stop: only PDF export needs them, and it is optional and can be set up later. A PDF CV can still be imported in step 2 without poppler. Offer to install them, and on a yes run the install yourself: `brew install --cask google-chrome` and `brew install poppler` on macOS. On Debian or Ubuntu, `sudo apt install chromium poppler-utils` needs the computer password, so it goes to the user as one `! ` line with that reason. Elsewhere, set `CHROME_PATH` to a Chrome program the user already has.
+Read `.claude/skills/onboarding/prerequisites.md` and carry it out, before any other step on a first run. A re-run needs it only when the user picks this step.
 
 Done when Node is in range and `npm ci` has run, the data either stays on this computer or goes only to an online copy that is private, and each warning has been shown.
 
@@ -87,38 +52,40 @@ Done when the four files exist and each person-fact in them traces to the pasted
 
 Ask these in this order, skipping what the source or an earlier answer already settles. A skipped value still appears in the summary for the user's yes, so nothing goes unseen. A value is settled only when it is stated: one you inferred stays a question, with the exceptions named here and below: the timezone follows from a city the user gave, so item 10 is not asked and the timezone is shown in the summary for a yes. A level the user already answered (item 17, or the same word given while answering another item) is not asked again, and the discipline (item 18) is not asked when the CV or an earlier answer states it. Each item is one question and one reply; never put two items in one question.
 
-1. Name.
-2. Pronouns.
-3. Email.
-4. Phone.
-5. Links: LinkedIn, then GitHub, one per reply.
-6. Spelling (`en-GB`, `en-US`).
-7. Language to be coached in.
-8. Languages they speak, with their level in each.
-9. City.
-10. Timezone.
-11. Since when they have lived there.
-12. Right to work, one country per reply.
-13. Notice period.
-14. Earliest start date.
-15. Years of professional experience.
-16. Roles they want.
-17. Seniority.
-18. Discipline.
-19. Salary floor.
-20. Currency.
-21. Levels: the pay range for each level they named in item 17. The level names in the pay ranges are those same words.
-22. Remote or hybrid.
-23. Office days, if hybrid.
-24. What a good role has.
-25. What would rule a role out, with examples from any field such as hours, travel or employers to avoid.
-26. Regions to look in.
-27. Job titles to look for.
-28. Which words in a job title show it is their kind of work, such as a language, a tool or a speciality.
+| # | Ask | Goes in |
+| --- | --- | --- |
+| 1 | Name | `name` |
+| 2 | Pronouns | `coach.md` only |
+| 3 | Email | `email` |
+| 4 | Phone | `phone` |
+| 5 | Links: LinkedIn, then GitHub, one per reply | `linkedin`, `github` |
+| 6 | Spelling (`en-GB`, `en-US`) | `locale` |
+| 7 | Language to be coached in | `coach.md` only |
+| 8 | Languages they speak, with their level in each | `languages` |
+| 9 | City | `location` |
+| 10 | Timezone | `location` |
+| 11 | Since when they have lived there | `location` |
+| 12 | Right to work, one country per reply | `right_to_work` |
+| 13 | Notice period | `availability` |
+| 14 | Earliest start date | `availability` |
+| 15 | Years of professional experience | `experience_years` |
+| 16 | Roles they want | target line of `coach.md`, discovery titles of `search.yaml` |
+| 17 | Seniority | `seniority_targets` |
+| 18 | Discipline | target line of `coach.md` |
+| 19 | Salary floor | `compensation` |
+| 20 | Currency | `compensation` |
+| 21 | Levels: the pay range for each level they named in item 17, under those same words | `compensation` |
+| 22 | Remote or hybrid | `work_setup.remote` |
+| 23 | Office days, if hybrid | `work_setup.office_days_ok` |
+| 24 | What a good role has | `ideal_role_criteria` |
+| 25 | What would rule a role out, with examples from any field such as hours, travel or employers to avoid | `fit.hard_limits` in `search.yaml` (Hard limits below) |
+| 26 | Regions to look in | `location_rule` in `search.yaml` |
+| 27 | Job titles to look for | discovery titles of `search.yaml` |
+| 28 | Which words in a job title show it is their kind of work, such as a language, a tool or a speciality | `discovery.field_terms` in `search.yaml` |
 
 Two more items are settled without a question unless the user's words leave them open. Item 7: the language the user writes to you in counts as stated, so coach in it. Item 12: the countries the user named are the whole list, so do not ask for others, and the list is shown in the summary for the user's yes; "for now" or "and maybe elsewhere" leaves it open, and then ask once.
 
-Each answer has one named place. Items 1, 3, 4 and 5 are `name`, `email`, `phone`, `linkedin` and `github`; 6 is `locale`; 8 is `languages`; 9 to 11 are `location`; 12 is `right_to_work`; 13 and 14 are `availability`; 15 is `experience_years`; 17 is `seniority_targets`; 19 to 21 are `compensation`; 22 is `work_setup.remote`; 23 is `work_setup.office_days_ok`; 24 is `ideal_role_criteria`; 25 is `fit.hard_limits` in `search.yaml` (Hard limits below). Items 16 and 18 go into the target line of `coach.md` and 16 also into the discovery titles of `search.yaml`; 26 goes into `location_rule`, 27 into the discovery titles and 28 into `discovery.field_terms`. The user's "none" for 28 is `[]`, not `null`, because a list left out reads as a question never asked. `discovery.excluded_words` starts empty and is not asked about. Pronouns (2) and the language to be coached in (7) go only into `profile/coach.md`, the one file with a place for them: leave them out of the `identity.yaml` input. A question that has no place in this list is not asked.
+Each answer has one place, in the table; a key with no file named is in `identity.yaml`, and the two `coach.md` only items stay out of that file's input. The user's "none" for 28 is `[]`, not `null`, because a list left out reads as a question never asked. `discovery.excluded_words` starts empty and is not asked about. A question with no row is not asked.
 
 A refused draft is put to the user as what you need from them, in their words ("I still need your notice period"), never naming a file or a key.
 
