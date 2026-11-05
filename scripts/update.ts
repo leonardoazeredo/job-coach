@@ -21,7 +21,7 @@
 //   take     settles one clashing file with the user's version (ours) or the new one (theirs).
 //   finish   commits, installs, runs the record check and prints updated, or clashes left when a
 //            clash marker remains, or undone when the install or check failed and the folder went
-//            back to how it was.
+//            back to how it was, or not undone when that putting back failed too.
 //   cancel   abandons a merge in progress; nothing changes.
 // Exit 64 on a usage error, zip in a folder that keeps history, or a history step in one without.
 // Exit 1 when an update did not start, was undone, could not fetch the new version or has clashes
@@ -155,6 +155,12 @@ const historyStep = (git: Git, root: string, args: string[], deps: UpdateDeps): 
         return EXIT.problems
       case 'undone':
         console.log('undone: the install or the record check failed after the update')
+        console.error(result.output)
+        return EXIT.problems
+      case 'not-undone':
+        console.log(
+          'not undone: the record check failed after the update, and the folder could not be put back',
+        )
         console.error(result.output)
         return EXIT.problems
     }

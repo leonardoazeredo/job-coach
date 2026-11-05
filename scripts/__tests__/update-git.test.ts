@@ -20,9 +20,9 @@ const identify = (cwd: string) => {
   g(cwd, 'config', 'user.email', 'test@example.com')
   g(cwd, 'config', 'user.name', 'Test')
 }
-const commitAll = (cwd: string, message: string) => {
+const commitAll = (cwd: string, message: string, env: NodeJS.ProcessEnv = {}) => {
   g(cwd, 'add', '-A')
-  g(cwd, 'commit', '-q', '-m', message)
+  execFileSync('git', ['commit', '-q', '-m', message], { cwd, env: { ...process.env, ...env } })
 }
 const engineCommit = (files: Record<string, string>, message: string) => {
   put(upstream(), files)
@@ -39,7 +39,9 @@ const startEngine = () => {
   put(upstream(), OLD_ENGINE)
   g(upstream(), 'init', '-q', '-b', 'main')
   identify(upstream())
-  commitAll(upstream(), 'Engine')
+  // Dated well before any copy, so the copy's own first commit cannot share its second.
+  const past = '2026-01-01T00:00:00Z'
+  commitAll(upstream(), 'Engine', { GIT_AUTHOR_DATE: past, GIT_COMMITTER_DATE: past })
 }
 // A folder that already shares history with the engine, as after its first update.
 const cloned = () => {
@@ -85,6 +87,11 @@ describe('engineChanges', () => {
     const result = engineChanges(gitOf(), opts())
     expect(result.kind).toBe('available')
     expect(g(work(), 'remote', 'get-url', 'upstream')).toBe(upstream())
+  })
+
+  it('says latest for a template copy the engine has not changed since', () => {
+    templated()
+    expect(engineChanges(gitOf(), opts())).toEqual({ kind: 'latest' })
   })
 
   it('reports a fetch that fails and changes nothing', () => {
@@ -145,6 +152,24 @@ describe('mergeEngine and finishUpdate', () => {
     const { run } = runner()
     expect(finishUpdate(work(), git, { run })).toEqual({ kind: 'updated' })
     expect(read('config/rules.yaml')).toBe('stale_after_days: 30\nnew_key: 1\n')
+  })
+
+  it('waits for a choice on a file the user changed and the engine removed', () => {
+    cloned()
+    userCommit({ 'config/rules.yaml': 'stale_after_days: 30\n' }, 'Saved: settings')
+    g(upstream(), 'rm', '-q', 'config/rules.yaml')
+    commitAll(upstream(), 'Drop rules')
+    const git = gitOf()
+    engineChanges(git, opts())
+    expect(mergeEngine(git, opts())).toEqual({ kind: 'clashes', files: ['config/rules.yaml'] })
+    const { run } = runner()
+    expect(finishUpdate(work(), git, { run })).toEqual({
+      kind: 'clashes',
+      files: ['config/rules.yaml'],
+    })
+    expect(takeSide(git, 'theirs', 'config/rules.yaml')).toEqual({ kind: 'taken', left: [] })
+    expect(finishUpdate(work(), git, { run })).toEqual({ kind: 'updated' })
+    expect(existsSync(join(work(), 'config/rules.yaml'))).toBe(false)
   })
 
   it('refuses to take a side of a file that does not clash', () => {

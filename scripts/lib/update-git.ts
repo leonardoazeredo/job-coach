@@ -62,7 +62,10 @@ export const engineChanges = (git: Git, opts: GitUpdateOptions = {}): ChangesRes
         `--since=${git(['log', '-1', '--format=%aI', rootCommit(git) ?? 'HEAD']).stdout.trim()}`,
         ref,
       ])
-  return { kind: 'available', changes: lines(log.stdout) }
+  const changes = lines(log.stdout)
+  // A copy made from the engine's newest version still shares no commit with it, so only an
+  // empty list can tell that nothing new has landed since.
+  return changes.length ? { kind: 'available', changes } : { kind: 'latest' }
 }
 
 export type MergeResult =
@@ -131,6 +134,17 @@ export const takeSide = (git: Git, side: 'ours' | 'theirs', file: string): TakeR
 
 const MARKER = /^(<{7}|>{7})( |$)|^={7}$/m
 
+// Unmerged paths with the git stage numbers each still holds (1 base, 2 ours, 3 theirs).
+const stages = (git: Git): Map<string, Set<string>> => {
+  const held = new Map<string, Set<string>>()
+  for (const line of lines(git(['ls-files', '-u', '-z']).stdout.replaceAll('\0', '\n'))) {
+    const match = line.match(/^\d+ [0-9a-f]+ (\d)\t(.+)$/)
+    if (!match?.[1] || !match[2]) continue
+    held.set(match[2], (held.get(match[2]) ?? new Set()).add(match[1]))
+  }
+  return held
+}
+
 export type FinishResult =
   | { kind: 'updated' }
   | { kind: 'no-merge' }
@@ -139,14 +153,21 @@ export type FinishResult =
   | { kind: 'not-committed'; output: string }
   // The install or the record check failed after the commit, so the folder went back to before.
   | { kind: 'undone'; output: string }
+  // The check failed and putting the folder back failed too: the new version is still in place.
+  | { kind: 'not-undone'; output: string }
 
 export type FinishOptions = { run?: Run | undefined }
 
 export const finishUpdate = (root: string, git: Git, opts: FinishOptions = {}): FinishResult => {
   if (!inMerge(git)) return { kind: 'no-merge' }
   const files = unmerged(git)
+  const held = stages(git)
+  // A file one side removed, or one git cannot merge line by line, carries no markers, so
+  // finishing on what is left in the folder would choose for the user. Only take settles it.
   const left = files.filter(
-    (file) => existsSync(join(root, file)) && MARKER.test(readFileSync(join(root, file), 'utf8')),
+    (file) =>
+      !(held.get(file)?.has('2') && held.get(file)?.has('3')) ||
+      (existsSync(join(root, file)) && MARKER.test(readFileSync(join(root, file), 'utf8'))),
   )
   if (left.length) return { kind: 'clashes', files: left }
   // Each clash still listed now holds both sides merged into one file, or is gone.
@@ -161,8 +182,9 @@ export const finishUpdate = (root: string, git: Git, opts: FinishOptions = {}): 
   const install = lockChanged ? run('npm', ['ci']) : { ok: true, output: '' }
   const after = install.ok ? recordCheck(root, run) : install
   if (after.ok) return { kind: 'updated' }
-  git(['reset', '-q', '--keep', 'HEAD^1'])
+  const reset = git(['reset', '-q', '--keep', 'HEAD^1'])
   if (lockChanged) run('npm', ['ci'])
+  if (reset.status !== 0) return { kind: 'not-undone', output: `${after.output}\n${output(reset)}` }
   return { kind: 'undone', output: after.output }
 }
 

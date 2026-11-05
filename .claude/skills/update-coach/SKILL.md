@@ -54,6 +54,7 @@ Run `node scripts/update.ts finish`. It saves the update, installs the coach's t
 - `clashes left: <files>`: a file still holds clash markers; settle it as in step 3 and run `finish` again.
 - `not committed: …`: the update was cancelled and nothing changed. Say so in one line.
 - `undone: …`: the new version did not work with this folder, so everything was put back. Say so in one line and offer to write a short problem report for the coach's authors from the check's output.
+- `not undone: …`: the new version did not work with this folder and could not be taken back out. Say so in one line, say their information is safe in this folder's history, and offer to write a problem report for the coach's authors from the output. Change no file until the user answers.
 
 ### 5. Confirm
 
