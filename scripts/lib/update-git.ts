@@ -45,6 +45,9 @@ const unmerged = (git: Git) =>
 const upToDate = (git: Git, ref: string) => ok(git, ['merge-base', '--is-ancestor', ref, 'HEAD'])
 // A copy made with "Use this template" shares no commit with the engine until its first update.
 const sharesHistory = (git: Git, ref: string) => ok(git, ['merge-base', 'HEAD', ref])
+// Git's own test, which follows .gitattributes: numstat counts no lines for a binary pair.
+const binary = (git: Git, file: string) =>
+  git(['diff', '--numstat', `:2:${file}`, `:3:${file}`]).stdout.startsWith('-\t')
 const rootCommit = (git: Git) => lines(git(['rev-list', '--max-parents=0', 'HEAD']).stdout)[0]
 
 export type ChangesResult =
@@ -199,9 +202,10 @@ export const takeSide = (git: Git, side: 'ours' | 'theirs', file: string): TakeR
   if (!unmerged(git).includes(file)) return { kind: 'not-clashing' }
   const path = join(git(['rev-parse', '--show-toplevel']).stdout.trim(), file)
   const held = stages(git).get(file)
-  const text = held?.has('2') && held.has('3') && existsSync(path) ? readFileSync(path, 'utf8') : ''
+  const both = held?.has('2') && held.has('3')
+  const text = both && existsSync(path) && !binary(git, file) ? readFileSync(path, 'utf8') : ''
   // Only the clash blocks are the user's choice; the rest of the file already holds both sides'
-  // changes. A file one side removed has no blocks and is taken whole.
+  // changes. A file one side removed, or a binary one, has no blocks and is taken whole.
   if (hasClash(text)) {
     writeFileSync(path, settle(text, side))
     git(['add', '--', file])
@@ -237,11 +241,12 @@ export const finishUpdate = (root: string, git: Git, opts: FinishOptions = {}): 
   if (!inMerge(git)) return { kind: 'no-merge' }
   const files = unmerged(git)
   const held = stages(git)
-  // A file one side removed carries no markers, so finishing on what is left in the folder would
-  // choose for the user. Only take settles it. A binary file both sides changed is not caught.
+  // A file one side removed, or a binary file, carries no markers, so finishing on what is left
+  // in the folder would choose for the user. Only take settles it.
   const left = files.filter(
     (file) =>
       !(held.get(file)?.has('2') && held.get(file)?.has('3')) ||
+      binary(git, file) ||
       (existsSync(join(root, file)) && hasClash(readFileSync(join(root, file), 'utf8'))),
   )
   if (left.length) return { kind: 'clashes', files: left }

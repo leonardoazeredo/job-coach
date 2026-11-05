@@ -255,6 +255,23 @@ describe('mergeEngine and finishUpdate', () => {
     expect(existsSync(join(work(), 'docs/guide.md'))).toBe(false)
   })
 
+  it('waits for a choice on a binary file both sides changed', () => {
+    cloned({ 'assets/logo.bin': 'a\0base\n' })
+    userCommit({ 'assets/logo.bin': 'a\0mine\n' }, 'Saved: logo')
+    engineCommit({ 'assets/logo.bin': 'a\0new\n' }, 'New logo')
+    const git = gitOf()
+    engineChanges(git, opts())
+    expect(mergeEngine(git, opts())).toEqual({ kind: 'clashes', files: ['assets/logo.bin'] })
+    const { run } = runner()
+    expect(finishUpdate(work(), git, { run })).toEqual({
+      kind: 'clashes',
+      files: ['assets/logo.bin'],
+    })
+    expect(takeSide(git, 'theirs', 'assets/logo.bin')).toEqual({ kind: 'taken', left: [] })
+    expect(finishUpdate(work(), git, { run })).toEqual({ kind: 'updated' })
+    expect(read('assets/logo.bin')).toBe('a\0new\n')
+  })
+
   it('leaves a clash in a guide whole, settling no line of it alone', () => {
     cloned({ 'docs/guide.md': 'Step: one\nThen: two\n' })
     userCommit({ 'docs/guide.md': 'Step: mine\nThen: two\n' }, 'Saved: guide')
