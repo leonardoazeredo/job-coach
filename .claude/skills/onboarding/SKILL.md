@@ -42,8 +42,8 @@ Ask: "Paste your CV or LinkedIn text, or give me a PDF path." For a PDF, read it
 Draft, from that source only, one file at a time:
 
 1. `profile/history.yaml`: one entry per role, newest first, with `id`, `company` and the `public` block. Titles, dates and employment type are the public labels. Ask about one unclear date or title per reply.
-2. `profile/stack.yaml`: core, secondary, past and tools, sorted by depth. Technologies the CV shows only briefly go to `secondary` or `past` with `roles` and `claim_as` limits. Ask one thing for `do_not_claim`: "What work would a recruiter for your kind of role assume you have done, that you have not?" Where the source names a tool only generically ("the route-planning package"), ask its name, one tool per reply; a name the user cannot give stays generic in the file, and you say so.
-3. `cv/master.json`: bullets reworded only from what the source says, metrics exactly as in the source.
+2. `profile/stack.yaml`: core, secondary, past and tools, sorted by depth. Technologies the CV shows only briefly go to `secondary` or `past` with `roles` and `claim_as` limits. Ask one thing for `do_not_claim`: "What work would a recruiter for your kind of role assume you have done, that you have not?" Write each pattern to catch the claim itself; a refusal that names a line of the CV means the pattern also catches something true, so narrow it and draft again. Where the source names a tool only generically ("the route-planning package"), ask its name, one tool per reply; a name the user cannot give stays generic in the file, and you say so.
+3. `cv/master.json`: the headline as the source writes it (asked for when the source has none), bullets reworded only from what the source says, metrics exactly as in the source.
 4. `profile/wins.yaml`: candidate wins from the bullets, each `status: proposed`, `metric: "Not specified"` unless the source states one. `check.ts` needs this file to exist, and the board lists step 4 while any win is `proposed`. Never mention that listing, or a reminder it stands for, to the user.
 
 Done when the four files exist and each person-fact in them traces to the pasted source or an answer.

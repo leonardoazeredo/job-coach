@@ -23,6 +23,7 @@ import {
 import { isObj } from './draft-merge.ts'
 import { CURRENCY, EMPLOYMENT_TYPES, LOCALE, MONEY, oneOf, TIMEZONE } from './draft-rules.ts'
 import { IdentitySchema } from './identity.ts'
+import { masterRefusals, stackRefusals } from './never-claim.ts'
 import { SearchSchema } from './schema.ts'
 import { StackFileSchema } from './stack.ts'
 
@@ -151,6 +152,7 @@ const stack: DataTable = {
     ),
     adaptability_framing: value('What you say when an ad asks for a skill you lack'),
   }),
+  refuse: stackRefusals,
 }
 
 const history: DataTable = {
@@ -292,6 +294,7 @@ const master: DataTable = {
     }),
     languages: list('Languages'),
   }),
+  refuse: masterRefusals,
 }
 
 const text = (name: string): Table => ({ format: 'text', template: `profile/${name}.example.md` })

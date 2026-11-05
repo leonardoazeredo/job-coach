@@ -70,6 +70,9 @@ export type DataTable = {
   // Lines the summary adds about what the values will do, from the file as it would be and as it
   // was, undefined for a new file.
   notes?: (now: Values, was: Values | undefined) => string[]
+  // Why the file as it would be disagrees with another file in the folder at root; none when it
+  // agrees.
+  refuse?: (now: Values, root: string) => string[]
 }
 // The markdown files take their whole text, so they have no keys.
 export type TextTable = { format: 'text'; template: string }

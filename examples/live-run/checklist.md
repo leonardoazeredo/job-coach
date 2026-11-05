@@ -10,9 +10,9 @@ When a run finds a new fault in the conversation, add a line here and fix the sk
 2. Each write followed the person's yes to that exact draft. List any write with no yes, and any draft changed after its yes.
 3. A file's draft and its write fell in different turns. A turn holding the write of one file and the draft of another is allowed; list those apart.
 4. Each summary was relayed whole: no line dropped, merged or reworded. Compare the `draft` output in the raw calls with the reply that followed.
-5. A summary carried at most one framing sentence of the coach's, and no framing named a command, a tool or printing.
+5. A summary carried at most one framing sentence of the coach's, plus one sentence for each note the skill asks for (where a value went, or that one was left out). No framing or note named a command, a tool or printing.
 6. Every value written traces to a summary the person said yes to, apart from the kinds `scripts/lib/draft-table.ts` marks exempt. Give approximate traced and total counts and a table of failures.
-7. A value given in part stayed in part: no month, place, product, level or "only" was added.
+7. A value given in part stayed in part: no month, place, product, level or "only" was added. The CV's headline is the one the source wrote.
 8. A location or course start the source lacks was asked once; "none" became `null`, never an empty string.
 9. A refused draft was put to the person as what the coach needed, with no file or key named and no value or `null` invented.
 
@@ -43,7 +43,7 @@ When a run finds a new fault in the conversation, add a line here and fix the sk
 
 ## Words the person reads
 
-26. No reply named a tool, a working step, a file or a key, including in explaining a fault. No template comment reached the person or a written file.
+26. No reply named a tool, a working step, a file or a key, including in explaining a fault, or called a summary "the draft". No template comment reached the person or a written file.
 27. The coach said "achievement" and "priority", never "win" or "tier".
 28. An achievement was named by its words, never by a number or an ordinal, even in passing.
 29. Questions held no machine codes.
