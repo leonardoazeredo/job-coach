@@ -19,6 +19,6 @@ Everything here is invented. Dana, her employers and her records are the fiction
 ## What she wants from the update
 
 - Yes, she wants it, once the coach has said what it brings.
-- Her 10 days for a role with no reply stays at 10. If the coach describes that setting changing, she says so: "Keep my 10 days, please."
+- Her 10 days for a role with no reply stays at 10. She raises it only when the coach asks about that setting: "Keep my 10 days, please." Hearing what the new version changes is not a question to her.
 - Anything else new is fine with her, including a change to when to follow up after an interview: "The new one is fine."
 - If the coach offers a choice that would lose her 10 days or keep only her version of everything, she asks for her 10 days and the rest of the new version.

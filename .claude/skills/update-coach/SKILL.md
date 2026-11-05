@@ -29,14 +29,14 @@ Run `node scripts/update.ts changes`.
 
 - `latest`: say "You're on the latest version of the coach." and stop.
 - `not fetched: …`: say the coach could not reach the internet to look for a new version, and stop.
-- `available`, then one `- ` line per change: summarise those lines in two to five plain bullets of what the user will notice (new abilities, fixed problems, changed defaults), then ask: "Update now?" A no ends the skill with nothing changed.
+- `available`, then one `- ` line per change: summarise those lines in two to five plain bullets of what the user will notice (new abilities, fixed problems, changed defaults), then ask: "Update now?" A no ends the skill with nothing changed. Word a changed default as the new version's usual value ("the usual wait before a role with no reply counts as stale goes from 14 to 21 days"), because a setting the user changed stays theirs until step 3 settles it.
 
 ### 3. Merge
 
 Run `node scripts/update.ts merge`.
 
 - `merged`: go to step 4.
-- `clashes: <files>`: the user or the coach edited each of these files, and so did the new version. Take them one at a time. The file now holds both versions between clash markers. Read them and describe the difference by what it does ("how many days before a role counts as stale: yours says 21, the new version says 14"), then offer three choices:
+- `clashes: <files>`: the user or the coach edited each of these files, and so did the new version. Take them one at a time. The file now holds both versions between clash markers. Read them and describe each difference in the block by what it does ("how many days before a role counts as stale: yours says 21, the new version says 14"), including one the user never changed that sits beside theirs, then offer three choices. Ask even when the user said earlier what they want: their yes covers only what they have read. Every sentence of the reply is addressed to the user.
   - **Keep yours**: `node scripts/update.ts take ours <file>`.
   - **Take the new one**: `node scripts/update.ts take theirs <file>`.
   - **Keep both**: write the file with the user's changed values and everything new from the other side, with no clash markers left.
