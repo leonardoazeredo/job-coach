@@ -43,7 +43,7 @@ After `merged` or `clashes:` may come `- settled <file>, from yours: <line>` or 
   - **Take the new one**: `node scripts/update.ts take theirs <file>`.
   - **Keep both**: write the file with the user's changed values and everything new from the other side, with no clash markers left.
 
-  A file one side removed holds no markers. Describe it as "you changed it, and the new version removes it" (or the other way round) and offer only the first two choices.
+  A file one side removed holds no markers. Describe it as "you changed it, and the new version removes it" (or the other way round) and offer only the first two choices. So does a file that is not text, such as an image: say "you changed it, and so did the new version", and offer the same two.
 
   Each `take` prints the clashes still left. Once every file is settled, go to step 4.
 - `not merged: …` or `not fetched: …`: say in one line that the update could not start and nothing changed.
@@ -55,7 +55,7 @@ If the user wants to stop at any point before step 4, run `node scripts/update.t
 Run `node scripts/update.ts finish`. It saves the update, installs the coach's tools when they changed, and checks the records.
 
 - `updated`: go to step 5.
-- `clashes left: <files>`: a file is still unsettled, because it holds clash markers or one side removed it and no choice was taken. Settle it as in step 3 and run `finish` again.
+- `clashes left: <files>`: a file is still unsettled, because it holds clash markers, or is not text or was removed by one side, and no choice was taken. Settle it as in step 3 and run `finish` again.
 - `not committed: …`: the update was cancelled and nothing changed. Say so in one line.
 - `undone: …`: the new version did not work with this folder, so everything was put back. Say so in one line and offer to write a short problem report for the coach's authors from the check's output.
 - `not undone: …`: the new version did not work with this folder and could not be taken back out. Say so in one line, say their information is safe in this folder's history, and offer to write a problem report for the coach's authors from the output. Change no file until the user answers.
