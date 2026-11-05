@@ -44,8 +44,9 @@ const startEngine = () => {
   commitAll(upstream(), 'Engine', { GIT_AUTHOR_DATE: past, GIT_COMMITTER_DATE: past })
 }
 // A folder that already shares history with the engine, as after its first update.
-const cloned = () => {
+const cloned = (engineFiles: Record<string, string> = {}) => {
   startEngine()
+  if (Object.keys(engineFiles).length) engineCommit(engineFiles, 'More engine')
   g(dir, 'clone', '-q', upstream(), work())
   identify(work())
   userCommit(DATA, 'Saved: profile')
@@ -174,6 +175,37 @@ describe('mergeEngine and finishUpdate', () => {
     engineChanges(git, opts())
     mergeEngine(git, opts())
     expect(read('config/rules.yaml')).toContain('||||||| before\nstale_after_days: 14\n')
+  })
+
+  // In the third live update run, taking the user's whole file took back the new follow-up value
+  // the coach had just told her she would get.
+  const besideTheirs = () => {
+    cloned({ 'config/two.yaml': 'stale: 14\nfollow: 5\n' })
+    userCommit({ 'config/two.yaml': 'stale: 10\nfollow: 5\n' }, 'Saved: settings')
+    engineCommit({ 'config/two.yaml': 'stale: 21\nfollow: 3\n' }, 'New defaults')
+    const git = gitOf()
+    engineChanges(git, opts())
+    mergeEngine(git, opts())
+    return git
+  }
+
+  it('narrows a clash to the lines both sides changed', () => {
+    besideTheirs()
+    expect(read('config/two.yaml')).toBe(
+      '<<<<<<< yours\nstale: 10\n||||||| before\nstale: 14\n=======\nstale: 21\n>>>>>>> new version\nfollow: 3\n',
+    )
+  })
+
+  it('keeps the new value beside a clash when the user keeps theirs', () => {
+    const git = besideTheirs()
+    expect(takeSide(git, 'ours', 'config/two.yaml')).toEqual({ kind: 'taken', left: [] })
+    expect(read('config/two.yaml')).toBe('stale: 10\nfollow: 3\n')
+  })
+
+  it('takes only the clashing lines from the new version', () => {
+    const git = besideTheirs()
+    takeSide(git, 'theirs', 'config/two.yaml')
+    expect(read('config/two.yaml')).toBe('stale: 21\nfollow: 3\n')
   })
 
   it('accepts a file the coach wrote by hand once no clash marker is left in it', () => {

@@ -5,6 +5,7 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { hasClash, narrow, settle } from './clash.ts'
 import { ENGINE, ENGINE_URL, type Git, gitHubRepo, output } from './history.ts'
 import { fallbackCommitter } from './save.ts'
 import { type Run, recordCheck, runIn } from './update.ts'
@@ -146,7 +147,11 @@ const showStart = (git: Git, first: boolean) => {
       ]
       const shown = git(['merge-file', '-p', '--diff3', ...LABELS, ...sides])
       // merge-file exits with the number of clashes it left; only a signal or 255 is a failure.
-      if (shown.status !== null && shown.status < 128) writeFileSync(join(top, file), shown.stdout)
+      if (shown.status === null || shown.status >= 128) continue
+      const narrowed = narrow(shown.stdout)
+      writeFileSync(join(top, file), narrowed)
+      // Every line was changed on one side only, so nothing is left to ask about.
+      if (!hasClash(narrowed)) git(['add', '--', file])
     }
   } finally {
     rmSync(scratch, { recursive: true, force: true })
@@ -181,11 +186,16 @@ export type TakeResult =
 export const takeSide = (git: Git, side: 'ours' | 'theirs', file: string): TakeResult => {
   if (!inMerge(git)) return { kind: 'no-merge' }
   if (!unmerged(git).includes(file)) return { kind: 'not-clashing' }
-  resolve(git, side, file)
+  const path = join(git(['rev-parse', '--show-toplevel']).stdout.trim(), file)
+  const text = existsSync(path) ? readFileSync(path, 'utf8') : ''
+  // Only the clash blocks are the user's choice; the rest of the file already holds both sides'
+  // changes. A file one side removed has no blocks and is taken whole.
+  if (hasClash(text)) {
+    writeFileSync(path, settle(text, side))
+    git(['add', '--', file])
+  } else resolve(git, side, file)
   return { kind: 'taken', left: unmerged(git) }
 }
-
-const MARKER = /^(<{7}|>{7}|\|{7})( |$)|^={7}$/m
 
 // Unmerged paths with the git stage numbers each still holds (1 base, 2 ours, 3 theirs).
 const stages = (git: Git): Map<string, Set<string>> => {
@@ -220,7 +230,7 @@ export const finishUpdate = (root: string, git: Git, opts: FinishOptions = {}): 
   const left = files.filter(
     (file) =>
       !(held.get(file)?.has('2') && held.get(file)?.has('3')) ||
-      (existsSync(join(root, file)) && MARKER.test(readFileSync(join(root, file), 'utf8'))),
+      (existsSync(join(root, file)) && hasClash(readFileSync(join(root, file), 'utf8'))),
   )
   if (left.length) return { kind: 'clashes', files: left }
   // Each clash still listed now holds both sides merged into one file, or is gone.
