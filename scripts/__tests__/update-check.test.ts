@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
-import { checkForUpdate, SourceFault } from '../lib/update.ts'
+import { checkForUpdate, DAY_MS, SourceFault } from '../lib/update.ts'
 import {
   DATA,
   NEW_ENGINE,
@@ -184,10 +184,46 @@ describe('checkForUpdate sources', () => {
     const at = (sha: string) =>
       checkForUpdate(work(), {
         now,
-        source: source({ latestCommit: async () => sha }),
+        // A day after this folder's first commit: a clone missing it is behind the engine.
+        source: source({
+          latestCommit: async () => ({ sha, date: new Date(Date.now() + DAY_MS).toISOString() }),
+        }),
         force: true,
       })
     expect(await at(head)).toBe('latest')
     expect(await at('1'.repeat(40))).toBe('available')
+  })
+
+  // A copy made with "Use this template" starts its own history, so it never holds the engine's
+  // commit; the engine is newer only when its latest commit came after the copy was made.
+  it('offers nothing to a template copy until the engine changes after it was made', async () => {
+    put(work(), OLD_ENGINE)
+    const made = '2026-10-02T09:00:00Z'
+    const git = (...args: string[]) =>
+      execFileSync('git', ['-C', work(), ...args], {
+        encoding: 'utf8',
+        env: { ...process.env, GIT_AUTHOR_DATE: made, GIT_COMMITTER_DATE: made },
+      }).trim()
+    git('init', '-q')
+    git('add', '.')
+    git(
+      '-c',
+      'user.name=T',
+      '-c',
+      'user.email=t@example.com',
+      'commit',
+      '-q',
+      '-m',
+      'Initial commit',
+    )
+    const at = (date: string) =>
+      checkForUpdate(work(), {
+        now,
+        source: source({ latestCommit: async () => ({ sha: '1'.repeat(40), date }) }),
+        force: true,
+      })
+    expect(await at('2026-10-01T09:00:00Z')).toBe('latest')
+    expect(await at(made)).toBe('latest')
+    expect(await at('2026-10-10T09:00:00Z')).toBe('available')
   })
 })

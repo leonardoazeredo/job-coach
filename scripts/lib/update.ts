@@ -36,8 +36,8 @@ export class SourceFault extends Error {
 // latestCommit and latestFiles throw SourceFault when GitHub cannot be reached or read, so a
 // failure is never mistaken for "nothing new".
 export type EngineSource = {
-  // The newest commit on the engine's main branch.
-  latestCommit: () => Promise<string>
+  // The newest commit on the engine's main branch, and when it was committed (ISO 8601).
+  latestCommit: () => Promise<{ sha: string; date: string }>
   // The git blob id of every file on the engine's main branch, by path.
   latestFiles: () => Promise<Map<string, string>>
   // Unpacks the newest engine into dest and returns the folder that holds it.
@@ -65,7 +65,10 @@ const api = async (path: string): Promise<unknown> => {
   }
 }
 
-const CommitSchema = z.object({ sha: z.string() })
+const CommitSchema = z.object({
+  sha: z.string(),
+  commit: z.object({ committer: z.object({ date: z.string() }) }),
+})
 const TreeSchema = z.object({
   tree: z.array(z.object({ path: z.string(), type: z.string(), sha: z.string() })),
 })
@@ -74,7 +77,7 @@ export const gitHubEngine: EngineSource = {
   latestCommit: async () => {
     const body = CommitSchema.safeParse(await api('commits/main'))
     if (!body.success) throw new SourceFault('unexpected')
-    return body.data.sha
+    return { sha: body.data.sha, date: body.data.commit.committer.date }
   },
   latestFiles: async () => {
     const body = TreeSchema.safeParse(await api('git/trees/main?recursive=1'))
@@ -199,11 +202,16 @@ export const checkForUpdate = async (root: string, opts: CheckOptions): Promise<
 }
 
 const checkClone = async (git: Git, source: EngineSource): Promise<CheckResult> => {
-  const sha = await source.latestCommit()
-  // A commit this folder does not have cannot be confirmed as in HEAD's history: the folder is
-  // behind it, has diverged, or is a shallow clone. All are reported as available.
-  if (git(['cat-file', '-e', `${sha}^{commit}`]).status !== 0) return 'available'
-  return git(['merge-base', '--is-ancestor', sha, 'HEAD']).status === 0 ? 'latest' : 'available'
+  const { sha, date } = await source.latestCommit()
+  if (git(['cat-file', '-e', `${sha}^{commit}`]).status === 0)
+    return git(['merge-base', '--is-ancestor', sha, 'HEAD']).status === 0 ? 'latest' : 'available'
+  // A copy made with "Use this template" starts its own history and never holds the engine's
+  // commit, so an engine commit no newer than the folder's first one was already in the copy.
+  // A clone's first commit is the engine's oldest, so a clone missing the commit (behind it,
+  // diverged or shallow) is still reported as available.
+  const root = git(['rev-list', '--max-parents=0', 'HEAD']).stdout.split('\n')[0] ?? ''
+  const made = Date.parse(git(['log', '-1', '--format=%cI', root]).stdout.trim())
+  return Date.parse(date) <= made ? 'latest' : 'available'
 }
 
 const checkCopy = async (root: string, source: EngineSource): Promise<CheckResult> => {
