@@ -190,6 +190,13 @@ const HISTORY_STEPS: Record<string, { step: Step; takesArgs: boolean }> = {
   cancel: { step: cancelStep, takesArgs: false },
 }
 
+// Looked up among the steps alone, so a name such as "constructor" is not one.
+const historyStep = (sub: string, rest: string[]): Step | undefined => {
+  if (!Object.hasOwn(HISTORY_STEPS, sub)) return undefined
+  const found = HISTORY_STEPS[sub]
+  return found && (found.takesArgs || rest.length === 0) ? found.step : undefined
+}
+
 const printZip = (result: ZipResult): number => {
   switch (result.kind) {
     case 'latest':
@@ -240,10 +247,10 @@ export const updateCommand = async (
     return 0
   }
   const git = gitIn(root, deps.path)
-  const history = Object.hasOwn(HISTORY_STEPS, sub) ? HISTORY_STEPS[sub] : undefined
-  if (history && (history.takesArgs || rest.length === 0)) {
+  const step = historyStep(sub, rest)
+  if (step) {
     return git
-      ? history.step(git, root, rest, deps)
+      ? step(git, root, rest, deps)
       : refuse('this folder keeps no history; update it with zip')
   }
   if (sub !== 'zip' || rest.length > 0) {
