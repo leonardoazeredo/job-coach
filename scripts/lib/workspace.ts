@@ -16,7 +16,7 @@ import {
   type HistoryRole,
   type RequirementsFile,
 } from './cv-schema.ts'
-import { todayIn } from './dates.ts'
+import { isLanguageTag, isTimezone, todayIn } from './dates.ts'
 import { type Discovery, discovery as discoveryOver } from './discovery.ts'
 import { type Identity, IdentitySchema, pdfFileName } from './identity.ts'
 import { type OnboardingSection, onboardingStatus } from './onboarding.ts'
@@ -219,22 +219,17 @@ const todayOf = (
   const file = 'profile/identity.yaml'
   const { identity: id, problems } = read
   if (!id) return { today: undefined, problems }
-  try {
-    Intl.getCanonicalLocales(id.locale)
-  } catch {
+  if (!isLanguageTag(id.locale))
     return {
       today: undefined,
       problems: [error(file, `locale "${id.locale}" is not a language tag`)],
     }
-  }
-  try {
-    return { today: todayIn(id.location.timezone, now, id.locale), problems }
-  } catch {
+  if (!isTimezone(id.location.timezone))
     return {
       today: undefined,
       problems: [error(file, `location.timezone "${id.location.timezone}" is not a timezone`)],
     }
-  }
+  return { today: todayIn(id.location.timezone, now, id.locale), problems }
 }
 
 type CheckedRules = { sr: StatusRules | undefined; problems: Problem[] }

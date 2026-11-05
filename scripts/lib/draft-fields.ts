@@ -8,6 +8,10 @@ import { NOT_SPECIFIED } from './not-specified.ts'
 // exempt: kept or given, never shown in a summary.
 export type Kind = 'sample' | 'default' | 'exempt'
 
+// What a value must be, checked only when a draft gives it. `needs` finishes the sentence
+// "<label> needs ...".
+export type Rule = { holds: (v: unknown) => boolean; needs: string }
+
 // `later` marks a key the template leaves out because a later step adds it.
 type Common = { label: string; kind: Kind; later?: true }
 // A value a summary words rather than repeats: a pay in the draft's currency, a job id as the
@@ -21,6 +25,7 @@ export type ValueField = Common & {
   standIn?: { text: string; says: string }
   // Words for fixed values the file keeps as codes a person would not say.
   words?: Record<string, string>
+  rule?: Rule
 }
 // A list without an id key: given, it replaces the whole list. `item` frames object items.
 // `as` reads its entries as job ids or as level names; `note` is said once beneath the list.
@@ -29,6 +34,8 @@ export type ListField = Common & {
   item?: { frame: string; fields: Shape }
   as?: 'job' | 'level'
   note?: string
+  // Holds for each entry.
+  rule?: Rule
 }
 // A list whose items carry an id key: given items merge into it by that key. A string item is
 // its own id. `open` lets an item hold keys the template does not name.
@@ -53,11 +60,16 @@ export type GroupField = { t: 'group'; fields: Shape; open?: true; later?: true 
 export type Field = ValueField | ListField | ItemsField | EntriesField | GroupField
 export type Shape = Record<string, Field>
 
+type Values = Record<string, unknown>
+
 export type DataTable = {
   format: 'yaml' | 'json'
   template: string
   root: GroupField
   schema?: ZodType
+  // Lines the summary adds about what the values will do, from the file as it would be and as it
+  // was, undefined for a new file.
+  notes?: (now: Values, was: Values | undefined) => string[]
 }
 // The markdown files take their whole text, so they have no keys.
 export type TextTable = { format: 'text'; template: string }
@@ -103,6 +115,10 @@ export const entries = (
   ...(levels ? { levels: true } : {}),
 })
 export const later = <F extends Field>(field: F): F => ({ ...field, later: true })
+export const ruled = <F extends ValueField | ListField>(field: F, rule: Rule): F => ({
+  ...field,
+  rule,
+})
 // A summary words this value instead of repeating it.
 export const reading = (field: ValueField, as: Reading): ValueField => ({ ...field, as })
 export const wording = (field: ValueField, words: Record<string, string>): ValueField => ({

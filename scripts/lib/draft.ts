@@ -174,7 +174,7 @@ const shapeData = (target: Target, input: Obj, open: () => Workspace): Shaped =>
       fresh ? undefined : base,
       merged.data,
       renderFor({ root, file }, { now: merged.data, was: fresh ? undefined : base }, open),
-    ),
+    ).concat(table.notes?.(merged.data, fresh ? undefined : base) ?? []),
   }
 }
 

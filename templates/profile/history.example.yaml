@@ -10,7 +10,7 @@ roles:
     company: CHANGE_ME Company
     public:
       title: CHANGE_ME Title as you want it shown
-      employment_type: permanent # CHANGE_ME
+      employment_type: permanent # CHANGE_ME one of permanent, contract, fixed-term, part-time, freelance, self-employed, internship
       start: 2020-01             # CHANGE_ME year-month
       end: 2022-01               # CHANGE_ME year-month; use "present" for a current role
       location: CHANGE_ME Place      # as the source gives it, with nothing added; remove this line if it gives none
