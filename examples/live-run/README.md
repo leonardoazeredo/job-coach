@@ -34,3 +34,12 @@ It needs Docker and a Claude Code token in `CLAUDE_CODE_OAUTH_TOKEN`. Give the t
 > Read `examples/live-run/checklist.md` and report on every line. Your evidence is the persona's brief (`examples/personas/leeds-transport-planner.md`), `<run-dir>/transcript.md`, `<run-dir>/written/` and, for tool calls, `<run-dir>/raw/turn<n>.jsonl` (large: use grep or targeted reads). You may read the engine's rule text and templates to understand a line, but judge what the coach did, not what its files say. T<n> means the persona's n-th message and the coach reply that follows it. Read no earlier run, and not the player's reasoning.
 >
 > Every quote must be exact, because it will be spot-checked. Write the full report to `<run-dir>/judge-report.txt`, with a verdict line per checklist line at the top. Send back the path and those verdict lines.
+
+## An update run
+
+The same kind of proof for `update-coach` in a folder that keeps history. The fictional Dana Okafor (`examples/austin-backend`) has a copy made from this checkout's HEAD with one setting of her own, and updates to a local engine one version ahead that changed the same setting. It takes a few turns and costs well under $1.
+
+1. Commit the change. Run `examples/live-run/start-update.sh <run-dir>` with the token in its environment, with a new folder outside this checkout as `<run-dir>`. It builds the copy and the engine, starts the container and installs the coach's packages.
+2. Start one agent with the player's brief above, with `examples/personas/austin-update.md` as the brief to read and no nudge: drop the "Once only" paragraph. When it stops, it runs `examples/live-run/finish-update.sh <run-dir>` in place of `finish.sh`.
+3. Start a different agent with the judge's brief above, with `examples/live-run/update-checklist.md` as the checklist and `examples/personas/austin-update.md` as the persona's brief.
+4. Read the report and spot-check its quotes, as above.

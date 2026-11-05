@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
-import { gitIn } from '../lib/history.ts'
+import { ENGINE_URL, gitIn } from '../lib/history.ts'
 import { EXIT } from '../lib/problem.ts'
 import {
   cancelUpdate,
@@ -87,6 +87,17 @@ describe('engineChanges', () => {
     const result = engineChanges(gitOf(), opts())
     expect(result.kind).toBe('available')
     expect(g(work(), 'remote', 'get-url', 'upstream')).toBe(upstream())
+  })
+
+  // A rewrite stands in for GitHub here, and also covers a user whose git rewrites GitHub
+  // addresses: the remote is known by the address it was given, not by where git sends it.
+  it('knows the engine by the address it was given, however git rewrites it', () => {
+    templated()
+    engineCommit({ 'CLAUDE.md': 'new prompt\n' }, 'Sharper prompt')
+    g(work(), 'config', `url.${upstream()}.insteadOf`, ENGINE_URL)
+    g(work(), 'remote', 'add', 'upstream', ENGINE_URL)
+    expect(engineChanges(gitOf()).kind).toBe('available')
+    expect(g(work(), 'remote')).toBe('upstream')
   })
 
   it('says latest for a template copy the engine has not changed since', () => {

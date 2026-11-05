@@ -10,12 +10,15 @@ import { type Run, recordCheck, runIn } from './update.ts'
 
 export type GitUpdateOptions = { url?: string | undefined }
 
+// Each remote's address as configured. `git remote -v` shows it after any insteadOf rewrite,
+// which would hide that a rewritten remote is the engine and add a second one.
 const fetchRemotes = (git: Git): [string, string][] =>
-  git(['remote', '-v'])
-    .stdout.split('\n')
-    .map((line) => line.split(/\s+/))
-    .filter((cells) => cells[2] === '(fetch)')
-    .map(([name = '', url = '']) => [name, url])
+  lines(git(['config', '--get-regexp', '^remote\\..*\\.url$']).stdout).flatMap(
+    (line): [string, string][] => {
+      const match = line.match(/^remote\.(.+)\.url (.+)$/)
+      return match?.[1] && match[2] ? [[match[1], match[2]]] : []
+    },
+  )
 
 const engineRemote = (git: Git, url: string): string | undefined =>
   fetchRemotes(git).find(([, u]) => u === url || gitHubRepo(u) === ENGINE)?.[0]

@@ -48,4 +48,11 @@ describe('the live run', () => {
     expect(named.length).toBeGreaterThan(0)
     for (const m of named) expect(existsSync(join(dir, m[1] ?? '')), m[0]).toBe(true)
   })
+
+  it('holds every persona brief its instructions name', () => {
+    const text = readFileSync(join(dir, 'README.md'), 'utf8')
+    const named = [...text.matchAll(/examples\/personas\/([\w.-]+)/g)]
+    expect(named.length).toBeGreaterThan(0)
+    for (const m of named) expect(briefs, m[0]).toContain(m[1])
+  })
 })

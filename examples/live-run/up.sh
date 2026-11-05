@@ -5,7 +5,11 @@
 set -eu
 : "${CLAUDE_CODE_OAUTH_TOKEN:?run this with the token in the environment}"
 RUN=$(cd "$1" && pwd)
+# An update run carries the engine version it updates to (start-update.sh).
+ENGINE=()
+[ -d "$RUN/engine" ] && ENGINE=(-v "$RUN/engine":/engine:ro)
 docker run -d --name "coach-live-run-$(basename "$RUN")" -e CLAUDE_CODE_OAUTH_TOKEN \
+  "${ENGINE[@]+"${ENGINE[@]}"}" \
   -v "$RUN/copy":/w -v "$RUN/claudehome":/home/node/.claude \
   -v "$RUN/tmpd":/tmp -v "$RUN/cachehome":/home/node/.cache -w /w \
   coach-live-run sleep infinity >/dev/null
