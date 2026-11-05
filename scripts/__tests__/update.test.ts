@@ -110,6 +110,7 @@ describe('updateFromArchive', () => {
 describe('isEngineFile', () => {
   it('keeps the data folders and local state out, except the engine READMEs and templates', () => {
     expect(isEngineFile('scripts/check.ts')).toBe(true)
+    expect(isEngineFile('.claude/skills/onboarding/prerequisites.md')).toBe(true)
     expect(isEngineFile('pipeline/README.md')).toBe(true)
     expect(isEngineFile('pipeline/_templates/record.yaml')).toBe(true)
     expect(isEngineFile('experience-bank/README.md')).toBe(true)

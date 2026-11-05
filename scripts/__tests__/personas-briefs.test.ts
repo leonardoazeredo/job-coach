@@ -1,6 +1,6 @@
 // The persona briefs are raw input for live onboarding runs, so each one has to say it is
 // fictional; only the non-developer brief is meant to answer every onboarding question.
-import { readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { repoRoot } from '../lib/workspace.ts'
@@ -34,5 +34,18 @@ describe('persona briefs', () => {
     ]) {
       expect(text).toContain(heading)
     }
+  })
+})
+
+// Guards drift: the run's instructions name scripts that must ship beside them.
+describe('the live run', () => {
+  const dir = join(repoRoot(), 'examples', 'live-run')
+
+  it('holds every file its instructions name', () => {
+    const named = [
+      ...readFileSync(join(dir, 'README.md'), 'utf8').matchAll(/examples\/live-run\/([\w.-]+)/g),
+    ]
+    expect(named.length).toBeGreaterThan(0)
+    for (const m of named) expect(existsSync(join(dir, m[1] ?? '')), m[0]).toBe(true)
   })
 })
