@@ -25,6 +25,12 @@ describe('parseEvents', () => {
     expect(eventErrors).toEqual(['events.md line 9: expected 5 columns, found 2'])
   })
 
+  it('reports a header whose first column is not Date, and still reads the rows under it', () => {
+    const { events, eventErrors } = parseEvents(sample.replace('| Date |', '| When |'))
+    expect(eventErrors).toEqual(['events.md line 5: the first column must be Date, found "When"'])
+    expect(events).toHaveLength(2)
+  })
+
   it('finds the newest full date and ignores month-only dates', () => {
     const { events } = parseEvents(`${sample}| 2026-11 |  | Other |  | chat |\n`)
     expect(newestEventDate(events)).toBe('2026-10-03')
