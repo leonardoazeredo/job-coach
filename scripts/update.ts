@@ -45,6 +45,7 @@ import {
   engineChanges,
   finishUpdate,
   mergeEngine,
+  type Settled,
   takeSide,
 } from './lib/update-git.ts'
 import { repoRoot } from './lib/workspace.ts'
@@ -113,14 +114,26 @@ const changesStep: Step = (git, _root, _args, deps) => {
   return 0
 }
 
+// One line per value taken inside a clash without asking, for the coach to tell the user.
+const printSettled = (settled: Settled[] = []): number => {
+  for (const s of settled)
+    console.log(
+      `- settled ${s.file}, from ${s.from === 'yours' ? 'yours' : 'the new version'}: ${s.line.trim()}`,
+    )
+  return 0
+}
+
 const mergeStep: Step = (git, _root, _args, deps) => {
   const result = mergeEngine(git, { url: deps.engineUrl })
   switch (result.kind) {
     case 'latest':
-    case 'merged':
       return say(0, result.kind)
+    case 'merged':
+      say(0, result.kind)
+      return printSettled(result.settled)
     case 'clashes':
-      return say(0, `clashes: ${result.files.join(', ')}`)
+      say(0, `clashes: ${result.files.join(', ')}`)
+      return printSettled(result.settled)
     case 'not-fetched':
       return say(EXIT.problems, 'not fetched: nothing has been fetched yet; run changes first')
     case 'not-merged':

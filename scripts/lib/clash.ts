@@ -76,6 +76,8 @@ const print = (parts: Part[]): string =>
     )
     .join('\n')
 
+export type SettledLine = { from: 'yours' | 'new version'; line: string }
+
 // The line a clash settles to when one side left it as it started, or both made the same change;
 // undefined when the two sides changed it differently.
 const settledLine = (ours: string, before: string, theirs: string): string | undefined => {
@@ -86,7 +88,7 @@ const settledLine = (ours: string, before: string, theirs: string): string | und
 // Line by line where the three parts line up: a line one side left as it started takes the other
 // side's line, and only a line both sides changed stays a clash. Blocks that do not line up, or
 // that carry no starting lines, are left whole for the coach.
-const narrowBlock = (b: Block): Part[] => {
+const narrowBlock = (b: Block, settled: SettledLine[]): Part[] => {
   const start = b.start
   if (!start || b.ours.length !== start.length || b.theirs.length !== start.length) return [b]
   const out: Part[] = []
@@ -94,10 +96,12 @@ const narrowBlock = (b: Block): Part[] => {
   b.ours.forEach((ours, i) => {
     const before = start[i] ?? ''
     const theirs = b.theirs[i] ?? ''
-    const settled = settledLine(ours, before, theirs)
-    if (settled !== undefined) {
+    const line = settledLine(ours, before, theirs)
+    if (line !== undefined) {
       open = undefined
-      out.push(settled)
+      out.push(line)
+      // A line both sides changed the same way was never a choice, so it is not reported.
+      if (ours !== theirs) settled.push({ from: line === ours ? 'yours' : 'new version', line })
       return
     }
     if (!open) {
@@ -111,8 +115,12 @@ const narrowBlock = (b: Block): Part[] => {
   return out
 }
 
-export const narrow = (text: string): string =>
-  print(parse(text).flatMap((p) => (typeof p === 'string' ? [p] : narrowBlock(p))))
+// The narrowed text, and each line settled from one side, for the coach to tell the user.
+export const narrow = (text: string): { text: string; settled: SettledLine[] } => {
+  const settled: SettledLine[] = []
+  const parts = parse(text).flatMap((p) => (typeof p === 'string' ? [p] : narrowBlock(p, settled)))
+  return { text: print(parts), settled }
+}
 
 export const settle = (text: string, side: 'ours' | 'theirs'): string =>
   print(parse(text).flatMap((p) => (typeof p === 'string' ? [p] : p[side])))

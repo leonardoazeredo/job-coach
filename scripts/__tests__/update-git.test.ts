@@ -185,25 +185,29 @@ describe('mergeEngine and finishUpdate', () => {
     engineCommit({ 'config/two.yaml': 'stale: 21\nfollow: 3\n' }, 'New defaults')
     const git = gitOf()
     engineChanges(git, opts())
-    mergeEngine(git, opts())
-    return git
+    return { git, merged: mergeEngine(git, opts()) }
   }
 
-  it('narrows a clash to the lines both sides changed', () => {
-    besideTheirs()
+  it('narrows a clash to the lines both sides changed, and lists the lines it settled', () => {
+    const { merged } = besideTheirs()
+    expect(merged).toEqual({
+      kind: 'clashes',
+      files: ['config/two.yaml'],
+      settled: [{ file: 'config/two.yaml', from: 'new version', line: 'follow: 3' }],
+    })
     expect(read('config/two.yaml')).toBe(
       '<<<<<<< yours\nstale: 10\n||||||| before\nstale: 14\n=======\nstale: 21\n>>>>>>> new version\nfollow: 3\n',
     )
   })
 
   it('keeps the new value beside a clash when the user keeps theirs', () => {
-    const git = besideTheirs()
+    const { git } = besideTheirs()
     expect(takeSide(git, 'ours', 'config/two.yaml')).toEqual({ kind: 'taken', left: [] })
     expect(read('config/two.yaml')).toBe('stale: 10\nfollow: 3\n')
   })
 
   it('takes only the clashing lines from the new version', () => {
-    const git = besideTheirs()
+    const { git } = besideTheirs()
     takeSide(git, 'theirs', 'config/two.yaml')
     expect(read('config/two.yaml')).toBe('stale: 21\nfollow: 3\n')
   })
@@ -345,6 +349,20 @@ describe('updateCommand with history', () => {
       lines: ['taken: config/rules.yaml; no clashes left'],
     })
     expect(await printed(['finish'])).toEqual({ code: 0, lines: ['updated'] })
+  })
+
+  it('prints each line it settled inside a clash', async () => {
+    cloned({ 'config/two.yaml': 'stale: 14\nfollow: 5\n' })
+    userCommit({ 'config/two.yaml': 'stale: 10\nfollow: 5\n' }, 'Saved: settings')
+    engineCommit({ 'config/two.yaml': 'stale: 21\nfollow: 3\n' }, 'New defaults')
+    await printed(['changes'])
+    expect(await printed(['merge'])).toEqual({
+      code: 0,
+      lines: [
+        'clashes: config/two.yaml',
+        '- settled config/two.yaml, from the new version: follow: 3',
+      ],
+    })
   })
 
   it('refuses the history steps in a folder that keeps no history', async () => {

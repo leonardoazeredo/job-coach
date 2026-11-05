@@ -5,7 +5,7 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { hasClash, narrow, settle } from './clash.ts'
+import { hasClash, narrow, type SettledLine, settle } from './clash.ts'
 import { ENGINE, ENGINE_URL, type Git, gitHubRepo, output } from './history.ts'
 import { fallbackCommitter } from './save.ts'
 import { type Run, recordCheck, runIn } from './update.ts'
@@ -77,15 +77,19 @@ export const engineChanges = (git: Git, opts: GitUpdateOptions = {}): ChangesRes
 
 export type MergeResult =
   | { kind: 'latest' }
-  | { kind: 'merged' }
-  | { kind: 'clashes'; files: string[] }
+  | { kind: 'merged'; settled?: Settled[] }
+  | { kind: 'clashes'; files: string[]; settled?: Settled[] }
   // Nothing was fetched yet: engineChanges comes first.
   | { kind: 'not-fetched' }
   | { kind: 'not-merged'; output: string }
 
-const mergeState = (git: Git): MergeResult => {
+// A line inside a clash that only one side changed, taken without asking.
+export type Settled = SettledLine & { file: string }
+
+const mergeState = (git: Git, settled: Settled[] = []): MergeResult => {
   const files = unmerged(git)
-  return files.length ? { kind: 'clashes', files } : { kind: 'merged' }
+  const told = settled.length ? { settled } : {}
+  return files.length ? { kind: 'clashes', files, ...told } : { kind: 'merged', ...told }
 }
 
 const blob = (git: Git, rev: string, file: string) =>
@@ -126,7 +130,8 @@ const LABELS = ['-L', 'yours', '-L', 'before', '-L', 'new version']
 // Each clash is rewritten with the file as both sides started from it, under labels the coach can
 // read out. Two sides alone cannot show which values the user changed, so the old default would
 // be credited to them. A first update has no shared start, so the copy's first commit stands in.
-const showStart = (git: Git, first: boolean) => {
+const showStart = (git: Git, first: boolean): Settled[] => {
+  const settled: Settled[] = []
   const top = git(['rev-parse', '--show-toplevel']).stdout.trim()
   const held = stages(git)
   const scratch = mkdtempSync(join(tmpdir(), 'coach-clash-'))
@@ -149,13 +154,15 @@ const showStart = (git: Git, first: boolean) => {
       // merge-file exits with the number of clashes it left; only a signal or 255 is a failure.
       if (shown.status === null || shown.status >= 128) continue
       const narrowed = narrow(shown.stdout)
-      writeFileSync(join(top, file), narrowed)
+      writeFileSync(join(top, file), narrowed.text)
+      for (const line of narrowed.settled) settled.push({ file, ...line })
       // Every line was changed on one side only, so nothing is left to ask about.
-      if (!hasClash(narrowed)) git(['add', '--', file])
+      if (!hasClash(narrowed.text)) git(['add', '--', file])
     }
   } finally {
     rmSync(scratch, { recursive: true, force: true })
   }
+  return settled
 }
 
 export const mergeEngine = (git: Git, opts: GitUpdateOptions = {}): MergeResult => {
@@ -174,8 +181,7 @@ export const mergeEngine = (git: Git, opts: GitUpdateOptions = {}): MergeResult 
   ])
   if (!inMerge(git)) return { kind: 'not-merged', output: output(merge) }
   if (first) settleOneSided(git)
-  showStart(git, first)
-  return mergeState(git)
+  return mergeState(git, showStart(git, first))
 }
 
 export type TakeResult =
