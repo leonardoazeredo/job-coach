@@ -95,6 +95,19 @@ const resolve = (git: Git, side: 'ours' | 'theirs', file: string) => {
   }
 }
 
+// With no shared commit, git sees every file the two sides hold differently as a clash, even
+// when only one side changed it. The copy's first commit shows which: a file the user never
+// edited takes the new version, and one the engine never changed keeps the user's.
+const settleOneSided = (git: Git) => {
+  const root = rootCommit(git) ?? 'HEAD'
+  for (const file of unmerged(git)) {
+    const original = blob(git, root, file)
+    if (!original) continue
+    if (original === blob(git, 'HEAD', file)) resolve(git, 'theirs', file)
+    else if (original === blob(git, 'MERGE_HEAD', file)) resolve(git, 'ours', file)
+  }
+}
+
 export const mergeEngine = (git: Git, opts: GitUpdateOptions = {}): MergeResult => {
   if (inMerge(git)) return mergeState(git)
   const remote = engineRemote(git, opts.url ?? ENGINE_URL)
@@ -110,18 +123,7 @@ export const mergeEngine = (git: Git, opts: GitUpdateOptions = {}): MergeResult 
     ref,
   ])
   if (!inMerge(git)) return { kind: 'not-merged', output: output(merge) }
-  if (first) {
-    // With no shared commit, git sees every file the two sides hold differently as a clash, even
-    // when only one side changed it. The copy's first commit shows which: a file the user never
-    // edited takes the new version, and one the engine never changed keeps the user's.
-    const root = rootCommit(git) ?? 'HEAD'
-    for (const file of unmerged(git)) {
-      const original = blob(git, root, file)
-      if (!original) continue
-      if (original === blob(git, 'HEAD', file)) resolve(git, 'theirs', file)
-      else if (original === blob(git, 'MERGE_HEAD', file)) resolve(git, 'ours', file)
-    }
-  }
+  if (first) settleOneSided(git)
   return mergeState(git)
 }
 

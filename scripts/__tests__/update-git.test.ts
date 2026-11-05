@@ -291,5 +291,6 @@ describe('updateCommand with history', () => {
     cloned()
     expect((await printed(['take', 'mine', 'CLAUDE.md'])).code).toBe(EXIT.usage)
     expect((await printed(['take', 'ours'])).code).toBe(EXIT.usage)
+    expect((await printed(['constructor'])).code).toBe(EXIT.usage)
   })
 })

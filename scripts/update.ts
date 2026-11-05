@@ -38,6 +38,7 @@ import {
   type Run,
   type UnknownReason,
   updateFromArchive,
+  type ZipResult,
 } from './lib/update.ts'
 import {
   cancelUpdate,
@@ -85,98 +86,142 @@ export type UpdateDeps = {
   engineUrl?: string
 }
 
-const HISTORY_STEPS = ['changes', 'merge', 'take', 'finish', 'cancel']
-
-const historyStep = (git: Git, root: string, args: string[], deps: UpdateDeps): number => {
-  const [sub, ...rest] = args
-  const opts = { url: deps.engineUrl }
-  if (sub === 'changes' && rest.length === 0) {
-    const result = engineChanges(git, opts)
-    if (result.kind === 'latest') console.log('latest')
-    else if (result.kind === 'available') {
-      console.log('available')
-      for (const change of result.changes) console.log(`- ${change}`)
-    } else {
-      console.log('not fetched: the new version could not be downloaded; nothing changed')
-      console.error(result.output)
-      return EXIT.problems
-    }
-    return 0
-  }
-  if (sub === 'merge' && rest.length === 0) {
-    const result = mergeEngine(git, opts)
-    switch (result.kind) {
-      case 'latest':
-      case 'merged':
-        console.log(result.kind)
-        return 0
-      case 'clashes':
-        console.log(`clashes: ${result.files.join(', ')}`)
-        return 0
-      case 'not-fetched':
-        console.log('not fetched: nothing has been fetched yet; run changes first')
-        return EXIT.problems
-      case 'not-merged':
-        console.log('not merged: the new version could not be merged; nothing changed')
-        console.error(result.output)
-        return EXIT.problems
-    }
-  }
-  const [side, file] = rest
-  if (sub === 'take' && (side === 'ours' || side === 'theirs') && file && rest.length === 2) {
-    const result = takeSide(git, side, file)
-    if (result.kind !== 'taken') {
-      console.error(
-        result.kind === 'no-merge'
-          ? 'update: no update is in progress'
-          : `update: ${file} is not a clashing file`,
-      )
-      return EXIT.usage
-    }
-    const left = result.left.length ? `clashes left: ${result.left.join(', ')}` : 'no clashes left'
-    console.log(`taken: ${file}; ${left}`)
-    return 0
-  }
-  if (sub === 'finish' && rest.length === 0) {
-    const result = finishUpdate(root, git, { run: deps.run })
-    switch (result.kind) {
-      case 'updated':
-        console.log('updated')
-        return 0
-      case 'no-merge':
-        console.error('update: no update is in progress')
-        return EXIT.usage
-      case 'clashes':
-        console.log(`clashes left: ${result.files.join(', ')}`)
-        return EXIT.problems
-      case 'not-committed':
-        console.log('not committed: the update could not be saved, so it was cancelled')
-        console.error(result.output)
-        return EXIT.problems
-      case 'undone':
-        console.log('undone: the install or the record check failed after the update')
-        console.error(result.output)
-        return EXIT.problems
-      case 'not-undone':
-        console.log(
-          'not undone: the record check failed after the update, and the folder could not be put back',
-        )
-        console.error(result.output)
-        return EXIT.problems
-    }
-  }
-  if (sub === 'cancel' && rest.length === 0) {
-    const result = cancelUpdate(git)
-    if (result.kind === 'cancelled') {
-      console.log('cancelled: nothing changed')
-      return 0
-    }
-    console.log('not cancelled: the update could not be undone')
-    console.error(result.output)
-    return EXIT.problems
-  }
-  console.error(USAGE)
+// One line on stdout for the coach to act on, and the reason, when there is one, on stderr.
+const say = (code: number, line: string, reason?: string): number => {
+  console.log(line)
+  if (reason !== undefined) console.error(reason)
+  return code
+}
+const refuse = (message: string): number => {
+  console.error(`update: ${message}`)
   return EXIT.usage
+}
+
+type Step = (git: Git, root: string, args: string[], deps: UpdateDeps) => number
+
+const changesStep: Step = (git, _root, _args, deps) => {
+  const result = engineChanges(git, { url: deps.engineUrl })
+  if (result.kind === 'not-fetched') {
+    return say(
+      EXIT.problems,
+      'not fetched: the new version could not be downloaded; nothing changed',
+      result.output,
+    )
+  }
+  console.log(result.kind)
+  if (result.kind === 'available') for (const change of result.changes) console.log(`- ${change}`)
+  return 0
+}
+
+const mergeStep: Step = (git, _root, _args, deps) => {
+  const result = mergeEngine(git, { url: deps.engineUrl })
+  switch (result.kind) {
+    case 'latest':
+    case 'merged':
+      return say(0, result.kind)
+    case 'clashes':
+      return say(0, `clashes: ${result.files.join(', ')}`)
+    case 'not-fetched':
+      return say(EXIT.problems, 'not fetched: nothing has been fetched yet; run changes first')
+    case 'not-merged':
+      return say(
+        EXIT.problems,
+        'not merged: the new version could not be merged; nothing changed',
+        result.output,
+      )
+  }
+}
+
+const takeStep: Step = (git, _root, args) => {
+  const [side, file] = args
+  if ((side !== 'ours' && side !== 'theirs') || !file || args.length !== 2) {
+    console.error(USAGE)
+    return EXIT.usage
+  }
+  const result = takeSide(git, side, file)
+  if (result.kind === 'no-merge') return refuse('no update is in progress')
+  if (result.kind === 'not-clashing') return refuse(`${file} is not a clashing file`)
+  const left = result.left.length ? `clashes left: ${result.left.join(', ')}` : 'no clashes left'
+  return say(0, `taken: ${file}; ${left}`)
+}
+
+const finishStep: Step = (git, root, _args, deps) => {
+  const result = finishUpdate(root, git, { run: deps.run })
+  switch (result.kind) {
+    case 'updated':
+      return say(0, 'updated')
+    case 'no-merge':
+      return refuse('no update is in progress')
+    case 'clashes':
+      return say(EXIT.problems, `clashes left: ${result.files.join(', ')}`)
+    case 'not-committed':
+      return say(
+        EXIT.problems,
+        'not committed: the update could not be saved, so it was cancelled',
+        result.output,
+      )
+    case 'undone':
+      return say(
+        EXIT.problems,
+        'undone: the install or the record check failed after the update',
+        result.output,
+      )
+    case 'not-undone':
+      return say(
+        EXIT.problems,
+        'not undone: the record check failed after the update, and the folder could not be put back',
+        result.output,
+      )
+  }
+}
+
+const cancelStep: Step = (git) => {
+  const result = cancelUpdate(git)
+  if (result.kind === 'cancelled') return say(0, 'cancelled: nothing changed')
+  return say(EXIT.problems, 'not cancelled: the update could not be undone', result.output)
+}
+
+// take carries its own arguments; the others take none.
+const HISTORY_STEPS: Record<string, { step: Step; takesArgs: boolean }> = {
+  changes: { step: changesStep, takesArgs: false },
+  merge: { step: mergeStep, takesArgs: false },
+  take: { step: takeStep, takesArgs: true },
+  finish: { step: finishStep, takesArgs: false },
+  cancel: { step: cancelStep, takesArgs: false },
+}
+
+const printZip = (result: ZipResult): number => {
+  switch (result.kind) {
+    case 'latest':
+      return say(0, 'latest')
+    case 'updated': {
+      // config/ is where a user tunes the coach, and the update overwrites those edits without
+      // asking, so each one is named for the user to bring back from the backup.
+      const settings = result.replaced.filter((rel) => rel.startsWith('config/'))
+      return say(
+        0,
+        `updated: ${result.replaced.length} replaced, ${result.added.length} added; backup in ${result.backup}${settings.length ? `; settings replaced: ${settings.join(', ')}` : ''}`,
+      )
+    }
+    case 'not-started':
+      return say(
+        EXIT.problems,
+        'not started: the record check fails before the update',
+        result.output,
+      )
+    case 'not-fetched':
+      return say(
+        EXIT.problems,
+        'not fetched: the new version could not be downloaded; nothing changed',
+        result.output,
+      )
+    case 'undone':
+      return say(
+        EXIT.problems,
+        `undone: the install or the record check failed after the update; backup in ${result.backup}`,
+        result.output,
+      )
+  }
 }
 
 export const updateCommand = async (
@@ -186,57 +231,27 @@ export const updateCommand = async (
 ): Promise<number> => {
   const now = deps.now ?? new Date()
   const source = deps.source ?? gitHubEngine
-  const [sub, ...rest] = args
+  const [sub = '', ...rest] = args
   if (sub === 'check' && rest.every((a) => a === '--now')) {
     const force = rest.includes('--now')
-    if (force || existsSync(join(root, 'profile/coach.md'))) {
-      await printCheck(root, { now, source, force, path: deps.path })
-    }
+    // Before onboarding, a new user has not met the coach yet, so a weekly offer stays silent.
+    const due = force || existsSync(join(root, 'profile/coach.md'))
+    if (due) await printCheck(root, { now, source, force, path: deps.path })
     return 0
   }
   const git = gitIn(root, deps.path)
-  if (sub && HISTORY_STEPS.includes(sub)) {
-    if (git) return historyStep(git, root, args, deps)
-    console.error('update: this folder keeps no history; update it with zip')
-    return EXIT.usage
+  const history = Object.hasOwn(HISTORY_STEPS, sub) ? HISTORY_STEPS[sub] : undefined
+  if (history && (history.takesArgs || rest.length === 0)) {
+    return git
+      ? history.step(git, root, rest, deps)
+      : refuse('this folder keeps no history; update it with zip')
   }
   if (sub !== 'zip' || rest.length > 0) {
     console.error(USAGE)
     return EXIT.usage
   }
-  if (git) {
-    console.error('update: this folder keeps history; update it with changes, merge and finish')
-    return EXIT.usage
-  }
-  const result = await updateFromArchive(root, { now, source, run: deps.run })
-  switch (result.kind) {
-    case 'latest':
-      console.log('latest')
-      return 0
-    case 'updated': {
-      // config/ is where a user tunes the coach, and the update overwrites those edits without
-      // asking, so each one is named for the user to bring back from the backup.
-      const settings = result.replaced.filter((rel) => rel.startsWith('config/'))
-      console.log(
-        `updated: ${result.replaced.length} replaced, ${result.added.length} added; backup in ${result.backup}${settings.length ? `; settings replaced: ${settings.join(', ')}` : ''}`,
-      )
-      return 0
-    }
-    case 'not-started':
-      console.log('not started: the record check fails before the update')
-      console.error(result.output)
-      return EXIT.problems
-    case 'not-fetched':
-      console.log('not fetched: the new version could not be downloaded; nothing changed')
-      console.error(result.output)
-      return EXIT.problems
-    case 'undone':
-      console.log(
-        `undone: the install or the record check failed after the update; backup in ${result.backup}`,
-      )
-      console.error(result.output)
-      return EXIT.problems
-  }
+  if (git) return refuse('this folder keeps history; update it with changes, merge and finish')
+  return printZip(await updateFromArchive(root, { now, source, run: deps.run }))
 }
 
 if (import.meta.main) process.exitCode = await updateCommand(process.argv.slice(2), repoRoot())
