@@ -30,8 +30,15 @@ export const parseEvents = (
   markdown.split('\n').forEach((raw, index) => {
     if (!raw.trim().startsWith('|')) return
     const cells = splitRow(raw)
+    // The table's first row is its header whatever it says: waiting for a
+    // "Date" header would read a renamed column as an empty, error-free file.
     if (!headerSeen) {
-      headerSeen = cells[0]?.toLowerCase() === 'date'
+      headerSeen = true
+      if (cells[0]?.toLowerCase() !== 'date') {
+        eventErrors.push(
+          `events.md line ${index + 1}: the first column must be Date, found "${cells[0] ?? ''}"`,
+        )
+      }
       return
     }
     if (isSeparator(cells)) return
