@@ -37,6 +37,7 @@ describe('persona briefs', () => {
   })
 })
 
+// Guards drift: the run's instructions name scripts that must ship beside them.
 describe('the live run', () => {
   const dir = join(repoRoot(), 'examples', 'live-run')
 

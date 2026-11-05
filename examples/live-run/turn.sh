@@ -32,10 +32,16 @@ for (const line of fs.readFileSync(`${run}/raw/turn${n}.jsonl`, "utf8").split("\
   if (j.type === "result") { cost = j.total_cost_usd; sid = j.session_id }
   if (j.type === "assistant") for (const c of j.message.content) if (c.type === "text") text.push(c.text)
 }
-if (sid) fs.writeFileSync(`${run}/session.id`, sid)
+if (!sid) process.exit(2)
+fs.writeFileSync(`${run}/session.id`, sid)
 fs.appendFileSync(`${run}/costlog.txt`, `turn ${n} ${cost}\n`)
 fs.writeFileSync(`${run}/last.txt`, text.join("\n\n"))
-' "$RUN" "$N" || exit 1
+' "$RUN" "$N" || {
+  # A turn with no result records nothing: the last cost line must stay the running total,
+  # and a retry of this turn must not leave two blocks in the transcript.
+  echo "turn $N left no result; $RUN/raw/turn$N.err holds why"
+  exit "$((STATUS ? STATUS : 1))"
+}
 
 cp "$REPLY" "$RUN/raw/reply$N.txt"
 {
