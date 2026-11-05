@@ -30,6 +30,8 @@ discovery:
     - CHANGE_ME Software Engineer
   title_expansion:             # extra titles that still qualify a listing, such as Product Engineer
     - CHANGE_ME Founding Engineer
+  field_terms: [CHANGE_ME word]  # words in a job title that show it is your kind of work, such as a language, a tool or a speciality; [] if none
+  excluded_words: []             # words in a job title that rule it out, even one that names a title above
   search:
     city: CHANGE_ME City
     country: CHANGE_ME Country

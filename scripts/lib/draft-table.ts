@@ -91,6 +91,8 @@ const search: DataTable = {
       agentic_keywords: list('Words that flag an AI-heavy ad', 'default'),
       search_titles: list('Job titles searched'),
       title_expansion: list('Other titles that qualify'),
+      field_terms: list('Words in a job title that show it is your kind of work'),
+      excluded_words: list('Words in a job title that rule it out', 'default'),
       search: group({
         city: value('Search city'),
         country: value('Search country'),

@@ -11,6 +11,24 @@ useProfileRepo()
 type Obj = Record<string, unknown>
 
 describe('profile draft and write', () => {
+  it('refuses a new search with no Field terms, and takes none as an empty list', async () => {
+    const values = personaFile('profile/search.yaml') as { discovery: Obj }
+    repo.remove('profile/search.yaml')
+    delete values.discovery.field_terms
+    delete values.discovery.excluded_words
+    const refused = await run(['draft', 'profile/search.yaml'], values)
+    expect(refused.code).toBe(EXIT.problems)
+    expect(refused.stderr).toContain('Words in a job title that show it is your kind of work')
+    expect(refused.stderr).not.toContain('rule it out')
+
+    values.discovery.field_terms = []
+    expect((await run(['draft', 'profile/search.yaml'], values)).code).toBe(0)
+    await write('profile/search.yaml')
+    const { discovery } = parse(repo.read('profile/search.yaml'))
+    expect(discovery.field_terms).toEqual([])
+    expect(discovery.excluded_words).toEqual([])
+  })
+
   it('drafts a new history from the values, one line per job, and writes the draft unchanged', async () => {
     const values = personaFile('profile/history.yaml')
     repo.remove('profile/history.yaml')

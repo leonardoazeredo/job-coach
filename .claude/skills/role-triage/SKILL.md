@@ -23,7 +23,7 @@ Fast, complete screening of a list. Every role gets a line, in the order given. 
    4. Hard gap: mandatory primary language or framework outside core and secondary, or a `do_not_claim` item.
    5. Published salary with a top end below the floor (`rules.yaml` fit.salary_test).
    6. Seniority clearly junior or mid.
-   Otherwise **Keep** or **Maybe**. Titles in `discovery.title_expansion` and roles matching `agentic_keywords` are never dropped for the title alone.
+   Otherwise **Keep** or **Maybe**. Titles naming a `discovery.search_titles` or `discovery.title_expansion` entry or a `discovery.field_terms` word, and roles matching `agentic_keywords`, are never dropped for the title alone. When the user waves off a kind of role, offer to add the word that marks it to `discovery.excluded_words`.
 3. **Output one table** with every role, none omitted:
 
 ```

@@ -42,6 +42,8 @@ discovery:
     - "Software Engineer, Ledger"
     - "Software Developer, Platform"
     - "Tech Lead, Platform"
+  field_terms: [back-end, Python]
+  excluded_words: [mobile, iOS, Android]
   search:
     city: Austin
     country: United States

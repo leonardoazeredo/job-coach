@@ -4,6 +4,7 @@
 import type { Problem } from './problem.ts'
 import type { LoadedRole } from './role-folder.ts'
 import type { Rules } from './schema.ts'
+import { qualifyingTitle } from './title-gate.ts'
 
 export type TrackedRole = { slug: string; status: string }
 
@@ -41,34 +42,6 @@ export const normaliseTitle = (s: string): string => s.toLowerCase().replace(/[^
 const overlaps = (a: string, b: string, test: (x: string, y: string) => boolean): boolean =>
   a !== '' && b !== '' && (test(a, b) || test(b, a))
 
-const FRONTEND =
-  /front[\s-]?end|\bui\b|web (engineer|developer|platform)|react|javascript|typescript|design system/i
-const EXCLUDED =
-  /intern\b|internship|graduate|new grad|junior|apprentice|working student|werkstudent|back[\s-]?end|mobile|\bios\b|android|recruit|sales|marketing|designer\b|manager|director|head of|qa\b|test/i
-// Full-stack is the one exclusion that an explicit front-end term or an expansion title
-// overrides. Language and framework names describe the stack, not the frontend share of the
-// role, so FRONT_END leaves them out.
-const FULL_STACK = /full[\s-]?stack|fullstack/i
-const FRONT_END = /front[\s-]?end/i
-
-const escapeRegex = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-
-// Each gap between the words of an expansion title may hold one extra word, so "Founding
-// Engineer" also admits "Founding Frontend Engineer". A last word "Engineer" also admits
-// "Engineering", because job ads say "Product Engineering Lead" for "Product Engineer". Only
-// "Engineer" gets it: appending "ing" to other "-er" words makes non-words ("Developering").
-// EXCLUDED is the only guard on the "-ing" form: "Product Engineering Manager" fails there.
-const expansionPattern = (title: string): RegExp => {
-  const words = title.trim().split(/[\s-]+/)
-  const last = words.length - 1
-  const body = words
-    .map((w, i) =>
-      i === last && /^engineer$/i.test(w) ? `${escapeRegex(w)}(?:ing)?` : escapeRegex(w),
-    )
-    .join('[\\s-]+(?:\\w+[\\s-]+)?')
-  return new RegExp(`\\b${body}\\b`, 'i')
-}
-
 export const discovery = (roles: LoadedRole[], rules: Rules): Discovery => {
   const problems: Problem[] = []
   const tracked: { role: TrackedRole; company: string; title: string }[] = []
@@ -83,7 +56,6 @@ export const discovery = (roles: LoadedRole[], rules: Rules): Discovery => {
       title: normaliseTitle(r.record.job_title ?? ''),
     })
   }
-  const expansion = rules.discovery.title_expansion.map(expansionPattern)
 
   const match = (company: string, title: string): ListingMatch => {
     const c = normaliseCompany(company)
@@ -95,14 +67,10 @@ export const discovery = (roles: LoadedRole[], rules: Rules): Discovery => {
     return { kind: 'new' }
   }
 
-  const qualifies = (title: string): boolean => {
-    const expanded = expansion.some((p) => p.test(title))
-    return (
-      (FRONTEND.test(title) || expanded) &&
-      !EXCLUDED.test(title) &&
-      (!FULL_STACK.test(title) || FRONT_END.test(title) || expanded)
-    )
+  return {
+    problems,
+    match,
+    qualifies: qualifyingTitle(rules.discovery),
+    freshDays: rules.discovery.fresh_days,
   }
-
-  return { problems, match, qualifies, freshDays: rules.discovery.fresh_days }
 }

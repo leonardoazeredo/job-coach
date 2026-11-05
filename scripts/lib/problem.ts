@@ -2,6 +2,11 @@
 // profile/wins.yaml or experience-bank when the problem is not about one role.
 export type Problem = { slug: string; level: 'error' | 'warning'; message: string }
 
+export const warning = (slug: string, message: string): Problem => ({
+  slug,
+  level: 'warning',
+  message,
+})
 export const error = (slug: string, message: string): Problem => ({ slug, level: 'error', message })
 
 export const hasErrors = (problems: Problem[]): boolean => problems.some((p) => p.level === 'error')
