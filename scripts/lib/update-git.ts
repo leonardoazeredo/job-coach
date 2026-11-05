@@ -2,20 +2,25 @@
 // steps the coach drives across turns, because a file both sides changed needs the user's choice.
 // Nothing is stored between the steps: git's own merge state says where an update stands, and the
 // merge commit's first parent is the folder as it was before.
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { hasClash, narrow, type SettledLine, settle } from './clash.ts'
 import { ENGINE, ENGINE_URL, type Git, gitHubRepo, output } from './history.ts'
 import { fallbackCommitter } from './save.ts'
 import { type Run, recordCheck, runIn } from './update.ts'
 
 export type GitUpdateOptions = { url?: string | undefined }
 
+// Each remote's address as configured. `git remote -v` shows it after any insteadOf rewrite,
+// which would hide that a rewritten remote is the engine and add a second one.
 const fetchRemotes = (git: Git): [string, string][] =>
-  git(['remote', '-v'])
-    .stdout.split('\n')
-    .map((line) => line.split(/\s+/))
-    .filter((cells) => cells[2] === '(fetch)')
-    .map(([name = '', url = '']) => [name, url])
+  lines(git(['config', '--get-regexp', '^remote\\..*\\.url$']).stdout).flatMap(
+    (line): [string, string][] => {
+      const match = line.match(/^remote\.(.+)\.url (.+)$/)
+      return match?.[1] && match[2] ? [[match[1], match[2]]] : []
+    },
+  )
 
 const engineRemote = (git: Git, url: string): string | undefined =>
   fetchRemotes(git).find(([, u]) => u === url || gitHubRepo(u) === ENGINE)?.[0]
@@ -72,15 +77,19 @@ export const engineChanges = (git: Git, opts: GitUpdateOptions = {}): ChangesRes
 
 export type MergeResult =
   | { kind: 'latest' }
-  | { kind: 'merged' }
-  | { kind: 'clashes'; files: string[] }
+  | { kind: 'merged'; settled?: Settled[] }
+  | { kind: 'clashes'; files: string[]; settled?: Settled[] }
   // Nothing was fetched yet: engineChanges comes first.
   | { kind: 'not-fetched' }
   | { kind: 'not-merged'; output: string }
 
-const mergeState = (git: Git): MergeResult => {
+// A line inside a clash that only one side changed, taken without asking.
+export type Settled = SettledLine & { file: string }
+
+const mergeState = (git: Git, settled: Settled[] = []): MergeResult => {
   const files = unmerged(git)
-  return files.length ? { kind: 'clashes', files } : { kind: 'merged' }
+  const told = settled.length ? { settled } : {}
+  return files.length ? { kind: 'clashes', files, ...told } : { kind: 'merged', ...told }
 }
 
 const blob = (git: Git, rev: string, file: string) =>
@@ -108,6 +117,59 @@ const settleOneSided = (git: Git) => {
   }
 }
 
+// Where a clashing file started: the shared version when git found one, else on a first update
+// the copy's first commit, else nothing to show.
+const startOf = (git: Git, file: string, stagesHeld: Set<string>, first: boolean): string => {
+  if (stagesHeld.has('1')) return `:1:${file}`
+  const root = rootCommit(git)
+  return first && root && blob(git, root, file) ? `${root}:${file}` : ''
+}
+
+const LABELS = ['-L', 'yours', '-L', 'before', '-L', 'new version']
+
+// The file as merge-file shows it against the start version, narrowed; undefined when a side
+// could not be read or merge-file failed, so git's own clash markers stay.
+const showOne = (git: Git, file: string, start: string, scratch: string) => {
+  const saved = (rev: string, name: string): string | undefined => {
+    const shown = git(['show', rev])
+    if (shown.status !== 0) return undefined
+    const path = join(scratch, name)
+    writeFileSync(path, shown.stdout)
+    return path
+  }
+  const sides = [saved(`:2:${file}`, 'ours'), saved(start, 'start'), saved(`:3:${file}`, 'theirs')]
+  if (!sides.every((side) => side !== undefined)) return
+  const shown = git(['merge-file', '-p', '--diff3', ...LABELS, ...sides])
+  // merge-file exits with the number of clashes it left; only a signal or 255 is a failure.
+  if (shown.status === null || shown.status >= 128) return
+  return narrow(shown.stdout, { lineByLine: /\.ya?ml$/.test(file) })
+}
+
+// Each clash is rewritten with the file as both sides started from it, under labels the coach can
+// read out. Two sides alone cannot show which values the user changed, so the old default would
+// be credited to them. A first update has no shared start, so the copy's first commit stands in.
+const showStart = (git: Git, first: boolean): Settled[] => {
+  const settled: Settled[] = []
+  const top = git(['rev-parse', '--show-toplevel']).stdout.trim()
+  const held = stages(git)
+  const scratch = mkdtempSync(join(tmpdir(), 'coach-clash-'))
+  try {
+    for (const file of unmerged(git)) {
+      const at = held.get(file) ?? new Set()
+      const start = at.has('2') && at.has('3') ? startOf(git, file, at, first) : ''
+      const narrowed = start ? showOne(git, file, start, scratch) : undefined
+      if (!narrowed) continue
+      writeFileSync(join(top, file), narrowed.text)
+      for (const line of narrowed.settled) settled.push({ file, ...line })
+      // Every line was changed on one side only, so nothing is left to ask about.
+      if (!hasClash(narrowed.text)) git(['add', '--', file])
+    }
+  } finally {
+    rmSync(scratch, { recursive: true, force: true })
+  }
+  return settled
+}
+
 export const mergeEngine = (git: Git, opts: GitUpdateOptions = {}): MergeResult => {
   if (inMerge(git)) return mergeState(git)
   const remote = engineRemote(git, opts.url ?? ENGINE_URL)
@@ -124,7 +186,7 @@ export const mergeEngine = (git: Git, opts: GitUpdateOptions = {}): MergeResult 
   ])
   if (!inMerge(git)) return { kind: 'not-merged', output: output(merge) }
   if (first) settleOneSided(git)
-  return mergeState(git)
+  return mergeState(git, showStart(git, first))
 }
 
 export type TakeResult =
@@ -135,11 +197,17 @@ export type TakeResult =
 export const takeSide = (git: Git, side: 'ours' | 'theirs', file: string): TakeResult => {
   if (!inMerge(git)) return { kind: 'no-merge' }
   if (!unmerged(git).includes(file)) return { kind: 'not-clashing' }
-  resolve(git, side, file)
+  const path = join(git(['rev-parse', '--show-toplevel']).stdout.trim(), file)
+  const held = stages(git).get(file)
+  const text = held?.has('2') && held.has('3') && existsSync(path) ? readFileSync(path, 'utf8') : ''
+  // Only the clash blocks are the user's choice; the rest of the file already holds both sides'
+  // changes. A file one side removed has no blocks and is taken whole.
+  if (hasClash(text)) {
+    writeFileSync(path, settle(text, side))
+    git(['add', '--', file])
+  } else resolve(git, side, file)
   return { kind: 'taken', left: unmerged(git) }
 }
-
-const MARKER = /^(<{7}|>{7})( |$)|^={7}$/m
 
 // Unmerged paths with the git stage numbers each still holds (1 base, 2 ours, 3 theirs).
 const stages = (git: Git): Map<string, Set<string>> => {
@@ -174,7 +242,7 @@ export const finishUpdate = (root: string, git: Git, opts: FinishOptions = {}): 
   const left = files.filter(
     (file) =>
       !(held.get(file)?.has('2') && held.get(file)?.has('3')) ||
-      (existsSync(join(root, file)) && MARKER.test(readFileSync(join(root, file), 'utf8'))),
+      (existsSync(join(root, file)) && hasClash(readFileSync(join(root, file), 'utf8'))),
   )
   if (left.length) return { kind: 'clashes', files: left }
   // Each clash still listed now holds both sides merged into one file, or is gone.

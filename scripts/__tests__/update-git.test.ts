@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
-import { gitIn } from '../lib/history.ts'
+import { ENGINE_URL, gitIn } from '../lib/history.ts'
 import { EXIT } from '../lib/problem.ts'
 import {
   cancelUpdate,
@@ -44,8 +44,9 @@ const startEngine = () => {
   commitAll(upstream(), 'Engine', { GIT_AUTHOR_DATE: past, GIT_COMMITTER_DATE: past })
 }
 // A folder that already shares history with the engine, as after its first update.
-const cloned = () => {
+const cloned = (engineFiles: Record<string, string> = {}) => {
   startEngine()
+  if (Object.keys(engineFiles).length) engineCommit(engineFiles, 'More engine')
   g(dir, 'clone', '-q', upstream(), work())
   identify(work())
   userCommit(DATA, 'Saved: profile')
@@ -87,6 +88,17 @@ describe('engineChanges', () => {
     const result = engineChanges(gitOf(), opts())
     expect(result.kind).toBe('available')
     expect(g(work(), 'remote', 'get-url', 'upstream')).toBe(upstream())
+  })
+
+  // A rewrite stands in for GitHub here, and also covers a user whose git rewrites GitHub
+  // addresses: the remote is known by the address it was given, not by where git sends it.
+  it('knows the engine by the address it was given, however git rewrites it', () => {
+    templated()
+    engineCommit({ 'CLAUDE.md': 'new prompt\n' }, 'Sharper prompt')
+    g(work(), 'config', `url.${upstream()}.insteadOf`, ENGINE_URL)
+    g(work(), 'remote', 'add', 'upstream', ENGINE_URL)
+    expect(engineChanges(gitOf()).kind).toBe('available')
+    expect(g(work(), 'remote')).toBe('upstream')
   })
 
   it('says latest for a template copy the engine has not changed since', () => {
@@ -141,6 +153,65 @@ describe('mergeEngine and finishUpdate', () => {
     expect(read('config/rules.yaml')).toBe('stale_after_days: 30\n')
   })
 
+  // Without the file as it was before either side changed it, a clash cannot say which
+  // values the user changed, and the coach credits them with the engine's old default.
+  it('shows each clash with the version both sides started from', () => {
+    cloned()
+    userCommit({ 'config/rules.yaml': 'stale_after_days: 30\n' }, 'Saved: settings')
+    engineCommit({ 'config/rules.yaml': 'stale_after_days: 21\n' }, 'New default')
+    const git = gitOf()
+    engineChanges(git, opts())
+    mergeEngine(git, opts())
+    expect(read('config/rules.yaml')).toBe(
+      '<<<<<<< yours\nstale_after_days: 30\n||||||| before\nstale_after_days: 14\n=======\nstale_after_days: 21\n>>>>>>> new version\n',
+    )
+  })
+
+  it('shows the clash of a first update with the version the copy was made from', () => {
+    templated()
+    userCommit({ 'config/rules.yaml': 'stale_after_days: 30\n' }, 'Saved: settings')
+    engineCommit({ 'config/rules.yaml': 'stale_after_days: 21\n' }, 'New default')
+    const git = gitOf()
+    engineChanges(git, opts())
+    mergeEngine(git, opts())
+    expect(read('config/rules.yaml')).toContain('||||||| before\nstale_after_days: 14\n')
+  })
+
+  // In the third live update run, taking the user's whole file took back the new follow-up value
+  // the coach had just told her she would get.
+  const besideTheirs = () => {
+    cloned({ 'config/two.yaml': 'stale: 14\nfollow: 5\n' })
+    userCommit({ 'config/two.yaml': 'stale: 10\nfollow: 5\n' }, 'Saved: settings')
+    engineCommit({ 'config/two.yaml': 'stale: 21\nfollow: 3\n' }, 'New defaults')
+    const git = gitOf()
+    engineChanges(git, opts())
+    return { git, merged: mergeEngine(git, opts()) }
+  }
+
+  it('narrows a clash to the lines both sides changed, and lists the lines it settled', () => {
+    const { merged } = besideTheirs()
+    expect(merged).toEqual({
+      kind: 'clashes',
+      files: ['config/two.yaml'],
+      settled: [{ file: 'config/two.yaml', from: 'new version', line: 'follow: 3' }],
+    })
+    expect(read('config/two.yaml')).toBe(
+      '<<<<<<< yours\nstale: 10\n||||||| before\nstale: 14\n=======\nstale: 21\n>>>>>>> new version\nfollow: 3\n',
+    )
+  })
+
+  it('keeps the new value beside a clash when the user keeps theirs', () => {
+    const { git } = besideTheirs()
+    expect(takeSide(git, 'ours', 'config/two.yaml')).toEqual({ kind: 'taken', left: [] })
+    expect(read('config/two.yaml')).toBe('stale: 10\nfollow: 3\n')
+  })
+
+  it('takes only the clashing lines from the new version', () => {
+    const { git } = besideTheirs()
+    takeSide(git, 'theirs', 'config/two.yaml')
+    expect(read('config/two.yaml')).toBe('stale: 21\nfollow: 3\n')
+  })
+
   it('accepts a file the coach wrote by hand once no clash marker is left in it', () => {
     cloned()
     userCommit({ 'config/rules.yaml': 'stale_after_days: 30\n' }, 'Saved: settings')
@@ -170,6 +241,28 @@ describe('mergeEngine and finishUpdate', () => {
     expect(takeSide(git, 'theirs', 'config/rules.yaml')).toEqual({ kind: 'taken', left: [] })
     expect(finishUpdate(work(), git, { run })).toEqual({ kind: 'updated' })
     expect(existsSync(join(work(), 'config/rules.yaml'))).toBe(false)
+  })
+
+  it('removes a guide the engine removed, though its heading underline looks like a marker', () => {
+    cloned({ 'docs/guide.md': 'Guide\n=======\n\nStep one.\n' })
+    userCommit({ 'docs/guide.md': 'Guide\n=======\n\nMy step one.\n' }, 'Saved: guide')
+    g(upstream(), 'rm', '-q', 'docs/guide.md')
+    commitAll(upstream(), 'Drop guide')
+    const git = gitOf()
+    engineChanges(git, opts())
+    mergeEngine(git, opts())
+    expect(takeSide(git, 'theirs', 'docs/guide.md')).toEqual({ kind: 'taken', left: [] })
+    expect(existsSync(join(work(), 'docs/guide.md'))).toBe(false)
+  })
+
+  it('leaves a clash in a guide whole, settling no line of it alone', () => {
+    cloned({ 'docs/guide.md': 'Step: one\nThen: two\n' })
+    userCommit({ 'docs/guide.md': 'Step: mine\nThen: two\n' }, 'Saved: guide')
+    engineCommit({ 'docs/guide.md': 'Step: one\nThen: new\n' }, 'Clearer guide')
+    const git = gitOf()
+    engineChanges(git, opts())
+    expect(mergeEngine(git, opts())).toEqual({ kind: 'clashes', files: ['docs/guide.md'] })
+    expect(read('docs/guide.md')).toContain('Step: mine\nThen: two\n||||||| before')
   })
 
   it('refuses to take a side of a file that does not clash', () => {
@@ -278,6 +371,20 @@ describe('updateCommand with history', () => {
       lines: ['taken: config/rules.yaml; no clashes left'],
     })
     expect(await printed(['finish'])).toEqual({ code: 0, lines: ['updated'] })
+  })
+
+  it('prints each line it settled inside a clash', async () => {
+    cloned({ 'config/two.yaml': 'stale: 14\nfollow: 5\n' })
+    userCommit({ 'config/two.yaml': 'stale: 10\nfollow: 5\n' }, 'Saved: settings')
+    engineCommit({ 'config/two.yaml': 'stale: 21\nfollow: 3\n' }, 'New defaults')
+    await printed(['changes'])
+    expect(await printed(['merge'])).toEqual({
+      code: 0,
+      lines: [
+        'clashes: config/two.yaml',
+        '- settled config/two.yaml, from the new version: follow: 3',
+      ],
+    })
   })
 
   it('refuses the history steps in a folder that keeps no history', async () => {

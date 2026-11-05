@@ -29,14 +29,16 @@ Run `node scripts/update.ts changes`.
 
 - `latest`: say "You're on the latest version of the coach." and stop.
 - `not fetched: …`: say the coach could not reach the internet to look for a new version, and stop.
-- `available`, then one `- ` line per change: summarise those lines in two to five plain bullets of what the user will notice (new abilities, fixed problems, changed defaults), then ask: "Update now?" A no ends the skill with nothing changed.
+- `available`, then one `- ` line per change: summarise those lines in two to five plain bullets of what the user will notice (new abilities, fixed problems, changed defaults), then ask: "Update now?" A no ends the skill with nothing changed. Word a changed default as the new version's usual value ("the usual wait before a role with no reply counts as stale goes from 14 to 21 days"), because a setting the user changed stays theirs until step 3 settles it.
 
 ### 3. Merge
 
 Run `node scripts/update.ts merge`.
 
+After `merged` or `clashes:` may come `- settled <file>, from yours: <line>` or `… from the new version: <line>`: a line inside a clash that only one side changed, taken without asking. Tell the user each one in plain words by what it does, in the same reply ("the follow-up after an interview takes the new 3 working days, since you never changed it"), so they can say if it is wrong.
+
 - `merged`: go to step 4.
-- `clashes: <files>`: the user or the coach edited each of these files, and so did the new version. Take them one at a time. The file now holds both versions between clash markers. Read them and describe the difference by what it does ("how many days before a role counts as stale: yours says 21, the new version says 14"), then offer three choices:
+- `clashes: <files>`: the user or the coach edited each of these files, and so did the new version. Take them one at a time. The file now holds, between clash markers, the user's version under `yours`, the version both started from under `before`, and the new one under `new version`. A value that matches `before` was never changed on that side: say so ("you never changed this one; the usual 5 becomes 3"), and credit the user only with what they changed. Read them and describe each difference in the block by what it does ("how many days before a role counts as stale: yours says 21, the new version says 14"), then offer the choices. Offer **Keep both** only when the clash holds more than one value; for a single value, offer the first two. Ask even when the user said earlier what they want: their yes covers only what they have read. Every sentence of the reply is addressed to the user.
   - **Keep yours**: `node scripts/update.ts take ours <file>`.
   - **Take the new one**: `node scripts/update.ts take theirs <file>`.
   - **Keep both**: write the file with the user's changed values and everything new from the other side, with no clash markers left.
@@ -60,7 +62,7 @@ Run `node scripts/update.ts finish`. It saves the update, installs the coach's t
 
 ### 5. Confirm
 
-Run `node scripts/save.ts "Updated the coach"`; the update is already saved here, and this sends it to a private online copy. Read its first line as in Saving in CLAUDE.md: `nothing new to save` here means the online copy already had it. Confirm in one line: "The coach is updated." plus the most useful change from step 2.
+Run `node scripts/save.ts "Updated the coach"`; the update is already saved here, and this sends it to a private online copy. Read its first line as in Saving in CLAUDE.md: `nothing new to save` here means the online copy already had it. Confirm in one line: "The coach is updated." and one sentence with the most useful change, or with what was kept when a clash was settled.
 
 ## Without history
 
