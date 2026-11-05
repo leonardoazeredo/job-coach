@@ -27,9 +27,9 @@ describe('gitHubEngine', () => {
     await expect(gitHubEngine.latestCommit()).rejects.toMatchObject({ reason: 'unexpected' })
   })
 
-  it('returns the newest commit from a good reply', async () => {
-    reply({ status: 200 }, '{"sha":"abc"}')
-    expect(await gitHubEngine.latestCommit()).toBe('abc')
+  it('returns the newest commit and its date from a good reply', async () => {
+    reply({ status: 200 }, '{"sha":"abc","commit":{"committer":{"date":"2026-10-10T09:00:00Z"}}}')
+    expect(await gitHubEngine.latestCommit()).toEqual({ sha: 'abc', date: '2026-10-10T09:00:00Z' })
   })
 })
 
