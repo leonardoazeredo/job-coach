@@ -35,7 +35,7 @@ When a run finds a new fault, add a line here and fix the skill or the command. 
 
 ## Getting to the end
 
-16. Turn count: near 4 to 6. List every turn holding no new fact or decision.
+16. Turn count: near 3 (her question, her yes, her choice on the clash). List every turn holding no new fact or decision.
 
 ## Anything else
 
