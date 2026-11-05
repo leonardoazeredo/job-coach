@@ -45,7 +45,8 @@ git -C "$C" add -A
 at 2026-10-02T09:00:00Z "$C" "Initial commit"
 cp -R "$PERSONA/profile" "$PERSONA/cv" "$PERSONA/experience-bank" "$C/"
 for role in "$PERSONA"/pipeline/*/; do
-  [ "$(basename "$role")" = _templates ] || cp -R "$role" "$C/pipeline/"
+  # No trailing slash: on macOS it would copy the folder's contents instead of the folder.
+  [ "$(basename "$role")" = _templates ] || cp -R "${role%/}" "$C/pipeline/"
 done
 cp "$PERSONA/config/competencies/backend.yaml" "$C/config/competencies/"
 git -C "$C" add -A
