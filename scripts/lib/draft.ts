@@ -143,6 +143,13 @@ const readBack = (target: Target, text: string, data: Obj, read: (t: string) => 
   }
 }
 
+// What stops the merged values being drafted: their own faults first, then a disagreement with
+// another file in the folder.
+const problemsOf = ({ root, file, table }: Target, merged: ReturnType<typeof merge>): Problem[] =>
+  (merged.problems.length > 0 ? merged.problems : (table.refuse?.(merged.data, root) ?? [])).map(
+    (m) => error(file, m),
+  )
+
 const shapeData = (target: Target, input: Obj, open: () => Workspace): Shaped => {
   const { root, file, table, existing } = target
   const read = table.format === 'json' ? (t: string) => JSON.parse(t) : (t: string) => parse(t)
@@ -153,7 +160,8 @@ const shapeData = (target: Target, input: Obj, open: () => Workspace): Shaped =>
   const fresh = found.base === undefined
   const base: Obj = found.base ?? tpl
   const merged = merge(table.root, { base, input, tpl }, fresh)
-  if (merged.problems.length > 0) return { problems: merged.problems.map((m) => error(file, m)) }
+  const problems = problemsOf(target, merged)
+  if (problems.length > 0) return { problems }
   const change = { before: base, after: merged.data, given: input }
   const y =
     table.format === 'yaml' ? yamlText(existing ?? tplText, fresh, change, table.root) : undefined

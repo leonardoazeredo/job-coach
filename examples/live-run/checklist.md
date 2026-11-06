@@ -10,17 +10,17 @@ When a run finds a new fault in the conversation, add a line here and fix the sk
 2. Each write followed the person's yes to that exact draft. List any write with no yes, and any draft changed after its yes.
 3. A file's draft and its write fell in different turns. A turn holding the write of one file and the draft of another is allowed; list those apart.
 4. Each summary was relayed whole: no line dropped, merged or reworded. Compare the `draft` output in the raw calls with the reply that followed.
-5. A summary carried at most one framing sentence of the coach's, and no framing named a command, a tool or printing.
+5. A summary carried at most one framing sentence of the coach's, plus one sentence for each note the skill asks for (where a value went, or that one was left out). No framing or note named a command, a tool or printing.
 6. Every value written traces to a summary the person said yes to, apart from the kinds `scripts/lib/draft-table.ts` marks exempt. Give approximate traced and total counts and a table of failures.
-7. A value given in part stayed in part: no month, place, product, level or "only" was added.
+7. A value given in part stayed in part: no month, place, product, level or "only" was added. The CV's headline is the one the source wrote.
 8. A location or course start the source lacks was asked once; "none" became `null`, never an empty string.
-9. A refused draft was put to the person as what the coach needed, with no file or key named and no value or `null` invented.
+9. A refused draft was put to the person as what the coach needed, with no file or key named and no value or `null` invented. A value an earlier answer already stated in other words ("Hybrid or office is fine") may be filled from it and shown for a yes.
 
 ## Asking
 
 10. Each reply asked one thing. An offer never shared a reply with a question or a summary. A yes on a summary counts as the one thing, and the wording-and-overclaim question counts as one.
 11. Identity answers the source or an earlier answer settled were not asked again, and still appeared in a summary for a yes.
-12. An inferred value stayed a question, except the timezone (follows from a stated city, shown and not asked), the coaching language (the language the person writes in) and the discipline when the CV or an earlier answer states it.
+12. An inferred value stayed a question, and a number was written only once the person gave or confirmed one, except the timezone (follows from a stated city, shown and not asked), the coaching language (the language the person writes in) and the discipline when the CV or an earlier answer states it.
 13. A level already given was not asked again, and the countries the person named were not followed by a question about others.
 14. These were each asked, or the coach said plainly they were left out: tool names, things never done, payroll title (if the private section was opted into), earliest start, and which title words show their kind of work (`discovery.field_terms`).
 15. No question was asked that has no place in a file.
@@ -43,9 +43,9 @@ When a run finds a new fault in the conversation, add a line here and fix the sk
 
 ## Words the person reads
 
-26. No reply named a tool, a working step, a file or a key, including in explaining a fault. No template comment reached the person or a written file.
+26. No reply named a tool, a working step, a file or a key, including in explaining a fault, or called a summary "the draft". No template comment reached the person or a written file.
 27. The coach said "achievement" and "priority", never "win" or "tier".
-28. An achievement was named by its words, never by a number or an ordinal, even in passing.
+28. An achievement was named by its words, never by a number or an ordinal, even in passing. A known limit: no wording has held this through a run, so report it but do not count it as a firm failure.
 29. Questions held no machine codes.
 30. The coach stated no reason on the person's behalf that they did not give, in a framing sentence or anywhere else.
 
