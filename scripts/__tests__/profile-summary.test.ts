@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
-import { type Field, group } from '../lib/draft-fields.ts'
+import { type Field, group, items, value } from '../lib/draft-fields.ts'
+import { dataSummary } from '../lib/draft-summary.ts'
 import { TABLES } from '../lib/draft-table.ts'
 import { draft, drafted, personaFile, repo, run, useProfileRepo } from './profile-repo.ts'
 
@@ -461,6 +462,23 @@ describe("the summary uses the person's words, not the coach's", () => {
     expect(shown.stdout).toBe(
       'Private notes on jobs:\n- Software Developer at Harbor Health Network, payroll title Support Analyst\n',
     )
+  })
+
+  // A bare item cannot be drafted through the file schemas, so this goes to the summary itself.
+  it('prints the entry of an item that has only its id unless the list is quiet', () => {
+    const fields = { id: value('Id'), title: value('Title') }
+    const render = { locale: 'en-GB', pack: (id: string) => id }
+    const summary = (quiet?: true) =>
+      dataSummary(
+        group({
+          jobs: items('Jobs', { id: 'id', frame: '{id}', fields, ...(quiet ? { quiet } : {}) }),
+        }),
+        undefined,
+        { jobs: [{ id: 'bare' }] },
+        render,
+      )
+    expect(summary().join('\n')).toContain('bare')
+    expect(summary(true).join('\n')).not.toContain('bare')
   })
 })
 

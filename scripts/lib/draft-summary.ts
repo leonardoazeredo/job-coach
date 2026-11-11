@@ -207,7 +207,7 @@ const entryLine = (f: EntriesField, key: string, v: unknown, r: Render) => {
 const bullet = ([head, ...rest]: string[]) => [`- ${head}`, ...pad(rest, '  ')]
 
 const isBare = (f: ItemsField, item: unknown): boolean =>
-  !!f.quiet && isObj(item) && Object.entries(item).every(([k, x]) => k === f.id || blank(x))
+  f.quiet === true && isObj(item) && Object.entries(item).every(([k, x]) => k === f.id || blank(x))
 
 const listLines = (f: Field, v: unknown[], r: Render): string[] => {
   if (f.t === 'items')
