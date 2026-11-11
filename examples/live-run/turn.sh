@@ -13,6 +13,13 @@ if awk -v s="${SPENT:-0}" -v b="$BUDGET" 'BEGIN {exit !(s >= b)}'; then
   exit 3
 fi
 
+# What a replay of this turn starts from (replay.ts): the copy without its installed packages, which
+# are large and come back with npm ci, and the coach's session, which lives in claudehome.
+mkdir -p "$RUN/snap"
+tar -czf "$RUN/snap/before$N.tgz" -C "$RUN" --exclude=copy/node_modules copy claudehome
+rm -f "$RUN/snap/before$N.packages"
+[ -d "$RUN/copy/node_modules" ] && touch "$RUN/snap/before$N.packages"
+
 RESUME=()
 [ "$N" -gt 1 ] && RESUME=(--resume "$(cat "$RUN/session.id")")
 echo "[$(date +%T)] turn $N starts (expected 20-90 s, up to ~5 min); tail -f $RUN/raw/turn$N.jsonl"

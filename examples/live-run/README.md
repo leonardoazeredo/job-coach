@@ -37,6 +37,18 @@ It needs Docker and a Claude Code token in `CLAUDE_CODE_OAUTH_TOKEN`. Give the t
 >
 > Every quote must be exact, because it will be spot-checked. Write the full report to `<run-dir>/judge-report.txt`, with a verdict line per checklist line at the top, written `line 26 FAIL T15, T16` (`PASS`, `FAIL`, `BORDERLINE` or `SKIPPED`, then the turns or the file and line), followed by the quotes, one per line, written `line 26 T15 "exact quote"`. Send back the path and those verdict lines.
 
+## Replaying one turn
+
+A wording change aimed at one turn of a saved run (an opening that narrates its steps, a summary that is not relayed whole) is cheaper to test by replaying that turn than by running everything again: one sample costs a few cents.
+
+`node examples/live-run/replay.ts <run-dir> <turn> [n]` with the token in its environment (`n` is 5 by default). Each of the `n` samples starts from the run's state before that turn, with this checkout's `CLAUDE.md` and skills put in, sends the persona's original message for that turn and is marked by the scorer. It prints the fail rate per scored line, then each reply with its findings. The samples are independent and live in a new folder under the system's temporary folder, which is printed; the run folder is only read. The stop (`LIVE_RUN_BUDGET_USD`, 5 if unset, a number above 0) is the budget for the replay: it applies to the sum of what the samples spend, not counting what the run spent before that turn. A sample that fails ends the replay, and the samples already done are still marked and printed.
+
+A replay needs a run that `turn.sh` kept snapshots for (`<run-dir>/snap`), so a run made before that has to be run again once.
+
+Replay when the change touches the wording of one turn: what the coach says given what it was asked and what it already knows. Run in full when the change alters the order of questions or of files, or anything a later turn depends on, because a replay starts from the run as it was and never plays the turns after.
+
+Two limits. A skill the coach loaded in an earlier turn stays in the session as it was then, so a change to a skill's wording shows only in a replay of the turn that loads it or of an earlier one; `CLAUDE.md` is read afresh and always applies. And a sample's reply is one draw: read a rate over five as a direction, and raise `n` before trusting a small difference.
+
 ## An update run
 
 The same kind of proof for `update-coach` in a folder that keeps history. The fictional Dana Okafor (`examples/austin-backend`) has a copy made from this checkout's HEAD with one setting of her own, and updates to a local engine one version ahead that changed the same setting. It takes a few turns and costs well under $1.
