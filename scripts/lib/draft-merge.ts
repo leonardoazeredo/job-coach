@@ -5,31 +5,17 @@
 import {
   type EntriesField,
   type Field,
+  fieldIn,
   type GroupField,
-  group,
+  groupOf,
   type ItemsField,
+  idOf,
+  isObj,
   type ListField,
-  type Shape,
+  type Obj,
   type ValueField,
-  value,
 } from './draft-fields.ts'
 import { PLACEHOLDER } from './onboarding.ts'
-
-export type Obj = { [key: string]: unknown }
-export const isObj = (v: unknown): v is Obj =>
-  typeof v === 'object' && v !== null && !Array.isArray(v)
-
-// A key the table does not name, under a group that allows one.
-export const extraField = (key: string): Field => value(key.replaceAll('_', ' '), 'default')
-export const fieldIn = (shape: Shape, key: string): Field => shape[key] ?? extraField(key)
-export const itemGroup = (f: ItemsField): GroupField =>
-  f.open ? group(f.fields, 'open') : group(f.fields)
-export const entryGroup = (f: EntriesField): GroupField | undefined =>
-  f.value ? group(f.value) : undefined
-export const idOf = (f: ItemsField, item: unknown): unknown => {
-  if (typeof item === 'string') return item
-  return isObj(item) ? item[f.id] : undefined
-}
 
 export type Merged = { data: Obj; problems: string[]; remaining: string[] }
 
@@ -48,7 +34,7 @@ type At = { base: unknown; given: unknown; tpl: unknown }
 const named = (where: string, label: string) => (where ? `"${label}" (${where})` : `"${label}"`)
 const labelOf = (field: Field, key: string): string => (field.t === 'group' ? key : field.label)
 const scalar = (v: unknown) => ['string', 'number', 'boolean'].includes(typeof v)
-const marked = (v: unknown) => JSON.stringify(v ?? null).includes(PLACEHOLDER)
+const holdsPlaceholder = (v: unknown) => JSON.stringify(v ?? null).includes(PLACEHOLDER)
 
 // A year-month or a day that the calendar does not have. Other texts (a year, "present") are not
 // dates the summary rewords, so they stay as written.
@@ -168,7 +154,7 @@ const mergeItem = ({ f, shape }: ItemList, old: unknown, item: unknown, ctx: Ctx
   if (typeof item === 'string' || typeof old === 'string') return item
   const where = `${String(idOf(f, item))} in ${f.label}`
   const inner = { ...ctx, fromTemplate: old === undefined, where }
-  return mergeGroup(itemGroup(f), { base: old ?? shape, given: item, tpl: shape }, inner)
+  return mergeGroup(groupOf(f), { base: old ?? shape, given: item, tpl: shape }, inner)
 }
 
 const mergeEntries = (f: EntriesField, at: At, ctx: Ctx) => {
@@ -178,7 +164,7 @@ const mergeEntries = (f: EntriesField, at: At, ctx: Ctx) => {
   }
   // As with items, a new file drops the template's example entries.
   const out: Obj = ctx.fromTemplate || !isObj(at.base) ? {} : { ...at.base }
-  const shape = entryGroup(f)
+  const shape = groupOf(f)
   for (const [key, v] of Object.entries(at.given)) {
     const inner = { ...ctx, fromTemplate: false, where: `${key} in ${f.label}` }
     if (v === null || (typeof v === 'string' && v.trim() === '')) delete out[key]
@@ -195,13 +181,13 @@ type Spot = { where: string; label: string }
 // A value, or a key the user chose, still holding the template's marker was never answered,
 // whatever its kind.
 const markers = (field: Field, v: unknown, spot: Spot, out: Set<string>) => {
-  if (!marked(v)) return
+  if (!holdsPlaceholder(v)) return
   if (field.t === 'items' && Array.isArray(v)) {
-    for (const item of v.filter(marked)) {
+    for (const item of v.filter(holdsPlaceholder)) {
       const id = String(idOf(field, item) ?? '')
       const whole = typeof item === 'string' || id.includes(PLACEHOLDER)
       if (whole) out.add(named(spot.where, spot.label))
-      else markers(itemGroup(field), item, { where: `${id} in ${field.label}`, label: '' }, out)
+      else markers(groupOf(field), item, { where: `${id} in ${field.label}`, label: '' }, out)
     }
     return
   }

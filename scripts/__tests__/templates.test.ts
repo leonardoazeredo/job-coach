@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 import type { ZodType } from 'zod'
 import { CvDataSchema, HistoryFileSchema, WinsFileSchema } from '../lib/cv-schema.ts'
-import type { Field, Shape } from '../lib/draft-fields.ts'
+import { type Field, groupOf, type Shape } from '../lib/draft-fields.ts'
 import { TABLES } from '../lib/draft-table.ts'
 import { IdentitySchema } from '../lib/identity.ts'
 import { PLACEHOLDER } from '../lib/onboarding.ts'
@@ -169,20 +169,6 @@ const drift = (shape: Shape, tpl: unknown, at: string): string[] => {
 
 const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : [])
 
-// The shape of the items or entry values a field holds, where the table gives one.
-const fieldsOf = (f: Field): Shape | undefined => {
-  switch (f.t) {
-    case 'items':
-      return f.fields
-    case 'list':
-      return f.item?.fields
-    case 'entries':
-      return f.value
-    default:
-      return undefined
-  }
-}
-
 const inner = (f: Field, v: unknown, at: string): string[] => {
   const marked = JSON.stringify(v).includes(PLACEHOLDER)
   // A default stands unless given, so a placeholder there would be written as if answered.
@@ -191,7 +177,7 @@ const inner = (f: Field, v: unknown, at: string): string[] => {
       ? [`${at} is a default but holds ${PLACEHOLDER}`]
       : []
   if (f.t === 'group') return drift(f.fields, v, `${at}.`)
-  const fields = fieldsOf(f)
+  const fields = groupOf(f)?.fields
   if (!fields) return leaf
   const values = isObj(v) ? Object.values(v) : arr(v)
   return [...leaf, ...values.filter(isObj).flatMap((item) => drift(fields, item, `${at}[].`))]

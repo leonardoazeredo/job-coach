@@ -5,8 +5,8 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parse } from 'yaml'
-import type { DataTable, Field, GroupField } from './draft-fields.ts'
-import { fieldIn, isObj, itemGroup, merge, type Obj } from './draft-merge.ts'
+import { type DataTable, isObj, labelAt, type Obj } from './draft-fields.ts'
+import { merge } from './draft-merge.ts'
 import { keepDraft, type Open, readIfThere } from './draft-store.ts'
 import { dataSummary, type Render, textSummary } from './draft-summary.ts'
 import { TABLES } from './draft-table.ts'
@@ -80,29 +80,6 @@ const renderFor = (
       : {}),
     pack: packName(root),
   }
-}
-
-const stepInto = (at: unknown, step: string | number): unknown => {
-  if (Array.isArray(at)) return at[Number(step)]
-  return isObj(at) ? at[String(step)] : undefined
-}
-
-// A key path in words, named the way the merge names a value.
-const labelAt = (root: GroupField, path: (string | number)[], data: unknown): string => {
-  let field: Field = root
-  let at = data
-  let where = ''
-  let label = ''
-  for (const step of path) {
-    at = stepInto(at, step)
-    if (field.t === 'group') field = fieldIn(field.fields, String(step))
-    else if (field.t === 'items') {
-      where = `${String(isObj(at) ? at[field.id] : at)} in ${field.label}`
-      field = itemGroup(field)
-    } else break
-    if (field.t !== 'group') label = field.label
-  }
-  return where ? `"${label}" (${where})` : `"${label}"`
 }
 
 const still = (file: string, names: string[]): Problem[] =>

@@ -6,6 +6,7 @@ import {
   type DataTable,
   entries,
   group,
+  isObj,
   items,
   later,
   list,
@@ -20,7 +21,6 @@ import {
   value,
   wording,
 } from './draft-fields.ts'
-import { isObj } from './draft-merge.ts'
 import { CURRENCY, EMPLOYMENT_TYPES, LOCALE, MONEY, oneOf, TIMEZONE } from './draft-rules.ts'
 import { IdentitySchema } from './identity.ts'
 import { masterRefusals, stackRefusals } from './never-claim.ts'
