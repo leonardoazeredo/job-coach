@@ -168,7 +168,7 @@ describe('a figure on file that would not read on a CV', () => {
     repo.editYaml<{ wins: { slug: string; metric: string }[] }>('profile/wins.yaml', (file) => {
       for (const win of file.wins) {
         if (win.slug === 'bw-aws-cost') win.metric = 'down 20% (his estimate)'
-        if (win.slug === 'bw-test-suite') win.metric = 'down by my team to 11 minutes'
+        if (win.slug === 'bw-test-suite') win.metric = 'down by my team to 11 minutes (todo)'
       }
     })
     expect(
@@ -177,7 +177,7 @@ describe('a figure on file that would not read on a CV', () => {
         .map((p) => `${p.level}: ${p.message}`),
     ).toEqual([
       expect.stringMatching(/^warning: win:bw-aws-cost: .*"\(his estimate\)"/),
-      expect.stringMatching(/^warning: win:bw-test-suite: .*"my"/),
+      expect.stringMatching(/^warning: win:bw-test-suite: .*"\(todo\)", "my"/),
     ])
     expect((await repo.run(check)).code).toBe(0)
   })

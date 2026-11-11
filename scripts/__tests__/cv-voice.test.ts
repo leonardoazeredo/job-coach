@@ -1,9 +1,14 @@
+import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_VOICE, voiceFindings } from '../lib/cv-voice.ts'
+import { openWorkspace } from '../lib/workspace.ts'
 import { variant } from './fixtures.ts'
 import {
+  degree,
+  editMaster,
   errorsFor,
   larkspur,
+  masterTech,
   messages,
   repo,
   roleProblems,
@@ -40,21 +45,57 @@ describe('words that do not belong on a CV', () => {
     ])
     expect(voiceFindings('i built it', DEFAULT_VOICE)).toEqual([])
   })
+
+  it('reports both words of he/she', () => {
+    expect(voiceFindings('he/she ships', DEFAULT_VOICE).map((f) => f.phrase)).toEqual(['he', 'she'])
+  })
+
+  it('refuses a square-bracketed note, and a round one holding a note word', () => {
+    expect(voiceFindings('down 20% [approx.]', DEFAULT_VOICE)).toEqual([
+      { level: 'error', phrase: '[approx.]' },
+    ])
+    expect(voiceFindings('down 20% (see note)', DEFAULT_VOICE)).toEqual([
+      { level: 'error', phrase: '(see note)' },
+    ])
+  })
 })
 
-describe('the voice check on a built CV', () => {
-  it('refuses a note and a pronoun in a quoted figure, and a pronoun in each of two bullets, once each', () => {
+describe('the voice check on a quoted figure', () => {
+  it('refuses a note in a figure and blames the achievement figure', () => {
     setFigure(`${DOCK_FIGURE} (his estimate)`)
-    const figureNote = errorsFor(costBullet(`${DOCK_FIGURE} (his estimate)`))
-    expect(figureNote).toEqual([expect.stringContaining('"(his estimate)"')])
-    expect(figureNote[0]).toContain("achievement's figure needs rewording")
-    expect(figureNote[0]).toContain('brightwell bullet 1')
+    const found = errorsFor(costBullet(`${DOCK_FIGURE} (his estimate)`))
+    expect(found).toEqual([expect.stringContaining('"(his estimate)"')])
+    expect(found[0]).toContain("achievement's figure needs rewording")
+    expect(found[0]).toContain('brightwell bullet 1')
+  })
 
+  it('refuses a pronoun in a figure and blames the achievement figure', () => {
     setFigure(`${DOCK_FIGURE} by my team`)
-    const figurePronoun = errorsFor(costBullet(`${DOCK_FIGURE} by my team`))
-    expect(figurePronoun).toEqual([expect.stringContaining('"my"')])
-    expect(figurePronoun[0]).toContain("achievement's figure needs rewording")
+    const found = errorsFor(costBullet(`${DOCK_FIGURE} by my team`))
+    expect(found).toEqual([expect.stringContaining('"my"')])
+    expect(found[0]).toContain("achievement's figure needs rewording")
+  })
 
+  it('attributes an offender in a second clause when the bullet quotes that clause whole', () => {
+    const second = 'the on-call load dropped to 2 pages (my estimate)'
+    setFigure(`${DOCK_FIGURE}; ${second}`)
+    const found = errorsFor(
+      withBullet('brightwell', `Moved label printing to Lambda, and ${second}.`, [
+        'win:bw-aws-cost',
+      ]),
+    )
+    expect(found).toEqual([expect.stringContaining('"(my estimate)"')])
+    expect(found[0]).toContain("achievement's figure needs rewording")
+  })
+
+  it('passes the same CV with the wording fixed', () => {
+    setFigure(DOCK_FIGURE)
+    expect(errorsFor(costBullet(DOCK_FIGURE))).toEqual([])
+  })
+})
+
+describe('the voice check on bullets', () => {
+  const twoBullets = () => {
     const v = costBullet(DOCK_FIGURE)
     const job = v.jobs.find((j) => j.id === 'brightwell')
     if (!job) throw new Error('no job')
@@ -66,18 +107,20 @@ describe('the voice check on a built CV', () => {
         answers: [],
       },
     ]
-    setFigure(DOCK_FIGURE)
-    const found = errorsFor(v)
+    return v
+  }
+
+  it('names each bullet holding a pronoun, once each', () => {
+    const found = errorsFor(twoBullets())
     expect(found).toHaveLength(2)
     expect(found[0]).toContain('"He"')
     expect(found[0]).toContain('brightwell bullet 1')
     expect(found[1]).toContain('"his"')
-    expect(found[1]).not.toContain('figure needs rewording')
+    expect(found[1]).toContain('brightwell bullet 2')
   })
 
-  it('passes the same CV with the wording fixed', () => {
-    setFigure(DOCK_FIGURE)
-    expect(errorsFor(costBullet(DOCK_FIGURE))).toEqual([])
+  it('does not blame the figure for a pronoun outside it', () => {
+    expect(errorsFor(twoBullets())[1]).not.toContain('figure needs rewording')
   })
 
   it('warns on "their" without refusing', () => {
@@ -85,25 +128,96 @@ describe('the voice check on a built CV', () => {
     expect(errorsFor(v)).toEqual([])
     expect(warningsFor(v)).toEqual(expect.arrayContaining([expect.stringContaining('"their"')]))
   })
+})
 
-  it('refuses a pronoun in the headline and in text only master.json supplies', () => {
+describe('the voice check on text no bullet covers', () => {
+  const voiceErrorsAt = () =>
+    messages(roleProblems(), 'error').filter((m) => /has the (pronoun|bracketed note)/.test(m))
+
+  it('refuses a pronoun in the headline', () => {
     larkspur.writeVariant((v) => {
       v.headline = 'Backend engineer who builds what she ships'
     })
-    expect(messages(roleProblems(), 'error')).toEqual([
-      expect.stringContaining('cv headline: has the pronoun "she"'),
+    expect(voiceErrorsAt()).toEqual([expect.stringContaining('cv headline: has the pronoun "she"')])
+  })
+
+  it('refuses a pronoun in a skill', () => {
+    larkspur.writeVariant((v) => {
+      v.skills = ['Python', 'what she knows']
+    })
+    expect(voiceErrorsAt()).toEqual([expect.stringContaining('cv skills: ')])
+  })
+
+  it('refuses a note in a training line', () => {
+    editMaster((m) => {
+      m.training = ['Safety course (todo)']
+    })
+    expect(voiceErrorsAt()).toEqual([
+      expect.stringContaining('cv training: has the bracketed note "(todo)"'),
     ])
   })
 
-  it('treats a copy whose cv.yaml lacks the lists as having the defaults', () => {
-    const rules = repo
-      .read('config/cv.yaml')
-      .replace(/^(error_pronouns|warning_pronouns|note_words):.*\n/gm, '')
-    repo.write('config/cv.yaml', rules)
+  it('refuses a pronoun in a language line', () => {
+    editMaster((m) => {
+      m.languages = ['English (my first)']
+    })
+    expect(voiceErrorsAt()).toEqual([expect.stringContaining('cv languages: ')])
+  })
+
+  it('refuses a note in an education line', () => {
+    editMaster((m) => {
+      m.education = [degree('BSc (todo)')]
+    })
+    expect(voiceErrorsAt()).toEqual([expect.stringContaining('cv education: ')])
+  })
+
+  it('refuses a note in a job tech list', () => {
+    const master = JSON.parse(repo.read('cv/master.json'))
+    for (const job of master.work)
+      if (job.id === 'brightwell') job.tech = [...(masterTech('brightwell') ?? []), 'Go (todo)']
+    repo.write('cv/master.json', `${JSON.stringify(master, null, 2)}\n`)
+    expect(voiceErrorsAt()).toEqual([expect.stringContaining('cv work: ')])
+  })
+})
+
+describe('a copy whose cv.yaml lacks the word lists', () => {
+  const dropLists = () =>
+    repo.write(
+      'config/cv.yaml',
+      repo
+        .read('config/cv.yaml')
+        .replace(/^(error_pronouns|warning_pronouns|note_words):.*\n/gm, ''),
+    )
+
+  it('refuses a note by the defaults', () => {
+    dropLists()
     expect(errorsFor(variant())).toEqual([])
     larkspur.writeVariant((v) => {
       v.headline = 'Engineer (todo)'
     })
     expect(messages(roleProblems(), 'error')).toEqual([expect.stringContaining('"(todo)"')])
+  })
+
+  it('still warns about a figure on file', () => {
+    dropLists()
+    setFigure(`${DOCK_FIGURE} (his estimate)`)
+    const warned = repo
+      .workspace()
+      .check()
+      .problems.filter((p) => p.level === 'warning' && p.slug === 'profile/wins.yaml')
+    expect(warned).toEqual([
+      expect.objectContaining({ message: expect.stringContaining('(his estimate)') }),
+    ])
+  })
+})
+
+describe('the example persona', () => {
+  it('holds no voice finding in its built CVs', async () => {
+    const root = resolve(import.meta.dirname, '../../examples/austin-backend')
+    const ws = openWorkspace(root, async () => undefined)
+    const found = [...ws.check().problems, ...ws.lintCvs().problems].filter((p) =>
+      /pronoun|bracketed note|the figure holds/.test(p.message),
+    )
+    expect(found).toEqual([])
   })
 })

@@ -31,14 +31,17 @@ export type Profile = {
 // A figure is quoted whole on every CV using its number, so one already on file with a pronoun
 // or a note fails each of those CVs; the warning points at the cause before a CV is built.
 const figureProblems = (wins: Win[], lists: VoiceLists): Problem[] =>
-  wins.flatMap((win) =>
-    voiceErrors(win.metric, lists).map((phrase) =>
+  wins.flatMap((win) => {
+    const phrases = voiceErrors(win.metric, lists)
+    if (phrases.length === 0) return []
+    const held = phrases.map((p) => `"${p}"`).join(', ')
+    return [
       warning(
         'profile/wins.yaml',
-        `${winRef(win.slug)}: the figure holds "${phrase}"; reword it as it should read on a CV`,
+        `${winRef(win.slug)}: the figure holds ${held}; reword it as it should read on a CV`,
       ),
-    ),
-  )
+    ]
+  })
 
 // The identity is read once by the workspace, which also needs its name and timezone, so
 // its problems arrive here rather than being found twice. The competency pack it names
