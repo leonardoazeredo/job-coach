@@ -1,4 +1,4 @@
-# Git hooks. pre-commit: staged files only.
+# Git hooks. pre-commit: staged files only; a Biome warning there refuses the commit, info notes do not.
 # pre-push: the whole local CI (biome, tsc, vitest, and the example workspace check).
 
 pre-commit:
@@ -6,7 +6,7 @@ pre-commit:
   jobs:
     - name: biome
       glob: '*.{ts,json}'
-      run: npx biome check --write --diagnostic-level=error --no-errors-on-unmatched --files-ignore-unknown=true {staged_files}
+      run: npx biome check --write --diagnostic-level=warn --error-on-warnings --no-errors-on-unmatched --files-ignore-unknown=true {staged_files}
       stage_fixed: true
     - name: pipeline
       glob: '{pipeline,config,profile,examples}/**/*.{yaml,md}'
