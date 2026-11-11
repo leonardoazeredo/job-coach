@@ -3,8 +3,9 @@
 // starts from the template's document with all of its comments taken out.
 //
 // The template's marks (comments naming the placeholder) found in an existing Profile file, and
-// what a draft makes of each: answered by the input, so it goes; still on a sample the draft
-// leaves alone, so the draft is refused; or a note the user wrote, so it stays as written.
+// what a draft makes of each: answered, so it goes (the input names the value, the draft changes
+// or drops it, or the mark is in the file's header); still on a sample the draft leaves alone, so
+// the draft is refused; or a note the user wrote, so it stays as written.
 import {
   type Document,
   isMap,
@@ -190,8 +191,8 @@ const covers = (u: Under, idKey?: string): boolean => {
 type Verdict = { kind: 'answered' } | { kind: 'sample'; path: Path } | { kind: 'kept' }
 
 // Follows a mark's path from the file as it was into the merged value and the input, matching
-// items by id. A mark on a whole section, or on a value nobody may answer (an id), is the user's
-// own note and stays.
+// items by id. A mark on a whole section stays, and so does one on an exempt value (kept or
+// given, such as an id or a name) that the input does not answer: it is the user's own note.
 const judge = (path: Path, c: Change & { given: unknown }, root: GroupField): Verdict => {
   let w: Walk | undefined = {
     field: root,
