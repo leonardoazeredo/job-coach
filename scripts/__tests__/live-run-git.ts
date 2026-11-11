@@ -4,15 +4,17 @@
 import { spawnSync } from 'node:child_process'
 import { realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
+import { sep } from 'node:path'
 import { withoutGitVariables } from '../../examples/live-run/replay.ts'
 
 const run = (cwd: string, extra: Record<string, string>, args: string[]) => {
   const env = { ...withoutGitVariables(process.env), ...extra }
   if (args[0] !== 'init') {
     const top = spawnSync('git', ['rev-parse', '--show-toplevel'], { cwd, env, encoding: 'utf8' })
-    const inside = realpathSync(top.stdout.trim()).startsWith(realpathSync(tmpdir()))
-    if (top.status !== 0 || !inside)
-      throw new Error(`${cwd} is not a repository in the temp folder`)
+    const where = `${cwd} is not a repository in the temp folder`
+    if (top.status !== 0) throw new Error(where)
+    if (!realpathSync(top.stdout.trim()).startsWith(realpathSync(tmpdir()) + sep))
+      throw new Error(where)
   }
   return spawnSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', ...args], {
     cwd,
