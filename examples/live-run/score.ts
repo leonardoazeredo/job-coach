@@ -3,8 +3,11 @@
 // serves only the live-run harness; its test in scripts/__tests__ is what `npm run ci` runs.
 // Usage: node examples/live-run/score.ts <run-dir>
 // Prints one line per finding (`line 26 FAIL T15 "..."`), one `line N PASS` for each covered
-// line without a finding (`SKIPPED` when the folder lacks what the line reads), and the turn count. A finding is a report, not an error: the exit code
-// says only whether the folder could be scored (64 usage, 66 no run folder or transcript).
+// line without a finding (`SKIPPED` when the folder lacks what the line reads), and, for an
+// onboarding run, the turn count. A finding is a report, not an error: the exit code says only
+// whether the folder could be scored (64 usage, 66 no run folder or transcript).
+// Line 4 asks whether each summary line appears in the reply, so a merged or dropped duplicate
+// line passes: a finding is a lead for the judge, not a verdict.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { EXIT } from '../../scripts/lib/problem.ts'
