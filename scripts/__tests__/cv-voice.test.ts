@@ -71,7 +71,19 @@ describe('words that do not belong on a CV', () => {
     ])
   })
 
-  it.each(['(React, TypeScript)', '(Series B)', '(Python 3)'])('passes the bracket %s', (text) => {
+  it.each([
+    '(Jupyter Notebook)',
+    '(Notebook LM)',
+    '(Todoist)',
+    '(Notion)',
+    '(Nottingham)',
+    '(Notepad++)',
+    '(ME)',
+    '(IT)',
+    '(React, TypeScript)',
+    '(Series B)',
+    '(Python 3)',
+  ])('passes the bracket %s', (text) => {
     expect(voiceFindings(`Built it ${text}`, DEFAULT_VOICE)).toEqual([])
   })
 
