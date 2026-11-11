@@ -65,6 +65,16 @@ describe('words that do not belong on a CV', () => {
     ])
   })
 
+  it.each(['(estimated)', '(approximately)', '[estimates]'])('refuses the note %s', (note) => {
+    expect(voiceFindings(`down 20% ${note}`, DEFAULT_VOICE)).toEqual([
+      { level: 'error', phrase: note },
+    ])
+  })
+
+  it.each(['(React, TypeScript)', '(Series B)', '(Python 3)'])('passes the bracket %s', (text) => {
+    expect(voiceFindings(`Built it ${text}`, DEFAULT_VOICE)).toEqual([])
+  })
+
   it('reports both words of he/she', () => {
     expect(voiceFindings('he/she ships', DEFAULT_VOICE).map((f) => f.phrase)).toEqual(['he', 'she'])
   })

@@ -23,6 +23,8 @@ const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\
 
 // "I" counts only as a capital standing alone, so I/O, CI/CD, IT and "other" trip nothing.
 // Every other word is whole and case-insensitive; a slash there is a boundary ("he/she").
+// A note word inside a bracket also matches from its start, so "(estimated)" and
+// "(approximately)" are caught by "estimate" and "approx".
 const wordPattern = (word: string): RegExp =>
   word === 'I'
     ? /(?<![\w/-])I(?![\w/-])/g
@@ -30,6 +32,11 @@ const wordPattern = (word: string): RegExp =>
 
 const wordsIn = (text: string, words: string[]): string[] =>
   words.flatMap((word) => [...text.matchAll(wordPattern(word))].map((m) => m[0]))
+
+const notesIn = (bracket: string, words: string[]): string[] =>
+  words.flatMap((word) =>
+    [...bracket.matchAll(new RegExp(`(?<!\\w)${escapeRegExp(word)}`, 'gi'))].map((m) => m[0]),
+  )
 
 // A pronoun of two or more capitals is an acronym or a state code ("ME" in Portland, ME), which
 // the user cannot reword away, so only lowercase and Title Case count. Note words keep every case.
@@ -44,7 +51,7 @@ export const voiceFindings = (text: string, lists: VoiceLists): VoiceFinding[] =
   const found: VoiceFinding[] = []
   const noted = text.replace(BRACKETED, (bracket) => {
     if (
-      wordsIn(bracket, lists.note_words).length +
+      notesIn(bracket, lists.note_words).length +
         pronounsIn(bracket, lists.error_pronouns).length ===
       0
     )
