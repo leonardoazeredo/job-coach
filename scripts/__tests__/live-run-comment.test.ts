@@ -127,6 +127,21 @@ describe('the live-run comment builder, further cases', () => {
   })
 })
 
+describe('the live-run comment builder on a saved history', () => {
+  it('reads only the last verdict block of a file holding several saved comments', () => {
+    const block = (lines: string[]) => `**Verdicts:**\n\n\`\`\`text\n${lines.join('\n')}\n\`\`\`\n`
+    const history = join(run, 'history.md')
+    writeFileSync(
+      history,
+      `${block(['line 4 FAIL T2', 'line 11 PASS'])}\n${block(['line 4 PASS', 'line 11 FAIL T9'])}`,
+    )
+    writeFileSync(join(run, 'judge-report.txt'), 'line 4 PASS\nline 11 PASS\n')
+    build(history)
+    const text = readFileSync(join(run, 'comment.md'), 'utf8')
+    expect(text).toContain('Fixed since the previous run: line 11.\n')
+  })
+})
+
 describe('the live-run comment builder on input it cannot use', () => {
   it('ends a run with no judge report in one plain line and the missing-input code', () => {
     rmSync(join(run, 'judge-report.txt'))

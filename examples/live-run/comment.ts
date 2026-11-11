@@ -2,14 +2,14 @@
 // checklist line the judge failed with its turns and exact quotes, and the lines fixed since the
 // previous run. It lives beside the run's scripts, not under scripts/, because it serves only the
 // live-run harness; its test in scripts/__tests__ is what `npm run ci` runs.
-// Usage: node examples/live-run/comment.ts <run-dir> [<previous-judge-report>]
+// Usage: node examples/live-run/comment.ts <run-dir> [<previous-comment-or-report>]
 // Writes <run-dir>/comment.md and prints its path; it posts nothing, so the last step of the guide
-// is the one `gh issue comment --body-file`. The previous run's verdicts come as that run's own
-// judge-report.txt, because run folders do not outlast a run and the report is what gets kept.
+// is the one `gh issue comment --body-file`.
 // The judge's report starts with a verdict line per checklist line (`line 26 FAIL T15, T16`),
 // then holds the quotes (`line 26 T15 "..."`). The scorer's output is not read from a file:
 // scoreRun is called, so its findings are the ones the judge was given.
-// The previous verdicts are read from a judge report or from a comment saved to a file.
+// The previous verdicts are read from a comment saved to a file (the one posted for the run
+// before, kept because run folders do not outlast a run) or from a judge report.
 // Exit codes: 64 usage, 66 when the run folder lacks something the comment is built from, 65 when
 // a report or previous verdict is there but holds no verdict line (ADR 0003: read, wrong shape).
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs'
@@ -17,7 +17,7 @@ import { join } from 'node:path'
 import { EXIT } from '../../scripts/lib/problem.ts'
 import { scoreRun } from './score.ts'
 
-const USAGE = 'usage: node examples/live-run/comment.ts <run-dir> [<previous-judge-report>]'
+const USAGE = 'usage: node examples/live-run/comment.ts <run-dir> [<previous-comment-or-report>]'
 
 type Verdict = { line: number; status: string; where: string }
 
@@ -71,11 +71,16 @@ const verdictBlock = (report: string) => [
   '',
 ]
 
+// A file holding several saved comments (every run's, as the issue lists them) is read from its
+// last verdict block, so an older run's faults are not counted again; a plain report has no marker.
+const lastVerdicts = (previous: string) => verdicts(previous.split('**Verdicts:**').at(-1) ?? '')
+
 const fixedSince = (report: string, previous: string | undefined): string[] => {
   if (previous === undefined) return ['No previous verdict was given, so no lines are compared.']
+  const before = lastVerdicts(previous)
   const fixed = verdicts(report)
     .filter((v) => v.status === 'PASS')
-    .filter((v) => verdicts(previous).some((p) => p.line === v.line && isFault(p)))
+    .filter((v) => before.some((p) => p.line === v.line && isFault(p)))
     .map((v) => v.line)
   return [
     fixed.length === 0
