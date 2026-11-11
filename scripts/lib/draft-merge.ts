@@ -15,7 +15,7 @@ import {
   type Obj,
   type ValueField,
 } from './draft-fields.ts'
-import { PLACEHOLDER } from './onboarding.ts'
+import { PLACEHOLDER } from './placeholder.ts'
 
 export type Merged = { data: Obj; problems: string[]; remaining: string[] }
 
