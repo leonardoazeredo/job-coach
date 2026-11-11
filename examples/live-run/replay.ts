@@ -101,26 +101,55 @@ const sessionAfter = (run: string, turn: number): string => {
   throw new Error(`raw/turn${turn}.jsonl holds no result with a session id`)
 }
 
-// The cost line a turn left in costlog.txt is the session's running total.
-const costAfter = (run: string, turn: number): number => {
-  const line = readFileSync(join(run, 'costlog.txt'), 'utf8')
-    .split('\n')
-    .find((l) => l.startsWith(`turn ${turn} `))
-  return line === undefined ? 0 : Number(line.split(' ')[2])
+// The cost line a turn left in costlog.txt is the session's running total; undefined when the
+// log has no line for the turn.
+export const totalAfter = (costlog: string, turn: number): number | undefined => {
+  const line = costlog.split('\n').find((l) => l.startsWith(`turn ${turn} `))
+  const total = line === undefined ? Number.NaN : Number(line.split(' ')[2])
+  return Number.isFinite(total) ? total : undefined
 }
 
-// This checkout's CLAUDE.md and skills go into the sample's copy and are committed there, as
+// What one sample spent: its running total at the turn less the run's total before the turn.
+export const sampleSpend = (costlog: string, turn: number, base: number): number => {
+  const total = totalAfter(costlog, turn)
+  if (total === undefined) throw new Error(`the cost log has no cost for turn ${turn}`)
+  return total - base
+}
+
+// The replay's budget in dollars: unset is 5; anything else must be a number above 0.
+export const parseBudget = (raw: string | undefined): number | string => {
+  if (raw === undefined) return 5
+  const n = Number(raw)
+  return Number.isFinite(n) && n > 0 && raw.trim() !== ''
+    ? n
+    : `LIVE_RUN_BUDGET_USD must be a number above 0: "${raw}"`
+}
+
+export const shouldStop = (spent: number, budget: number): boolean => spent >= budget
+
+export const stopMessage = (spent: number, budget: number, i: number, n: number): string =>
+  `STOP: ${spent.toFixed(3)} spent, the stop is ${budget}. ${n - i + 1} samples were not run.`
+
+export const sampleFolder = (out: string, i: number): string => join(out, `${basename(out)}-s${i}`)
+
+const costAfter = (run: string, turn: number): number =>
+  totalAfter(readFileSync(join(run, 'costlog.txt'), 'utf8'), turn) ?? 0
+
+// This checkout's CLAUDE.md and skills go into the sample's copy. They are committed there, as
 // start.sh's copy of a commit has them, dated like the copy's last commit so the order of a
-// history the coach reads does not change.
-const applyTree = (copy: string, root: string) => {
+// history the coach reads does not change. In the middle of an update's merge the files are only
+// written: a commit would end the merge the coach is in the middle of.
+export const applyTree = (copy: string, root: string) => {
   cpSync(join(root, 'CLAUDE.md'), join(copy, 'CLAUDE.md'))
   rmSync(join(copy, '.claude', 'skills'), { recursive: true, force: true })
   cpSync(join(root, '.claude', 'skills'), join(copy, '.claude', 'skills'), { recursive: true })
   const git = (...a: string[]) => sh('git', ['-C', copy, ...a])
+  if (git('rev-parse', '-q', '--verify', 'MERGE_HEAD').status === 0) return
   if (git('status', '--short', '--', 'CLAUDE.md', '.claude/skills').stdout.trim() === '') return
   const date = git('log', '-1', '--format=%cI').stdout.trim()
-  git('add', '--', 'CLAUDE.md', '.claude/skills')
-  spawnSync(
+  const added = git('add', '--', 'CLAUDE.md', '.claude/skills')
+  if (added.status !== 0) throw new Error(`could not stage the wording under test: ${added.stderr}`)
+  const commit = spawnSync(
     'git',
     [
       '-C',
@@ -135,8 +164,10 @@ const applyTree = (copy: string, root: string) => {
       '-m',
       'Wording of the coach under test',
     ],
-    { env: { ...process.env, GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date } },
+    { encoding: 'utf8', env: { ...process.env, GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date } },
   )
+  if (commit.status !== 0)
+    throw new Error(`could not commit the wording under test: ${commit.stderr}`)
 }
 
 // A sample folder has a run folder's shape, so turn.sh and scoreRun work on it unchanged. It
@@ -170,33 +201,46 @@ export const prepareSample = (run: string, turn: number, sample: string, root: s
 
 const stamp = () => `[${new Date().toTimeString().slice(0, 8)}]`
 
-const runSample = (run: string, turn: number, sample: string, hasPackages: boolean): number => {
+// turn.sh stops when the log's total reaches its budget. The sample's log starts at the run's
+// total before the turn, so the replay's budget is added to it: it is the budget for the replay.
+type SampleJob = {
+  run: string
+  turn: number
+  sample: string
+  hasPackages: boolean
+  remaining: number
+}
+
+const runSample = ({ run, turn, sample, hasPackages, remaining }: SampleJob): number => {
   const container = `coach-live-run-${basename(sample)}`
   const up = spawnSync(join(HERE, 'up.sh'), [sample], { stdio: ['ignore', 'ignore', 'inherit'] })
   if (up.status !== 0) throw new Error('the sample container did not start')
   try {
     if (hasPackages) {
       console.log(`${stamp()} installing the coach's packages (about 20 s)`)
-      sh('docker', ['exec', container, 'npm', 'ci', '--silent'])
+      const ci = sh('docker', ['exec', container, 'npm', 'ci', '--silent'])
+      if (ci.status !== 0) throw new Error("the coach's packages did not install")
     }
     const base = turn > 1 ? costAfter(run, turn - 1) : 0
     const t = spawnSync(join(HERE, 'turn.sh'), [sample, String(turn), join(sample, 'reply.txt')], {
       stdio: ['ignore', 'ignore', 'inherit'],
+      env: { ...process.env, LIVE_RUN_BUDGET_USD: String(base + remaining) },
     })
     if (t.status !== 0) throw new Error(`turn.sh failed (exit ${t.status}); see ${sample}/raw`)
-    return costAfter(sample, turn) - base
+    return sampleSpend(readFileSync(join(sample, 'costlog.txt'), 'utf8'), turn, base)
   } finally {
     sh('docker', ['rm', '-f', container])
   }
 }
 
-export const replayCommand = (args: string[]): number => {
+// The arguments and the environment, checked before any Docker call; a number is the exit code.
+const checkInputs = (args: string[]): (ReplayArgs & { budget: number }) | number => {
   const parsed = parseReplayArgs(args)
   if (typeof parsed === 'string') {
     console.error(parsed)
     return EXIT.usage
   }
-  const { run, turn, n } = parsed
+  const { run, turn } = parsed
   if (!existsSync(run) || !statSync(run).isDirectory()) {
     console.error(`no run folder at ${run}`)
     return EXIT.missing
@@ -212,41 +256,15 @@ export const replayCommand = (args: string[]): number => {
     console.error('run this with the token in the environment')
     return EXIT.usage
   }
-  const budget = Number(process.env.LIVE_RUN_BUDGET_USD ?? 5)
-  const root = repoRoot()
-  const out = mkdtempSync(join(tmpdir(), `replay-${basename(run)}-t${turn}-`))
-  const hasPackages = existsSync(join(run, 'snap', `before${turn}.packages`))
-
-  console.log(`${stamp()} building the image (a few minutes the first time)`)
-  const nvmrc = readFileSync(join(root, '.nvmrc'), 'utf8').trim()
-  sh('docker', [
-    'build',
-    '-q',
-    '--build-arg',
-    `NODE_VERSION=${nvmrc}`,
-    '-t',
-    'coach-live-run',
-    HERE,
-  ])
-
-  let spent = 0
-  const done: string[] = []
-  for (let i = 1; i <= n; i++) {
-    if (spent >= budget) {
-      console.log(
-        `STOP: ${spent.toFixed(3)} spent, the stop is ${budget}. ${n - i + 1} samples were not run.`,
-      )
-      break
-    }
-    const sample = join(out, `s${i}`)
-    console.log(
-      `${stamp()} sample ${i} of ${n} (expected 1-3 min); folder ${sample}, tail -f ${sample}/raw/turn${turn}.jsonl`,
-    )
-    prepareSample(run, turn, sample, root)
-    spent += runSample(run, turn, sample, hasPackages)
-    done.push(sample)
+  const budget = parseBudget(process.env.LIVE_RUN_BUDGET_USD)
+  if (typeof budget === 'string') {
+    console.error(budget)
+    return EXIT.usage
   }
+  return { ...parsed, budget }
+}
 
+const printResults = (turn: number, done: string[], spent: number) => {
   const scored = done.map((s) => scoreRun(s))
   console.log(
     `\nFail rate at turn ${turn} over ${done.length} replies (spend ${spent.toFixed(3)} USD):`,
@@ -258,6 +276,55 @@ export const replayCommand = (args: string[]): number => {
       if (new RegExp(`^line \\d+ FAIL T${turn}\\b`).test(l)) console.log(l)
     console.log(readFileSync(join(s, 'last.txt'), 'utf8'))
   })
+}
+
+export const replayCommand = (args: string[]): number => {
+  const checked = checkInputs(args)
+  if (typeof checked === 'number') return checked
+  const { run, turn, n, budget } = checked
+  const root = repoRoot()
+  const out = mkdtempSync(join(tmpdir(), `replay-${basename(run)}-t${turn}-`))
+  const hasPackages = existsSync(join(run, 'snap', `before${turn}.packages`))
+
+  console.log(`${stamp()} building the image (a few minutes the first time)`)
+  const nvmrc = readFileSync(join(root, '.nvmrc'), 'utf8').trim()
+  const built = sh('docker', [
+    'build',
+    '-q',
+    '--build-arg',
+    `NODE_VERSION=${nvmrc}`,
+    '-t',
+    'coach-live-run',
+    HERE,
+  ])
+  if (built.status !== 0) {
+    console.error('the image did not build; is Docker running?')
+    return EXIT.problems
+  }
+
+  let spent = 0
+  const done: string[] = []
+  for (let i = 1; i <= n; i++) {
+    if (shouldStop(spent, budget)) {
+      console.log(stopMessage(spent, budget, i, n))
+      break
+    }
+    const sample = sampleFolder(out, i)
+    console.log(
+      `${stamp()} sample ${i} of ${n} (expected 1-3 min); folder ${sample}, tail -f ${sample}/raw/turn${turn}.jsonl`,
+    )
+    try {
+      prepareSample(run, turn, sample, root)
+      spent += runSample({ run, turn, sample, hasPackages, remaining: budget - spent })
+      done.push(sample)
+    } catch (e) {
+      console.error(`sample ${i} failed: ${e instanceof Error ? e.message : e}`)
+      break
+    }
+  }
+  if (done.length === 0) return EXIT.problems
+
+  printResults(turn, done, spent)
   console.log(`\nSamples are in ${out}`)
   return 0
 }

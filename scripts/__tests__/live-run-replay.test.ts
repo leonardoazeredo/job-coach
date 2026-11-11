@@ -1,10 +1,19 @@
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it, vi } from 'vitest'
 import {
+  applyTree,
   failRates,
   formatRates,
   missingForReplay,
@@ -88,9 +97,9 @@ afterAll(() => rmSync(tmp, { recursive: true, force: true }))
 const git = (cwd: string, ...a: string[]) =>
   spawnSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', ...a], { cwd })
 
-const makeRun = () => {
-  const run = join(tmp, 'run')
-  const stage = join(tmp, 'stage')
+const makeRunFolder = (name: string, opts: { turn1?: boolean } = {}) => {
+  const run = join(tmp, name)
+  const stage = join(tmp, `${name}-stage`)
   mkdirSync(join(stage, 'copy', '.claude', 'skills', 'old'), { recursive: true })
   mkdirSync(join(stage, 'claudehome', 'projects'), { recursive: true })
   writeFileSync(join(stage, 'copy', 'CLAUDE.md'), 'old rules\n')
@@ -103,7 +112,14 @@ const makeRun = () => {
   mkdirSync(join(run, 'raw'))
   mkdirSync(join(run, 'engine'))
   writeFileSync(join(run, 'engine', 'HEAD'), 'ref\n')
-  spawnSync('tar', ['-czf', join(run, 'snap', 'before3.tgz'), '-C', stage, 'copy', 'claudehome'])
+  spawnSync('tar', [
+    '-czf',
+    join(run, 'snap', opts.turn1 ? 'before1.tgz' : 'before3.tgz'),
+    '-C',
+    stage,
+    'copy',
+    'claudehome',
+  ])
   const result = (sid: string) => `{"type":"result","session_id":"${sid}","total_cost_usd":1}\n`
   for (const n of [1, 2, 3]) {
     writeFileSync(join(run, 'raw', `turn${n}.jsonl`), result(`sid-${n}`))
@@ -131,7 +147,7 @@ const fingerprint = (dir: string): string[] =>
   })
 
 describe('preparing a sample', () => {
-  const run = makeRun()
+  const run = makeRunFolder('run')
   const root = join(tmp, 'tree')
   mkdirSync(join(root, '.claude', 'skills', 'new'), { recursive: true })
   writeFileSync(join(root, 'CLAUDE.md'), 'new rules\n')
@@ -167,5 +183,94 @@ describe('preparing a sample', () => {
 
   it('names what a run lacks for a replay', () => {
     expect(missingForReplay(run, 2)).toContain('snap/before2.tgz')
+  })
+})
+
+describe('the replay command before any live call', () => {
+  const secret = 'sk-test-secret-value'
+  const withToken = (value: string | undefined, f: () => void) => {
+    const old = process.env.CLAUDE_CODE_OAUTH_TOKEN
+    if (value === undefined) delete process.env.CLAUDE_CODE_OAUTH_TOKEN
+    else process.env.CLAUDE_CODE_OAUTH_TOKEN = value
+    try {
+      f()
+    } finally {
+      if (old === undefined) delete process.env.CLAUDE_CODE_OAUTH_TOKEN
+      else process.env.CLAUDE_CODE_OAUTH_TOKEN = old
+    }
+  }
+
+  it('reports a run folder without the snapshot as missing, with no token needed', () => {
+    const run = mkdtempSync(join(tmpdir(), 'replay-bare-'))
+    withToken(undefined, () => expect(replayCommand([run, '2'])).toBe(EXIT.missing))
+    rmSync(run, { recursive: true })
+  })
+
+  it('refuses a missing token before any Docker call, and never prints a token', () => {
+    const run = makeRunFolder('tokenless')
+    const out: string[] = []
+    const spy = vi.spyOn(console, 'error').mockImplementation((m) => void out.push(String(m)))
+    withToken(undefined, () => expect(replayCommand([run, '3'])).toBe(EXIT.usage))
+    withToken(secret, () => {
+      process.env.LIVE_RUN_BUDGET_USD = 'abc'
+      try {
+        expect(replayCommand([run, '3'])).toBe(EXIT.usage)
+      } finally {
+        delete process.env.LIVE_RUN_BUDGET_USD
+      }
+    })
+    spy.mockRestore()
+    expect(out.join('\n')).not.toContain(secret)
+    expect(out.join('\n')).toMatch(/LIVE_RUN_BUDGET_USD/)
+  })
+})
+
+describe('a turn-1 sample', () => {
+  it('has no session or cost log to resume and reads no turn 0', () => {
+    const run = makeRunFolder('t1', { turn1: true })
+    const root = join(tmp, 'tree1')
+    mkdirSync(join(root, '.claude', 'skills', 'new'), { recursive: true })
+    writeFileSync(join(root, 'CLAUDE.md'), 'new rules\n')
+    writeFileSync(join(root, '.claude', 'skills', 'new', 'SKILL.md'), 's\n')
+    const sample = join(tmp, 'sample-t1')
+    prepareSample(run, 1, sample, root)
+    expect(existsSync(join(sample, 'session.id'))).toBe(false)
+    expect(existsSync(join(sample, 'costlog.txt'))).toBe(false)
+    expect(readFileSync(join(sample, 'transcript.md'), 'utf8')).toBe('')
+    expect(readFileSync(join(sample, 'copy', 'CLAUDE.md'), 'utf8')).toBe('new rules\n')
+  })
+})
+
+describe('applying the wording in the middle of an update', () => {
+  it('writes the files and leaves the merge, its index and the history alone', () => {
+    const copy = join(tmp, 'merging')
+    mkdirSync(copy)
+    git(copy, 'init', '-q', '-b', 'main')
+    writeFileSync(join(copy, 'a.txt'), 'one\n')
+    writeFileSync(join(copy, 'CLAUDE.md'), 'old\n')
+    git(copy, 'add', '-A')
+    git(copy, 'commit', '-q', '-m', 'base')
+    git(copy, 'checkout', '-q', '-b', 'other')
+    writeFileSync(join(copy, 'a.txt'), 'two\n')
+    git(copy, 'commit', '-q', '-am', 'other change')
+    git(copy, 'checkout', '-q', 'main')
+    writeFileSync(join(copy, 'b.txt'), 'side\n')
+    git(copy, 'add', '-A')
+    git(copy, 'commit', '-q', '-m', 'main change')
+    git(copy, 'merge', '--no-commit', '--no-ff', 'other')
+    const state = () => ({
+      merge: git(copy, 'rev-parse', '-q', '--verify', 'MERGE_HEAD').status,
+      head: git(copy, 'rev-parse', 'HEAD').stdout.toString(),
+      index: git(copy, 'diff', '--cached', '--name-status').stdout.toString(),
+    })
+    const before = state()
+    expect(before.merge).toBe(0)
+    const root = join(tmp, 'tree2')
+    mkdirSync(join(root, '.claude', 'skills', 'new'), { recursive: true })
+    writeFileSync(join(root, 'CLAUDE.md'), 'new\n')
+    writeFileSync(join(root, '.claude', 'skills', 'new', 'SKILL.md'), 's\n')
+    applyTree(copy, root)
+    expect(readFileSync(join(copy, 'CLAUDE.md'), 'utf8')).toBe('new\n')
+    expect(state()).toEqual(before)
   })
 })
