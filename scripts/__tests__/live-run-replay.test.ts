@@ -21,6 +21,7 @@ import {
   replayCommand,
 } from '../../examples/live-run/replay.ts'
 import { EXIT } from '../lib/problem.ts'
+import { gitIn } from './live-run-git.ts'
 
 describe('the replay arguments', () => {
   it('takes a run folder, a turn and a count that defaults to 5', () => {
@@ -93,8 +94,6 @@ describe('the fail rate', () => {
 // A small invented run: three turns, a snapshot before turn 3, and an engine for an update run.
 const tmp = mkdtempSync(join(tmpdir(), 'replay-test-'))
 afterAll(() => rmSync(tmp, { recursive: true, force: true }))
-const git = (cwd: string, ...a: string[]) =>
-  spawnSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', ...a], { cwd })
 
 const makeRunFolder = (name: string, opts: { turn1?: boolean } = {}) => {
   const run = join(tmp, name)
@@ -104,9 +103,9 @@ const makeRunFolder = (name: string, opts: { turn1?: boolean } = {}) => {
   writeFileSync(join(stage, 'copy', 'CLAUDE.md'), 'old rules\n')
   writeFileSync(join(stage, 'copy', '.claude', 'skills', 'old', 'SKILL.md'), 'old skill\n')
   writeFileSync(join(stage, 'claudehome', 'projects', 's.jsonl'), '{}\n')
-  git(join(stage, 'copy'), 'init', '-q', '-b', 'main')
-  git(join(stage, 'copy'), 'add', '-A')
-  git(join(stage, 'copy'), 'commit', '-q', '-m', 'first')
+  gitIn(join(stage, 'copy'), 'init', '-q', '-b', 'main')
+  gitIn(join(stage, 'copy'), 'add', '-A')
+  gitIn(join(stage, 'copy'), 'commit', '-q', '-m', 'first')
   mkdirSync(join(run, 'snap'), { recursive: true })
   mkdirSync(join(run, 'raw'))
   mkdirSync(join(run, 'engine'))
@@ -163,8 +162,8 @@ describe('preparing a sample', () => {
   it('starts from the snapshot with this checkout’s rules and skills, committed', () => {
     expect(readFileSync(join(sample, 'copy', 'CLAUDE.md'), 'utf8')).toBe('new rules\n')
     expect(readdirSync(join(sample, 'copy', '.claude', 'skills'))).toEqual(['new'])
-    expect(git(join(sample, 'copy'), 'status', '--short').stdout.toString()).toBe('')
-    expect(git(join(sample, 'copy'), 'log', '--format=%s').stdout.toString()).toContain('first')
+    expect(gitIn(join(sample, 'copy'), 'status', '--short').stdout).toBe('')
+    expect(gitIn(join(sample, 'copy'), 'log', '--format=%s').stdout).toContain('first')
   })
 
   it('resumes the session the previous turn ended with, and sends the persona’s message', () => {

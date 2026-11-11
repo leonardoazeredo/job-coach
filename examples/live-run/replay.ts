@@ -88,8 +88,13 @@ export const formatRates = (rates: ReturnType<typeof failRates>): string =>
     )
     .join('\n')
 
+// A hook that runs this (pre-push) sets GIT_DIR and friends, which would send a git call here to
+// the hook's repository instead of the sample's.
+export const withoutGitVariables = (env: NodeJS.ProcessEnv): NodeJS.ProcessEnv =>
+  Object.fromEntries(Object.entries(env).filter(([k]) => !k.startsWith('GIT_')))
+
 const sh = (cmd: string, args: string[], cwd?: string) =>
-  spawnSync(cmd, args, { cwd, encoding: 'utf8' })
+  spawnSync(cmd, args, { cwd, encoding: 'utf8', env: withoutGitVariables(process.env) })
 
 // The session id a turn ended with is in the result line of its raw stream.
 const sessionAfter = (run: string, turn: number): string => {
@@ -194,7 +199,14 @@ export const applyTree = (copy: string, root: string) => {
       '-m',
       'Wording of the coach under test',
     ],
-    { encoding: 'utf8', env: { ...process.env, GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date } },
+    {
+      encoding: 'utf8',
+      env: {
+        ...withoutGitVariables(process.env),
+        GIT_AUTHOR_DATE: date,
+        GIT_COMMITTER_DATE: date,
+      },
+    },
   )
   if (commit.status !== 0)
     throw new Error(`could not commit the wording under test: ${commit.stderr}`)

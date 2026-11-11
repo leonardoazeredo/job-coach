@@ -5,15 +5,12 @@ import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import { applyTree } from '../../examples/live-run/replay.ts'
 
+import { gitAt } from './live-run-git.ts'
+
 const tmp = mkdtempSync(join(tmpdir(), 'replay-tree-'))
 afterAll(() => rmSync(tmp, { recursive: true, force: true }))
 const BASE_DATE = '2026-10-04T09:00:00Z'
-const git = (cwd: string, ...a: string[]) =>
-  spawnSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', ...a], {
-    cwd,
-    encoding: 'utf8',
-    env: { ...process.env, GIT_AUTHOR_DATE: BASE_DATE, GIT_COMMITTER_DATE: BASE_DATE },
-  })
+const git = gitAt(BASE_DATE)
 
 const makeTree = (name: string, claude: string) => {
   const root = join(tmp, name)
