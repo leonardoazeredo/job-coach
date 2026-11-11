@@ -55,7 +55,9 @@ const VERDICT = /^line (\d+) (FAIL|PASS|SKIPPED|INFO)(?: T(\d+))?/
 // The scorer reads the whole run, so a sample's output also holds findings from the turns before
 // the replayed one, which every sample shares. A line gets a row when a sample passed it or failed
 // it at any turn, so a line the scorer checks never goes missing; only a failure at the replayed
-// turn counts toward its fail rate. Lines about written files and the turn count get no row.
+// turn counts toward its fail rate. A failure about a written file carries no turn, so it neither
+// adds a row nor counts as a fail; such a line that passes still gets a row, always at 0. The turn
+// count gets no row.
 export const failRates = (
   turn: number,
   scored: string[][],

@@ -9,7 +9,8 @@ import { gitAt, gitIn } from './live-run-git.ts'
 const tmp = mkdtempSync(join(tmpdir(), 'replay-git-'))
 afterAll(() => rmSync(tmp, { recursive: true, force: true }))
 const saved = { ...process.env }
-// A test that throws partway must not leave GIT_* set for the next test.
+// Restores the environment as it was at load, including any GIT_* a hook set, after removing the
+// ones a test set; a test that throws partway must not leave them for the next test.
 afterEach(() => {
   for (const k of Object.keys(process.env)) if (k.startsWith('GIT_')) delete process.env[k]
   Object.assign(process.env, saved)
