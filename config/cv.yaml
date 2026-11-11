@@ -25,7 +25,7 @@ seniority_words: [Staff, Principal, Lead, Head, Director, Manager, VP]
 # list only warns, since a script cannot tell whom "they" means. "I" counts only as a capital on
 # its own. Every other word is matched whole, in any case, with two exceptions that are read as
 # part of a name and left alone: a pronoun in two or more capitals ("ME" in "Portland, ME"), and
-# one in Title Case that neither starts the text nor follows a sentence end ("Her Campus"). Right
+# one in Title Case that neither starts the text nor follows a break (. ! ? ; : … then a space, or a new line) ("Her Campus"). Right
 # after an opening bracket, a Title Case pronoun is a name only when a capitalised word follows
 # it, so "(Her Campus)" passes and "(My guess)" does not. Only prose is checked (headline,
 # summary, bullets, training, projects, a job's note, an achievement's figure), never company,

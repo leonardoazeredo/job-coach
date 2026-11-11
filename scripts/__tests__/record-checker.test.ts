@@ -195,6 +195,12 @@ describe('a figure on file naming a pronoun', () => {
     expect(figureWarnings('down 20% for Her Campus')).toEqual([])
   })
 
+  it('warns for a pronoun after a semicolon', () => {
+    expect(figureWarnings('down 20%; His estimate puts it at 30%')).toEqual([
+      expect.objectContaining({ level: 'warning', message: expect.stringContaining('"His"') }),
+    ])
+  })
+
   it('warns for a bracketed note that starts with a pronoun', () => {
     expect(figureWarnings('down 20% (My guess)')).toEqual([
       expect.objectContaining({ level: 'warning', message: expect.stringContaining('(My guess)') }),

@@ -229,6 +229,7 @@ describe('a pronoun in Title Case inside a name', () => {
     'Helped Me Grow ship',
     'Shipped it (Her Campus)',
     '(Help Me Grow)',
+    '( Her Campus)',
     '(Me & Em)',
     "Shipped it - His Majesty's Treasury",
   ])('passes "%s"', (text) => {
@@ -248,6 +249,12 @@ describe('a pronoun in Title Case inside a name', () => {
     ['(His figure)', '(His figure)'],
     ['(Her words)', '(Her words)'],
     ['Built it? He scaled it', 'He'],
+    ['Shipped it: He scaled it', 'He'],
+    ['Shipped; He scaled it', 'He'],
+    ['Built it… He scaled it', 'He'],
+    ['Built it... He scaled it', 'He'],
+    ['( Her team)', '( Her team)'],
+    ['Shipped it (Her Campus) and (My guess)', '(My guess)'],
     ['Built it?\nHe scaled it', 'He'],
     ['Shipped it\nHer team scaled', 'Her'],
   ])('refuses "%s"', (text, phrase) => {

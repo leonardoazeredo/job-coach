@@ -57,13 +57,14 @@ const notesIn = (bracket: string, words: string[]): string[] =>
   )
 
 // A pronoun of two or more capitals is an acronym or a state code ("ME" in Portland, ME), and a
-// Title Case one that neither starts the text nor follows a sentence end is part of a name
+// Title Case one that neither starts the text nor follows a break (. ! ? ; : … then a space, or a
+// new line) is part of a name
 // ("Her Campus"); the user cannot reword either away. Lowercase pronouns, and Title Case ones
 // where a sentence starts, count. Note words keep every case.
-const STARTS_SENTENCE = /(?:^|[.!?]\s+|\n\s*)$/
+const STARTS_SENTENCE = /(?:^|[.!?;:…]\s+|\n\s*)$/
 // Right after an opening bracket the pronoun is a name only when a capitalised word follows
 // ("(Her Campus)", "(Me & Em)"); "(My guess)" and "(He built it)" are notes.
-const OPENS_BRACKET = /[([]$/
+const OPENS_BRACKET = /[([]\s*$/
 const CAPITAL_NEXT = /^\s*(?:&\s*)?[A-Z]/
 const isName = (found: string, before: string, after: string): boolean => {
   if (found.length < 2) return false

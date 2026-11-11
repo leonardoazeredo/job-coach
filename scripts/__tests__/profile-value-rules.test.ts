@@ -122,6 +122,7 @@ describe('the summary says what a job site will not know', () => {
 describe('the Draft refuses a figure that would not read on a CV', () => {
   it.each([
     'Her team cut it 20%',
+    'down 20%; His estimate puts it at 30%',
     'down 20% (estimating)',
     'down 20% (his estimate)',
     'cut by my team to 12 minutes',
