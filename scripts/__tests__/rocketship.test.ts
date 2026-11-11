@@ -17,8 +17,9 @@ const board = (fetch: (url: string) => Promise<Response>, searchTitles = ['Front
 
 describe('rocketship paging', () => {
   it('throws when the jobs page carries no build id', async () => {
-    const { fetch } = fakeFetch(() => html('<html><body>no data</body></html>'))
+    const { fetch, urls } = fakeFetch(() => html('<html><body>no data</body></html>'))
     await expect(board(fetch).pull()).rejects.toThrow(/build id/)
+    expect(urls).toHaveLength(1)
   })
 
   it('stops a search at a page that is not OK', async () => {
@@ -44,6 +45,28 @@ describe('rocketship paging', () => {
     const { fetch, urls } = fakeFetch((u) => (isData(u) ? json(page) : html(index)))
     expect(await board(fetch).pull()).toHaveLength(6)
     expect(urls.filter(isData).map(pageOf)).toEqual([1, 2])
+  })
+
+  it('ends a search at page 20 with a pause before each page after the first and none after', async () => {
+    const waits: number[] = []
+    const openings: { slug: string }[] = page.pageProps.initialJobOpenings
+    const fresh = (n: number) => ({
+      pageProps: {
+        ...page.pageProps,
+        initialJobOpenings: openings.map((o) => ({ ...o, slug: `${o.slug}-${n}` })),
+      },
+    })
+    const { fetch, urls } = fakeFetch((u) => (isData(u) ? json(fresh(pageOf(u))) : html(index)))
+    await rocketshipBoard({
+      fetch,
+      sleep: async (ms) => {
+        waits.push(ms)
+      },
+      search,
+      searchTitles: ['Frontend Engineer'],
+    }).pull()
+    expect(urls.filter(isData).map(pageOf)).toEqual(Array.from({ length: 20 }, (_, i) => i + 1))
+    expect(waits).toEqual(Array(19).fill(200))
   })
 
   it('retries a page answered with HTML instead of JSON', async () => {
