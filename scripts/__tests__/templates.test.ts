@@ -2,8 +2,9 @@
 // schema are checked against it, and identity, search and stack also against the example
 // persona's keys; each Draft table must name exactly its template's keys; then every template,
 // placeholders filled, is loaded as a profile and has to pass the record check. The Draft's
-// tables are the one list of profile files; the only list kept here is the three the persona check
-// names, because those are the files scripts read beyond what their schemas require.
+// tables are the one list of profile files; the only file lists kept here are the three the persona
+// check names, because scripts read those beyond what their schemas require, and the two logs that
+// no onboarding section holds.
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
