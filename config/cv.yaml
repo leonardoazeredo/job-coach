@@ -21,8 +21,8 @@ qualifiers: ["contributed to"]
 seniority_words: [Staff, Principal, Lead, Head, Director, Manager, VP]
 
 # Words a CV, which has no narrator, should not hold; edit them to suit your language.
-# The first list and the note words refuse a CV, the second only warns. Exactly what is matched
-# is in the header of scripts/lib/cv-voice.ts.
+# A word from the first list, or a bracketed part holding one or a note word, refuses a CV;
+# the second list only warns. The matching rules are in scripts/lib/cv-voice.ts.
 error_pronouns: [he, his, him, she, her, I, my, me]
 warning_pronouns: [they, their, we, our]
 note_words: [estimate, approx, unverified, tbc, todo, note]
