@@ -127,24 +127,24 @@ const voiceOf = (where: string, text: string, profile: Profile, wins: Win[] = []
     message: `cv ${where}: ${voiceMessage(f, figureHolding(f.phrase, text, wins, profile))}`,
   }))
 
-// A quoted figure is read on its own as well, the way the Draft and the record check read it:
-// inside a longer bullet a pronoun can look like part of a name that it is not alone.
+// A quoted figure is read as a whole, the way the Draft and the record check read it: inside a
+// longer bullet a pronoun can look like part of a name that it is not in the figure. A finding is
+// the figure's when the bullet quotes a clause that holds its phrase.
 const quotedFigureVoice = (entry: Line, wins: Win[], profile: Profile): Found[] => {
   const lower = entry.line.text.toLowerCase()
-  const phrases = new Set<string>()
-  const found: Found[] = []
-  for (const win of wins)
-    for (const part of win.metric.split(';')) {
-      const clause = part.trim()
-      if (clause === '' || !lower.includes(clause.toLowerCase())) continue
-      for (const f of voiceFindings(clause, profile.config)) {
-        const message = `cv ${entry.where}: ${voiceMessage(f, win)}`
-        if (f.level !== 'error' || phrases.has(message)) continue
-        phrases.add(message)
-        found.push({ level: 'error', message })
-      }
+  const found = new Map<string, Found>()
+  for (const win of wins) {
+    const quoted = win.metric
+      .split(';')
+      .map((part) => part.trim())
+      .filter((clause) => clause !== '' && lower.includes(clause.toLowerCase()))
+    for (const f of voiceFindings(win.metric, profile.config)) {
+      if (f.level !== 'error' || !quoted.some((clause) => clause.includes(f.phrase))) continue
+      const message = `cv ${entry.where}: ${voiceMessage(f, win)}`
+      found.set(message, { level: 'error', message })
     }
-  return found
+  }
+  return [...found.values()]
 }
 
 const lineVoice = (entry: Line, profile: Profile): Found[] => {
