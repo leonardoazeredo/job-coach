@@ -182,3 +182,22 @@ describe('a figure on file that would not read on a CV', () => {
     expect((await repo.run(check)).code).toBe(0)
   })
 })
+
+describe('a figure on file naming a pronoun', () => {
+  const figureWarnings = (metric: string) => {
+    repo.editYaml<{ wins: { slug: string; metric: string }[] }>('profile/wins.yaml', (file) => {
+      for (const win of file.wins) if (win.slug === 'bw-aws-cost') win.metric = metric
+    })
+    return problems().filter((p) => p.slug === 'profile/wins.yaml')
+  }
+
+  it('gives no warning for a name such as Her Campus', () => {
+    expect(figureWarnings('down 20% for Her Campus')).toEqual([])
+  })
+
+  it('warns for a bracketed note that starts with a pronoun', () => {
+    expect(figureWarnings('down 20% (My guess)')).toEqual([
+      expect.objectContaining({ level: 'warning', message: expect.stringContaining('(My guess)') }),
+    ])
+  })
+})

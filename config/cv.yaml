@@ -25,10 +25,13 @@ seniority_words: [Staff, Principal, Lead, Head, Director, Manager, VP]
 # list only warns, since a script cannot tell whom "they" means. "I" counts only as a capital on
 # its own. Every other word is matched whole, in any case, with two exceptions that are read as
 # part of a name and left alone: a pronoun in two or more capitals ("ME" in "Portland, ME"), and
-# one in Title Case that neither starts the text nor follows a sentence end ("Her Campus"). Only
-# prose is checked (headline, summary, bullets, training, projects, a job's note, an achievement's
-# figure), never company, role, place, tech, skill, language or school names. Inside brackets a note word is matched as a
-# whole word, or that word with an ending such as -s, -d, -ed, -ing, -ly ("estimated", "estimating", "approximately").
+# one in Title Case that neither starts the text nor follows a sentence end ("Her Campus"). Right
+# after an opening bracket, a Title Case pronoun is a name only when a capitalised word follows
+# it, so "(Her Campus)" passes and "(My guess)" does not. Only prose is checked (headline,
+# summary, bullets, training, projects, a job's note, an achievement's figure), never company,
+# role, place, tech, skill, language or school names. Inside brackets a note word is matched as a
+# whole word, or that word with an ending such as -s, -d, -ed, -ing, -ly ("estimated",
+# "estimating", "approximately").
 error_pronouns: [he, his, him, she, her, I, my, me]
 warning_pronouns: [they, their, we, our]
 note_words: [estimate, approx, unverified, tbc, todo, note]

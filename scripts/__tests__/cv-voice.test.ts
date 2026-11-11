@@ -228,6 +228,8 @@ describe('a pronoun in Title Case inside a name', () => {
     'Wrote for Her Campus',
     'Helped Me Grow ship',
     'Shipped it (Her Campus)',
+    '(Help Me Grow)',
+    '(Me & Em)',
     "Shipped it - His Majesty's Treasury",
   ])('passes "%s"', (text) => {
     expect(voiceFindings(text, DEFAULT_VOICE)).toEqual([])
@@ -240,6 +242,14 @@ describe('a pronoun in Title Case inside a name', () => {
     ['Shipped what he built', 'he'],
     ['Phase I done', 'I'],
     ['Shipped it (he built it)', '(he built it)'],
+    ['Shipped it (He built it)', '(He built it)'],
+    ['Shipped it (Her team did this)', '(Her team did this)'],
+    ['Shipped it (My guess)', '(My guess)'],
+    ['(His figure)', '(His figure)'],
+    ['(Her words)', '(Her words)'],
+    ['Built it? He scaled it', 'He'],
+    ['Built it?\nHe scaled it', 'He'],
+    ['Shipped it\nHer team scaled', 'Her'],
   ])('refuses "%s"', (text, phrase) => {
     expect(voiceFindings(text, DEFAULT_VOICE).map((f) => f.phrase)).toEqual([phrase])
   })

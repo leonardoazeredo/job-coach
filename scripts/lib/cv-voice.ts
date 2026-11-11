@@ -1,7 +1,8 @@
 // Finds the wrong grammatical person and bracketed notes in prose that will be printed on a CV:
 // the headline, summary, bullets, training, projects and a job's note, and an achievement's figure.
 // Names (company, role, tech, skills, education) are not checked, and a pronoun in capitals, or in
-// Title Case away from a sentence start, is read as part of a name and skipped.
+// Title Case away from a sentence start, is read as part of a name and skipped; right after an
+// opening bracket that needs a capitalised word next, so "(Her Campus)" passes and "(My guess)" does not.
 // The word lists are config/cv.yaml's, so the user can edit them; these defaults stand in for a
 // copy of the file that predates them. The draft rule (FIGURE) cannot read the config and always
 // uses the defaults, so an edited list changes the CV lint and the record check, not the Draft.
@@ -60,14 +61,21 @@ const notesIn = (bracket: string, words: string[]): string[] =>
 // ("Her Campus"); the user cannot reword either away. Lowercase pronouns, and Title Case ones
 // where a sentence starts, count. Note words keep every case.
 const STARTS_SENTENCE = /(?:^|[.!?]\s+|\n\s*)$/
-const isName = (found: string, before: string): boolean =>
-  found.length > 1 &&
-  (found === found.toUpperCase() || (/^[A-Z][a-z]+$/.test(found) && !STARTS_SENTENCE.test(before)))
+// Right after an opening bracket the pronoun is a name only when a capitalised word follows
+// ("(Her Campus)", "(Me & Em)"); "(My guess)" and "(He built it)" are notes.
+const OPENS_BRACKET = /[([]$/
+const CAPITAL_NEXT = /^\s*(?:&\s*)?[A-Z]/
+const isName = (found: string, before: string, after: string): boolean => {
+  if (found.length < 2) return false
+  if (found === found.toUpperCase()) return true
+  if (!/^[A-Z][a-z]+$/.test(found) || STARTS_SENTENCE.test(before)) return false
+  return !OPENS_BRACKET.test(before) || CAPITAL_NEXT.test(after)
+}
 
 const pronounsIn = (text: string, words: string[]): string[] =>
   words.flatMap((word) =>
     [...text.matchAll(wordPattern(word))]
-      .filter((m) => !isName(m[0], text.slice(0, m.index)))
+      .filter((m) => !isName(m[0], text.slice(0, m.index), text.slice(m.index + m[0].length)))
       .map((m) => m[0]),
   )
 
