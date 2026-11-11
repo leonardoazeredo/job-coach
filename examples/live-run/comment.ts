@@ -9,7 +9,9 @@
 // The judge's report starts with a verdict line per checklist line (`line 26 FAIL T15, T16`),
 // then holds the quotes (`line 26 T15 "..."`). The scorer's output is not read from a file:
 // scoreRun is called, so its findings are the ones the judge was given.
-// Exit codes: 64 usage, 66 when the run folder lacks something the comment is built from.
+// The previous verdicts are read from a judge report or from a comment saved to a file.
+// Exit codes: 64 usage, 66 when the run folder lacks something the comment is built from, 65 when
+// a report or previous verdict is there but holds no verdict line (ADR 0003: read, wrong shape).
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { EXIT } from '../../scripts/lib/problem.ts'
@@ -34,20 +36,40 @@ const quotesFor = (report: string, line: number): string[] =>
     return m && Number(m[1]) === line ? [`${m[2]} "${m[3]}"`] : []
   })
 
+// Quotes and the judge's own words go into a code fence, so GitHub neither styles them nor turns
+// `#123` into a link or `@name` into a notification; the fence outgrows any backticks inside.
+const fenced = (lines: string[], info = '') => {
+  const longest = Math.max(0, ...lines.flatMap((l) => (l.match(/`+/g) ?? []).map((r) => r.length)))
+  const fence = '`'.repeat(Math.max(3, longest + 1))
+  return [`${fence}${info}`, ...lines, fence]
+}
+
 const isFault = (v: Verdict) => v.status === 'FAIL' || v.status === 'BORDERLINE'
 
-const section = (report: string, title: string, status: string) => {
-  const rows = verdicts(report).filter((v) => v.status === status)
-  if (rows.length === 0) return []
-  return [
-    `**${title}:**`,
-    ...rows.flatMap((v) => [
-      `- Line ${v.line}${v.where === '' ? '' : `, ${v.where}`}`,
-      ...quotesFor(report, v.line).map((q) => `  - ${q}`),
-    ]),
-    '',
-  ]
-}
+const section = (report: string, title: string, status: string) =>
+  verdicts(report)
+    .filter((v) => v.status === status)
+    .flatMap((v) => [
+      `**${title}, line ${v.line}:**`,
+      '',
+      ...fenced([...(v.where === '' ? [] : [v.where]), ...quotesFor(report, v.line)]),
+      '',
+    ])
+
+// The verdict lines go in verbatim, passes included, so a later run can read this comment back
+// as its previous verdict: the same parse reads a judge report and a saved comment.
+const verdictBlock = (report: string) => [
+  '**Verdicts:**',
+  '',
+  ...fenced(
+    report
+      .split('\n')
+      .filter((l) => VERDICT.test(l.trim()))
+      .map((l) => l.trim()),
+    'text',
+  ),
+  '',
+]
 
 const fixedSince = (report: string, previous: string | undefined): string[] => {
   if (previous === undefined) return ['No previous verdict was given, so no lines are compared.']
@@ -64,11 +86,13 @@ const fixedSince = (report: string, previous: string | undefined): string[] => {
 
 export const buildComment = (run: string, previousPath?: string): string => {
   const report = readFileSync(join(run, 'judge-report.txt'), 'utf8')
-  const commit = readFileSync(join(run, 'commit.txt'), 'utf8').trim()
+  // Both are printed in code spans, so a stray backtick in either file is dropped.
+  const commit = readFileSync(join(run, 'commit.txt'), 'utf8').trim().replace(/`/g, '')
   // finish.sh writes `total_usd <n>`, already the running total, so it is read and never summed.
   const cost = readFileSync(join(run, 'cost.txt'), 'utf8')
     .trim()
     .replace(/^total_usd\s+/, '')
+    .replace(/`/g, '')
   const turns = (readFileSync(join(run, 'transcript.md'), 'utf8').match(/^## Turn \d+\s*$/gm) ?? [])
     .length
   const flagged = [
@@ -81,10 +105,11 @@ export const buildComment = (run: string, previousPath?: string): string => {
   ]
   const previous = previousPath === undefined ? undefined : readFileSync(previousPath, 'utf8')
   return `${[
-    `Live run at commit \`${commit}\`, ${turns} turns, $${cost}, judged on the checklist. All details are fictional.`,
+    `Live run at commit \`${commit}\`, ${turns} turns, \`$${cost}\`, judged on the checklist. All details are fictional.`,
     '',
     ...section(report, 'Failed', 'FAIL'),
     ...section(report, 'Borderline', 'BORDERLINE'),
+    ...verdictBlock(report),
     ...fixedSince(report, previous),
     '',
     flagged.length === 0
@@ -110,6 +135,12 @@ export const commentCommand = (args: string[]): number => {
   if (absent.length > 0) {
     console.error(`${run} is missing ${absent.join(', ')}; the comment is built from them`)
     return EXIT.missing
+  }
+  for (const f of [join(run, 'judge-report.txt'), ...(previous === undefined ? [] : [previous])]) {
+    if (verdicts(readFileSync(f, 'utf8')).length === 0) {
+      console.error(`${f} holds no \`line N PASS|FAIL|BORDERLINE|SKIPPED\` lines to build from`)
+      return EXIT.data
+    }
   }
   const out = join(run, 'comment.md')
   writeFileSync(out, buildComment(run, previous))
