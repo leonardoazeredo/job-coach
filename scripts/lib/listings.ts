@@ -80,16 +80,6 @@ export const saveShortlist = (
   result: { today: string; kept: Shortlisted[]; dropped: Dropped[] },
 ): Problem[] => writeProblem(path, path, JSON.stringify(result, null, 2))
 
-export type JobBoard = { name: string; pull: () => Promise<Listing[]> }
-
-// What a board is given from outside, passed in so a test can run a pull against
-// recorded pages with no network and no waiting.
-export type BoardDeps = {
-  fetch: (url: string, init?: { headers: Record<string, string> }) => Promise<Response>
-  sleep: (ms: number) => Promise<void>
-  log?: (line: string) => void
-}
-
 export type Shortlisted = Listing & { match: ListingMatch; boards: string[]; listings: number }
 export type Dropped = { listing: Listing; reason: 'title' | 'expired' }
 

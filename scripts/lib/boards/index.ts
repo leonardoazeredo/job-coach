@@ -1,10 +1,13 @@
 // Every job board the pull can name, with the rules each one is built from. A board is
 // built here and nowhere else in the pull, so the Search titles and the run-time note cannot drift
 // between the command and the adapters.
-import type { BoardDeps, JobBoard } from '../listings.ts'
+import type { Listing } from '../listings.ts'
 import type { Rules } from '../schema.ts'
+import type { BoardDeps } from './pull-loop.ts'
 import { rocketshipBoard } from './rocketship.ts'
 import { whatrunsBoard } from './whatruns.ts'
+
+export type JobBoard = { name: string; pull: () => Promise<Listing[]> }
 
 export type BoardEntry = { board: JobBoard; expected: string }
 type BoardMaker = (rules: Rules, deps: BoardDeps) => BoardEntry

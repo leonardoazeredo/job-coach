@@ -17,8 +17,9 @@ const board = (fetch: (url: string) => Promise<Response>, searchTitles = ['Front
 
 describe('rocketship paging', () => {
   it('throws when the jobs page carries no build id', async () => {
-    const { fetch } = fakeFetch(() => html('<html><body>no data</body></html>'))
+    const { fetch, urls } = fakeFetch(() => html('<html><body>no data</body></html>'))
     await expect(board(fetch).pull()).rejects.toThrow(/build id/)
+    expect(urls).toHaveLength(1)
   })
 
   it('stops a search at a page that is not OK', async () => {
@@ -46,6 +47,28 @@ describe('rocketship paging', () => {
     expect(urls.filter(isData).map(pageOf)).toEqual([1, 2])
   })
 
+  it('ends a search at page 20 with a pause before each page after the first and none after', async () => {
+    const waits: number[] = []
+    const openings: { slug: string }[] = page.pageProps.initialJobOpenings
+    const fresh = (n: number) => ({
+      pageProps: {
+        ...page.pageProps,
+        initialJobOpenings: openings.map((o) => ({ ...o, slug: `${o.slug}-${n}` })),
+      },
+    })
+    const { fetch, urls } = fakeFetch((u) => (isData(u) ? json(fresh(pageOf(u))) : html(index)))
+    await rocketshipBoard({
+      fetch,
+      sleep: async (ms) => {
+        waits.push(ms)
+      },
+      search,
+      searchTitles: ['Frontend Engineer'],
+    }).pull()
+    expect(urls.filter(isData).map(pageOf)).toEqual(Array.from({ length: 20 }, (_, i) => i + 1))
+    expect(waits).toEqual(Array(19).fill(200))
+  })
+
   it('retries a page answered with HTML instead of JSON', async () => {
     let failed = false
     const { fetch } = fakeFetch((u) => {
@@ -56,45 +79,28 @@ describe('rocketship paging', () => {
     })
     expect(await board(fetch).pull()).toHaveLength(6)
   })
+})
 
-  it('retries a page whose fetch throws, then takes the answer', async () => {
-    let failed = false
+describe('rocketship retries and failures', () => {
+  it('asks again when the connection drops on the build id page', async () => {
+    let dropped = false
     const { fetch } = fakeFetch((u) => {
-      if (!isData(u)) return html(index)
-      if (failed) return json(page)
-      failed = true
+      if (isData(u)) return json(page)
+      if (dropped) return html(index)
+      dropped = true
       throw new Error('ECONNRESET')
     })
     expect(await board(fetch).pull()).toHaveLength(6)
   })
-})
 
-describe('rocketship retries and failures', () => {
-  it('throws after four failed attempts at one page, naming the URL', async () => {
-    const { fetch, urls } = fakeFetch((u) =>
-      isData(u) ? html('<html>not JSON</html>') : html(index),
-    )
-    await expect(board(fetch).pull()).rejects.toThrow(
-      /Rocketship failed 4 times: https:\/\/www\.remoterocketship\.com\/_next\/data\/.*page=1/,
-    )
-    expect(urls.filter(isData)).toHaveLength(4)
-  })
-
-  it('pauses through the injected sleep, longer after each failed attempt', async () => {
-    let failures = 0
-    const pauses: number[] = []
-    const { fetch } = fakeFetch((u) => {
-      if (!isData(u)) return html(index)
-      if (failures === 3) return json(page)
-      failures += 1
-      return html('<html>not JSON</html>')
+  it('throws after four dropped connections on the build id page, with the URL in the message', async () => {
+    const { fetch, urls } = fakeFetch(() => {
+      throw new Error('ECONNRESET')
     })
-    const sleep = (ms: number) => {
-      pauses.push(ms)
-      return Promise.resolve()
-    }
-    await rocketshipBoard({ fetch, sleep, search, searchTitles: ['Frontend Engineer'] }).pull()
-    expect(pauses).toEqual([1500, 3000, 4500, 200])
+    await expect(board(fetch).pull()).rejects.toThrow(
+      'Rocketship failed 4 times: https://www.remoterocketship.com/gb/remote-jobs/',
+    )
+    expect(urls).toHaveLength(4)
   })
 
   it('does not retry a page that is not OK, and runs the remaining searches', async () => {
