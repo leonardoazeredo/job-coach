@@ -56,7 +56,7 @@
 
 **Coach:**
 
-> Good, that one's saved. Now the first one on the list.
+> Good, that one's saved. Now the first one on the list. Your last achievement comes after that.
 
 ## Turn 53
 

@@ -102,7 +102,8 @@ const outsideSummary = (t: Turn) => {
     .join('\n')
 }
 
-const ORDINAL = /\b(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|last) one\b/i
+const ORDINAL =
+  /\b(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|last) (?:one|achievement)\b/i
 const PRONOUN = /\b(he|she|him|his|her|hers|himself|herself|they|them|their|theirs|themselves)\b/i
 const WORKING_WORD = /\b(drafts?|files?)\b|\b[\w-]+\.(?:ya?ml|md|json|ts|txt)\b|the draft says/i
 const NOTE_TO_SELF = /\bThe user said\b/

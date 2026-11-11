@@ -28,6 +28,7 @@ describe('the live-run scorer', () => {
   it('marks working words and ordinals', () => {
     expect(has('line 26 FAIL T17', 'draft achievements')).toBe(true)
     expect(has('line 28 FAIL T40', 'first one')).toBe(true)
+    expect(has('line 28 FAIL T40', 'last achievement')).toBe(true)
     expect(has('line 28 FAIL T53', 'seventh one')).toBe(true)
     expect(has('line 28 FAIL T55', 'Last one.')).toBe(true)
   })
