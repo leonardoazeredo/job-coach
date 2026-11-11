@@ -1,8 +1,9 @@
 // Finds the wrong grammatical person and bracketed notes in prose that will be printed on a CV:
 // the headline, summary, bullets, training, projects and a job's note, and an achievement's figure.
 // Names (company, role, tech, skills, education) are not checked, and a pronoun in capitals, or in
-// Title Case away from a sentence start, is read as part of a name and skipped; right after an
-// opening bracket that needs a capitalised word next, so "(Her Campus)" passes and "(My guess)" does not.
+// Title Case inside a phrase, is read as part of a name and skipped. Right after an opening
+// bracket or a ; : … break, that needs a capitalised word next: "(Her Campus)" passes, "(My
+// guess)" does not. A Title Case pronoun after . ! ? or a new line counts.
 // The word lists are config/cv.yaml's, so the user can edit them; these defaults stand in for a
 // copy of the file that predates them. The draft rule (FIGURE) cannot read the config and always
 // uses the defaults, so an edited list changes the CV lint and the record check, not the Draft.
@@ -57,20 +58,20 @@ const notesIn = (bracket: string, words: string[]): string[] =>
   )
 
 // A pronoun of two or more capitals is an acronym or a state code ("ME" in Portland, ME), and a
-// Title Case one that neither starts the text nor follows a break (. ! ? ; : … then a space, or a
-// new line) is part of a name
-// ("Her Campus"); the user cannot reword either away. Lowercase pronouns, and Title Case ones
-// where a sentence starts, count. Note words keep every case.
-const STARTS_SENTENCE = /(?:^|[.!?;:…]\s+|\n\s*)$/
-// Right after an opening bracket the pronoun is a name only when a capitalised word follows
-// ("(Her Campus)", "(Me & Em)"); "(My guess)" and "(He built it)" are notes.
-const OPENS_BRACKET = /[([]\s*$/
+// Title Case one inside a phrase is part of a name ("Her Campus"); the user cannot reword either
+// away. Lowercase pronouns, and Title Case ones that start the text or follow . ! ? or a new
+// line, count. Note words keep every case.
+const HARD_BREAK = /(?:^|[.!?]\s+|\n\s*)$/
+// After an opening bracket, or after ; : … and a space, the pronoun is a name only when a
+// capitalised word follows ("(Her Campus)", "Clients: Me & Em"); "(My guess)" and
+// "Shipped it: He scaled it" are not. "Shipped it: He Scaled It" slips through as a name.
+const SOFT_BREAK = /(?:[([]\s*|[;:…]\s+)$/
 const CAPITAL_NEXT = /^\s*(?:&\s*)?[A-Z]/
 const isName = (found: string, before: string, after: string): boolean => {
   if (found.length < 2) return false
   if (found === found.toUpperCase()) return true
-  if (!/^[A-Z][a-z]+$/.test(found) || STARTS_SENTENCE.test(before)) return false
-  return !OPENS_BRACKET.test(before) || CAPITAL_NEXT.test(after)
+  if (!/^[A-Z][a-z]+$/.test(found) || HARD_BREAK.test(before)) return false
+  return !SOFT_BREAK.test(before) || CAPITAL_NEXT.test(after)
 }
 
 const pronounsIn = (text: string, words: string[]): string[] =>
