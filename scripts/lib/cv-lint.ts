@@ -130,7 +130,8 @@ const voiceOf = (where: string, text: string, profile: Profile, wins: Win[] = []
 const lineVoice = (entry: Line, profile: Profile): Found[] =>
   voiceOf(entry.where, entry.line.text, profile, citeSources(entry, profile.sources).wins)
 
-// Text no line covers: the headline, what only master.json supplies, and the printed lists.
+// Text no line covers: the headline, the printed lists (skills, languages), education, the job
+// fields (role, company, location, note, tech) and the lines only master.json supplies.
 const unsourcedVoice = ({ cv, masterOnly }: BuildResult, profile: Profile): Found[] => {
   const places: [string, string[]][] = [
     ['headline', [cv.headline]],
