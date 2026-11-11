@@ -6,7 +6,7 @@
   "phone": "+1 512 555 0142",
   "linkedin": "linkedin.example.com/in/dana-okafor-example",
   "github": "github.example.com/dana-okafor-example",
-  "summary": "Backend engineer with nine years in Python, most recently on a card-issuing ledger. Works where correctness is checked rather than assumed: reconciliation, retries that cannot double-post, and alerts that page for a reason. Has written warehouse booking APIs and moved large Postgres tables without stopping the business. Shares on-call and fixes what pages her.",
+  "summary": "Backend engineer with nine years in Python, most recently on a card-issuing ledger. Works where correctness is checked rather than assumed: reconciliation, retries that cannot double-post, and alerts that page for a reason. Has written warehouse booking APIs and moved large Postgres tables without stopping the business. Shares on-call and fixes what pages the rotation.",
   "skills": [
     "Python",
     "Go",

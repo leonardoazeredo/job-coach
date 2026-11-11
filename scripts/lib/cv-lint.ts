@@ -5,6 +5,7 @@
 // whole-CV claims (including limits on text only master.json supplies), and shape.
 import type { BuildResult, Line, MasterLine } from './cv-build.ts'
 import type { CvData, CvJob, SourcedText, Win } from './cv-schema.ts'
+import { type VoiceFinding, voiceFindings } from './cv-voice.ts'
 import { NOT_SPECIFIED } from './not-specified.ts'
 import type { Problem } from './problem.ts'
 import type { Profile } from './profile.ts'
@@ -93,6 +94,64 @@ const checkLine = (entry: Line, profile: Profile): string[] => {
 const lineProvenance = (lines: Line[], profile: Profile): Found[] =>
   lines.flatMap((entry) => checkLine(entry, profile).map((m) => error(`cv ${entry.where}: ${m}`)))
 
+// The phrase belongs to an achievement's figure when a cited win's quoted metric clause holds it:
+// rewording the bullet cannot remove it, because the next bullet quoting the figure brings it back.
+const figureHolding = (phrase: string, text: string, wins: Win[], profile: Profile) => {
+  const lower = text.toLowerCase()
+  return wins.find((win) =>
+    win.metric.split(';').some((part) => {
+      const clause = part.trim()
+      return (
+        clause !== '' &&
+        lower.includes(clause.toLowerCase()) &&
+        voiceFindings(clause, profile.config).some((f) => f.phrase === phrase)
+      )
+    }),
+  )
+}
+
+const voiceMessage = (f: VoiceFinding, figure: Win | undefined): string => {
+  const kind = f.phrase.startsWith('(') || f.phrase.startsWith('[') ? 'bracketed note' : 'pronoun'
+  const what = f.level === 'error' ? `has the ${kind}` : 'uses the pronoun'
+  const advice =
+    f.level === 'error' ? '; a CV has no narrator, so reword it' : '; check it is right on a CV'
+  const fix = figure
+    ? `; it comes from the figure of ${winRef(figure.slug)}, so the achievement's figure needs rewording`
+    : advice
+  return `${what} "${f.phrase}"${fix}`
+}
+
+const voiceOf = (where: string, text: string, profile: Profile, wins: Win[] = []): Found[] =>
+  voiceFindings(text, profile.config).map((f) => ({
+    level: f.level,
+    message: `cv ${where}: ${voiceMessage(f, figureHolding(f.phrase, text, wins, profile))}`,
+  }))
+
+const lineVoice = (entry: Line, profile: Profile): Found[] =>
+  voiceOf(entry.where, entry.line.text, profile, citeSources(entry, profile.sources).wins)
+
+// Text no line covers: the headline, what only master.json supplies, and the printed lists.
+const unsourcedVoice = ({ cv, masterOnly }: BuildResult, profile: Profile): Found[] => {
+  const places: [string, string[]][] = [
+    ['headline', [cv.headline]],
+    ['skills', cv.skills],
+    ['languages', cv.languages],
+    ['education', cv.education.flatMap((e) => [e.degree, e.institution, e.location ?? ''])],
+    [
+      'work',
+      cv.work.flatMap((j) => [
+        j.role,
+        j.company,
+        j.location ?? '',
+        j.note ?? '',
+        ...(j.tech ?? []),
+      ]),
+    ],
+    ...masterOnly.map(({ where, text }): [string, string[]] => [where, [text]]),
+  ]
+  return places.flatMap(([where, texts]) => texts.flatMap((text) => voiceOf(where, text, profile)))
+}
+
 const checkNeverSay = (text: string, sources: Sources): string[] =>
   sources.neverSaidIn(text).map(({ phrase, ref }) => `never_say phrase from ${ref}: "${phrase}"`)
 
@@ -165,4 +224,6 @@ export const lintVariant = (slug: string, build: BuildResult, profile: Profile):
     ...lineProvenance(build.lines, profile),
     ...wholeCvClaims(build, profile),
     ...shape(build.cv, profile),
+    ...build.lines.flatMap((entry) => lineVoice(entry, profile)),
+    ...unsourcedVoice(build, profile),
   ].map((f) => ({ slug, ...f }))

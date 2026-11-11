@@ -3,6 +3,7 @@
 // writes per role (requirements.yaml and cv/bullets.yaml). CvData, the CV
 // output the PDF export renders, is inferred from CvDataSchema here.
 import { z } from 'zod'
+import { DEFAULT_VOICE } from './cv-voice.ts'
 
 const str = z.string()
 const strList = z.array(str).default([])
@@ -54,6 +55,9 @@ export const CvConfigSchema = z.object({
   strength_words: z.array(z.array(str).min(1)),
   qualifiers: z.array(str),
   seniority_words: z.array(str),
+  error_pronouns: z.array(str).default(DEFAULT_VOICE.error_pronouns),
+  warning_pronouns: z.array(str).default(DEFAULT_VOICE.warning_pronouns),
+  note_words: z.array(str).default(DEFAULT_VOICE.note_words),
   recent_jobs: z.number().int().min(0).default(3),
   bullets_per_job: z.object({
     recent: z.tuple([z.number().int(), z.number().int()]),

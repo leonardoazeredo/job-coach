@@ -14,11 +14,19 @@ strength_words:
   - [architected, architect]
 
 # Qualifiers that must survive: if a cited win's action uses one, a bullet citing that win must too.
-# Qualifiers inside a metric ("up to", "their estimate") are covered by quoting the metric clause whole.
+# Qualifiers inside a metric ("up to", "an estimated") are covered by quoting the metric clause whole.
 qualifiers: ["contributed to"]
 
 # Seniority words a headline may use only when a history.yaml public title contains them.
 seniority_words: [Staff, Principal, Lead, Head, Director, Manager, VP]
+
+# Words that do not belong on a CV, which has no narrator. A pronoun in the first list, or a
+# bracketed part holding one of them or a word from the third list, refuses the CV. The second
+# list only warns, since a script cannot tell whom "they" means. "I" counts only as a capital on
+# its own; every other word is matched whole, in any case.
+error_pronouns: [he, his, him, she, her, I, my, me]
+warning_pronouns: [they, their, we, our]
+note_words: [estimate, approx, unverified, tbc, todo, note]
 
 # How many of the newest jobs in history.yaml count as recent and take the recent bullet range.
 recent_jobs: 3
