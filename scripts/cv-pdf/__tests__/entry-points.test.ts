@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { afterAll, afterEach, beforeEach, describe, it, vi } from 'vitest'
 import { CvDataSchema } from '../../lib/cv-schema.ts'
 import { pdfFileName } from '../../lib/identity.ts'
-import { exportPdfCommand } from '../export-pdf.ts'
+import { exportPdfCommand, readKeywords } from '../export-pdf.ts'
 import type { ExportTools } from '../pdf-export.ts'
 import { verifyCommand } from '../verify/cli.ts'
 import { expectations } from '../verify/expectations.ts'
@@ -228,6 +228,41 @@ describe('the commands on found tools', () => {
       1,
     )
     assert.match(said(err), /failed verification/)
+  })
+})
+
+describe('an unreadable --keywords file', () => {
+  it.each([
+    ['missing', join(DIR, 'no-such-keywords.txt')],
+    ['a folder', DIR],
+  ])(
+    'exits 66 with one could-not-read line and builds nothing when it is %s',
+    async (_name, kw) => {
+      const printed: string[] = []
+      const pdf = join(DIR, 'kw-unreadable.pdf')
+      const code = await exportPdfCommand(
+        ['--data', SAMPLE_CV, '--keywords', kw, pdf],
+        findingTools(tools({}, printed)).find,
+      )
+      assert.equal(code, 66)
+      const lines = said(err)
+        .split('\n')
+        .filter((l) => l.includes('ERROR:'))
+      assert.equal(lines.length, 1)
+      assert.match(
+        lines[0],
+        new RegExp(`could not read ${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`),
+      )
+      assert.deepEqual(printed, [])
+      assert.equal(existsSync(pdf), false)
+    },
+  )
+
+  it('reads CRLF line ends and blank lines as the same keywords as LF', () => {
+    const lf = readKeywords(file('kw-lf.txt', 'alpha\nbeta gamma\n\ndelta\n'))
+    const crlf = readKeywords(file('kw-crlf.txt', 'alpha\r\nbeta gamma\r\n\r\ndelta\r\n'))
+    assert.deepEqual(lf, ['alpha', 'beta gamma', 'delta'])
+    assert.deepEqual(crlf, lf)
   })
 })
 

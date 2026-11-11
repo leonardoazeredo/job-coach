@@ -47,13 +47,24 @@ export const readCv = (path: string): CvData => {
   return result.data
 }
 
-const readKeywords = (path: string | undefined): string[] =>
-  path
-    ? readFileSync(path, 'utf8')
-        .split('\n')
-        .map((k) => k.trim())
-        .filter(Boolean)
-    : []
+export const readKeywords = (path: string | undefined): string[] => {
+  if (!path) return []
+  let raw: string
+  try {
+    raw = readFileSync(path, 'utf8')
+  } catch (e) {
+    // Same code as readCv: a file named on the command line that cannot be read is 66, not a data fault.
+    throw new ExportError(
+      `could not read ${path}: ${e instanceof Error ? e.message : String(e)}`,
+      EXIT.missing,
+    )
+  }
+  // The trim also drops the \r of CRLF line ends.
+  return raw
+    .split('\n')
+    .map((k) => k.trim())
+    .filter(Boolean)
+}
 
 export const exportPdf = async (tools: ExportTools, opts: ExportOptions): Promise<void> => {
   const cv = readCv(opts.cvJson)
