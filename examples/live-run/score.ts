@@ -3,11 +3,12 @@
 // serves only the live-run harness; its test in scripts/__tests__ is what `npm run ci` runs.
 // Usage: node examples/live-run/score.ts <run-dir>
 // Prints one line per finding (`line 26 FAIL T15 "..."`), one `line N PASS` for each covered
-// line without a finding, and the turn count. A finding is a report, not an error: the exit code
+// line without a finding (`SKIPPED` when the folder lacks what the line reads), and the turn count. A finding is a report, not an error: the exit code
 // says only whether the folder could be scored (64 usage, 66 no run folder or transcript).
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { EXIT } from '../../scripts/lib/problem.ts'
+import { repoRoot } from '../../scripts/lib/workspace.ts'
 
 const USAGE = 'usage: node examples/live-run/score.ts <run-dir>'
 
@@ -68,10 +69,11 @@ const textOf = (content: unknown): string =>
 // A turn's raw stream pairs each tool call with its result; a draft's stdout is the summary.
 const readDrafts = (run: string, n: number) => {
   const path = join(run, 'raw', `turn${n}.jsonl`)
-  const summaries: string[] = []
   let winsDrafted = false
-  if (!existsSync(path)) return { summaries, winsDrafted }
+  if (!existsSync(path)) return { summaries: [], winsDrafted }
   const files = new Map<string, string>()
+  // A file drafted again in the same turn replaces its earlier summary: only the last one is shown.
+  const latest = new Map<string, string[]>()
   for (const block of readFileSync(path, 'utf8').split('\n').flatMap(blocksOf)) {
     const file = /profile\.ts\s+draft\s+(\S+)/.exec(String(block.input?.command ?? ''))?.[1]
     if (block.type === 'tool_use' && block.id && file) files.set(block.id, file)
@@ -79,10 +81,13 @@ const readDrafts = (run: string, n: number) => {
     if (block.type !== 'tool_result' || drafted === undefined || block.is_error) continue
     const out = textOf(block.content).trim()
     if (out === '' || out === 'No change.') continue
-    summaries.push(...out.split('\n').filter((l) => l.trim() !== ''))
+    latest.set(
+      drafted,
+      out.split('\n').filter((l) => l.trim() !== ''),
+    )
     winsDrafted ||= /wins\.yaml$/.test(drafted)
   }
-  return { summaries, winsDrafted }
+  return { summaries: [...latest.values()].flat(), winsDrafted }
 }
 
 // What a reply says outside the lines it relays from a summary.
@@ -128,10 +133,17 @@ const scoreTurn = (t: Turn, firstWins: number | undefined): Finding[] => {
   return found
 }
 
+// finish.sh copies every pack, shipped ones included; only a pack the coach wrote or changed counts.
+const isShippedPack = (file: string, name: string) => {
+  if (!name.startsWith(join('config', 'competencies'))) return false
+  const shipped = join(repoRoot(), name)
+  return existsSync(shipped) && readFileSync(shipped).equals(readFileSync(file))
+}
+
 const scorePronouns = (written: string): Finding[] =>
   writtenFiles(written).flatMap((file) => {
     const name = relative(written, file)
-    if (name === 'profile/coach.md') return []
+    if (name === 'profile/coach.md' || isShippedPack(file, name)) return []
     return readFileSync(file, 'utf8')
       .split('\n')
       .flatMap((text, i) =>
@@ -162,11 +174,21 @@ const scoreUpdate = (turns: Turn[]): Finding[] => {
 const isUpdateRun = (run: string) =>
   existsSync(join(run, 'written', 'log.txt')) || existsSync(join(run, 'written', 'rules.yaml'))
 
+// A line whose evidence is missing is not a pass.
+const skippedLines = (run: string) => {
+  const skipped = new Map<number, string>()
+  if (!existsSync(join(run, 'raw')))
+    for (const l of [4, 5, 28]) skipped.set(l, 'SKIPPED no raw/ folder')
+  if (!existsSync(join(run, 'written'))) skipped.set(18, 'SKIPPED no written/ folder')
+  return skipped
+}
+
 export const scoreRun = (run: string): string[] => {
   const turns = readTurns(run)
   const update = isUpdateRun(run)
   const found = update ? scoreUpdate(turns) : scoreOnboarding(run, turns)
   const covered = update ? [13] : [4, 5, 18, 26, 28]
+  const skipped = update ? new Map<number, string>() : skippedLines(run)
   const lines = [
     ...found.map((f) => ({
       line: f.line,
@@ -175,7 +197,7 @@ export const scoreRun = (run: string): string[] => {
     })),
     ...covered
       .filter((l) => !found.some((f) => f.line === l))
-      .map((l) => ({ line: l, turn: 0, out: `line ${l} PASS` })),
+      .map((l) => ({ line: l, turn: 0, out: `line ${l} ${skipped.get(l) ?? 'PASS'}` })),
   ]
   if (!update) lines.push({ line: 36, turn: 0, out: `line 36 INFO ${turns.length} turns` })
   return lines.sort((a, b) => a.line - b.line || a.turn - b.turn).map((l) => l.out)

@@ -1,4 +1,6 @@
 import { spawnSync } from 'node:child_process'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { scoreCommand, scoreRun } from '../../examples/live-run/score.ts'
@@ -60,5 +62,98 @@ describe('the live-run scorer', () => {
   it('refuses a usage fault', () => {
     expect(scoreCommand([])).toBe(EXIT.usage)
     expect(scoreCommand(['a', 'b'])).toBe(EXIT.usage)
+  })
+})
+
+const turn = (n: number, reply: string) =>
+  `## Turn ${n}\n\n**Persona:**\n\n> Yes.\n\n**Coach:**\n\n${reply
+    .split('\n')
+    .map((l) => `> ${l}`)
+    .join('\n')}\n\n`
+
+const draftRaw = (id: string, file: string, out: string) =>
+  [
+    {
+      type: 'assistant',
+      message: {
+        content: [
+          {
+            type: 'tool_use',
+            id,
+            name: 'Bash',
+            input: { command: `node scripts/profile.ts draft ${file}` },
+          },
+        ],
+      },
+    },
+    {
+      type: 'user',
+      message: { content: [{ type: 'tool_result', tool_use_id: id, content: out }] },
+    },
+  ]
+    .map((l) => JSON.stringify(l))
+    .join('\n')
+
+const makeRun = (setup: (dir: string) => void) => {
+  const dir = mkdtempSync(join(tmpdir(), 'score-'))
+  setup(dir)
+  return dir
+}
+
+describe('what the scorer will not call a pass or a fault', () => {
+  it('leaves a shipped pack copy alone and still reads a changed one', () => {
+    const shipped = readFileSync(join(repoRoot(), 'config/competencies/frontend.yaml'), 'utf8')
+    expect(/\b(he|she|his|her|they|their|them)\b/i.test(shipped)).toBe(true)
+    const dir = makeRun((d) => {
+      writeFileSync(join(d, 'transcript.md'), turn(1, 'Hello.'))
+      mkdirSync(join(d, 'raw'))
+      mkdirSync(join(d, 'written/config/competencies'), { recursive: true })
+      writeFileSync(join(d, 'written/config/competencies/frontend.yaml'), shipped)
+      writeFileSync(join(d, 'written/config/competencies/mine.yaml'), 'note: she leads\n')
+    })
+    const out = scoreRun(dir)
+    expect(out.some((l) => l.includes('frontend.yaml'))).toBe(false)
+    expect(out.some((l) => l.startsWith('line 18 FAIL config/competencies/mine.yaml'))).toBe(true)
+    rmSync(dir, { recursive: true })
+  })
+
+  it('skips lines whose evidence folder is missing', () => {
+    const dir = makeRun((d) => writeFileSync(join(d, 'transcript.md'), turn(1, 'Hello.')))
+    const out = scoreRun(dir)
+    expect(out).toContain('line 4 SKIPPED no raw/ folder')
+    expect(out).toContain('line 5 SKIPPED no raw/ folder')
+    expect(out).toContain('line 18 SKIPPED no written/ folder')
+    expect(out.some((l) => l.startsWith('line 4 PASS'))).toBe(false)
+    rmSync(dir, { recursive: true })
+  })
+
+  it('keeps only the last summary of a file drafted twice in a turn', () => {
+    const dir = makeRun((d) => {
+      mkdirSync(join(d, 'raw'))
+      mkdirSync(join(d, 'written'))
+      writeFileSync(join(d, 'transcript.md'), turn(1, 'Name: Hannah Pruitt'))
+      writeFileSync(
+        join(d, 'raw/turn1.jsonl'),
+        `${draftRaw('a', 'profile/identity.yaml', 'Name: Hanna Pruitt')}\n${draftRaw('b', 'profile/identity.yaml', 'Name: Hannah Pruitt')}\n`,
+      )
+    })
+    expect(scoreRun(dir)).toContain('line 4 PASS')
+    rmSync(dir, { recursive: true })
+  })
+
+  it('scores an update run on line 13 only', () => {
+    const update = (reply: string) =>
+      makeRun((d) => {
+        mkdirSync(join(d, 'written'))
+        writeFileSync(join(d, 'written/log.txt'), 'abc Updated the coach\n')
+        writeFileSync(
+          join(d, 'transcript.md'),
+          turn(1, 'The new version is ready.') + turn(2, reply),
+        )
+      })
+    const bad = scoreRun(update("I'll load the update steps now."))
+    expect(bad.some((l) => l.startsWith('line 13 FAIL T2'))).toBe(true)
+    expect(bad.some((l) => l.startsWith('line 36'))).toBe(false)
+    expect(scoreRun(update('The coach is updated.'))).toEqual(['line 13 PASS'])
   })
 })
