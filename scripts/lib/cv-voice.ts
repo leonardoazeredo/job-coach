@@ -31,6 +31,11 @@ const wordPattern = (word: string): RegExp =>
 const wordsIn = (text: string, words: string[]): string[] =>
   words.flatMap((word) => [...text.matchAll(wordPattern(word))].map((m) => m[0]))
 
+// A pronoun of two or more capitals is an acronym or a state code ("ME" in Portland, ME), which
+// the user cannot reword away, so only lowercase and Title Case count. Note words keep every case.
+const pronounsIn = (text: string, words: string[]): string[] =>
+  wordsIn(text, words).filter((found) => found.length < 2 || found !== found.toUpperCase())
+
 const BRACKETED = /\([^()\n]*\)|\[[^[\]\n]*\]/g
 
 // A bracket that holds a note word or an error pronoun is reported whole; its words are then
@@ -38,14 +43,18 @@ const BRACKETED = /\([^()\n]*\)|\[[^[\]\n]*\]/g
 export const voiceFindings = (text: string, lists: VoiceLists): VoiceFinding[] => {
   const found: VoiceFinding[] = []
   const noted = text.replace(BRACKETED, (bracket) => {
-    if (wordsIn(bracket, [...lists.note_words, ...lists.error_pronouns]).length === 0)
+    if (
+      wordsIn(bracket, lists.note_words).length +
+        pronounsIn(bracket, lists.error_pronouns).length ===
+      0
+    )
       return bracket
     found.push({ level: 'error', phrase: bracket })
     return ' '.repeat(bracket.length)
   })
-  for (const word of wordsIn(noted, lists.error_pronouns))
+  for (const word of pronounsIn(noted, lists.error_pronouns))
     found.push({ level: 'error', phrase: word })
-  for (const word of wordsIn(noted, lists.warning_pronouns))
+  for (const word of pronounsIn(noted, lists.warning_pronouns))
     found.push({ level: 'warning', phrase: word })
   return found.filter((f, i) => found.findIndex((g) => g.phrase === f.phrase) === i)
 }

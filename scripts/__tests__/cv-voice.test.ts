@@ -30,20 +30,39 @@ describe('words that do not belong on a CV', () => {
     'Built the I/O layer for the CI/CD pipeline.',
     'IT support for the other team (React, TypeScript).',
     'Moved to i18n and the iPhone app.',
+    'Portland, ME, United States',
+    'BEng ME',
+    'Treated HER2 results (HIS data)',
   ])('trips nothing on "%s"', (text) => {
     expect(voiceFindings(text, DEFAULT_VOICE)).toEqual([])
   })
 
   it('reports a capital I on its own, any case of the other words, and a bracketed note once', () => {
     expect(
-      voiceFindings('I built it. HIS team.', DEFAULT_VOICE)
+      voiceFindings('I built it. His team.', DEFAULT_VOICE)
         .map((f) => f.phrase)
         .sort(),
-    ).toEqual(['HIS', 'I'])
+    ).toEqual(['His', 'I'])
     expect(voiceFindings('down 20% (his estimate)', DEFAULT_VOICE)).toEqual([
       { level: 'error', phrase: '(his estimate)' },
     ])
     expect(voiceFindings('i built it', DEFAULT_VOICE)).toEqual([])
+  })
+
+  it('still refuses "me" and "Me", and a capitalised note in brackets', () => {
+    expect(voiceFindings('told me', DEFAULT_VOICE)).toEqual([{ level: 'error', phrase: 'me' }])
+    expect(voiceFindings('Me and the team', DEFAULT_VOICE)).toEqual([
+      { level: 'error', phrase: 'Me' },
+    ])
+    expect(voiceFindings('down 20% (TBC)', DEFAULT_VOICE)).toEqual([
+      { level: 'error', phrase: '(TBC)' },
+    ])
+  })
+
+  it("refuses I'm and I'd as first-person words", () => {
+    expect(voiceFindings("I'm in charge. I'd lead.", DEFAULT_VOICE).map((f) => f.phrase)).toEqual([
+      'I',
+    ])
   })
 
   it('reports both words of he/she', () => {
@@ -177,6 +196,19 @@ describe('the voice check on text no bullet covers', () => {
       if (job.id === 'brightwell') job.tech = [...(masterTech('brightwell') ?? []), 'Go (todo)']
     repo.write('cv/master.json', `${JSON.stringify(master, null, 2)}\n`)
     expect(voiceErrorsAt()).toEqual([expect.stringContaining('cv work: ')])
+  })
+})
+
+describe('a copy whose cv.yaml has its own word lists', () => {
+  it('takes effect in the CV lint', () => {
+    repo.write(
+      'config/cv.yaml',
+      `${repo.read('config/cv.yaml').replace(/^note_words:.*\n/m, '')}note_words: [fnord]\n`,
+    )
+    larkspur.writeVariant((v) => {
+      v.headline = 'Engineer (fnord)'
+    })
+    expect(messages(roleProblems(), 'error')).toEqual([expect.stringContaining('"(fnord)"')])
   })
 })
 
