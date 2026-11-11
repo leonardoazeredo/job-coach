@@ -52,10 +52,10 @@ export const missingForReplay = (run: string, turn: number): string[] =>
 // a written file or the turn count).
 const VERDICT = /^line (\d+) (FAIL|PASS|SKIPPED|INFO)(?: T(\d+))?/
 
-// The fail rate of every line the scorer marked at the replayed turn, from each sample's scorer
-// output. A line counts when a sample shows it passed, or failed at some turn; it fails a sample
-// when it failed at the replayed turn. Findings at earlier turns, which every sample shares, and
-// lines about written files are left out.
+// The scorer reads the whole run, so a sample's output also holds findings from the turns before
+// the replayed one, which every sample shares. A line gets a row when a sample passed it or failed
+// it at any turn, so a line the scorer checks never goes missing; only a failure at the replayed
+// turn counts toward its fail rate. Lines about written files and the turn count get no row.
 export const failRates = (
   turn: number,
   scored: string[][],

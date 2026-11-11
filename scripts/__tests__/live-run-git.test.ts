@@ -9,7 +9,7 @@ import { gitAt, gitIn } from './live-run-git.ts'
 const tmp = mkdtempSync(join(tmpdir(), 'replay-git-'))
 afterAll(() => rmSync(tmp, { recursive: true, force: true }))
 const saved = { ...process.env }
-// Only a decoy repository in the temp folder is ever pointed at; the real one never is.
+// A test that throws partway must not leave GIT_* set for the next test.
 afterEach(() => {
   for (const k of Object.keys(process.env)) if (k.startsWith('GIT_')) delete process.env[k]
   Object.assign(process.env, saved)
@@ -40,6 +40,7 @@ describe('dropping the variables a hook sets', () => {
     const decoy = repo('decoy')
     const target = repo('target')
     const [decoyHead, decoyIndex] = [head(decoy), index(decoy)]
+    // Only the decoy in the temp folder is ever pointed at, never the real repository.
     process.env.GIT_DIR = join(decoy, '.git')
     process.env.GIT_WORK_TREE = decoy
     process.env.GIT_INDEX_FILE = join(decoy, '.git', 'index')
