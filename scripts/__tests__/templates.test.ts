@@ -93,8 +93,9 @@ describe('templates', () => {
             : [k],
         )
       const have = new Set(shape(template))
-      // Tiers and the right-to-work countries are keyed by the person's own choices, and the
-      // pack is left unset in the template so the pack step of onboarding must set it.
+      // Skipped: the right-to-work countries are keyed by the person's own choices, the tier keys
+      // are fixed by the Draft table, and the pack is left unset in the template so the pack step
+      // of onboarding must set it.
       const missing = shape(persona).filter(
         (k) => !have.has(k) && k !== 'competency_pack' && !/^(tiers|right_to_work)\./.test(k),
       )
@@ -179,7 +180,7 @@ const samplesIn = (shape: Shape, data: unknown, at: string[], line: (at: string[
   return found
 }
 
-// The template line holding the key at a path; a JSON template has no comments, so no line.
+// The template line holding the key at a path, where a marker can sit in a trailing comment.
 const lineOf = (src: string, path: string[]): string => {
   const doc = parseDocument(src)
   const parent = doc.getIn(path.slice(0, -1), true)
@@ -222,6 +223,7 @@ describe('draft tables', () => {
     const unmarked = dataTables.flatMap(([target, table]) => {
       const src = text(join(TEMPLATES, table.template))
       const data = parseTemplate(table.format, src)
+      // A JSON template has no comments, so no line can carry a marker.
       const line = (at: string[]) => (table.format === 'json' ? '' : lineOf(src, at))
       return samplesIn(table.root.fields, data, [], line)
         .filter((s) => !s.marked)
