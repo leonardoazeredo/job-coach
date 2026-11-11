@@ -32,8 +32,8 @@ const failure = (o: ExportOutcome): { message: string; code: number } | undefine
   }
 }
 
-// Looked for first, before any check or write: Chrome's message comes first, and a missing
-// poppler says it is needed to verify, since an unverified PDF reads as a good one.
+// Chrome's message comes first, and a missing poppler says it is needed to verify, since an
+// unverified PDF reads as a good one.
 const missingTool = (m: MissingTools): string | undefined => {
   if (m.chrome !== undefined) return m.chrome
   if (!m.poppler) return undefined

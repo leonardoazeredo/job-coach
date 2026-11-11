@@ -100,7 +100,7 @@ describe('the export command', () => {
     assert.doesNotMatch(said(err), /no Chrome here/)
   })
 
-  // The entry line is the one thing the in-process tests cannot reach.
+  // The in-process tests cannot reach an entry line; this spawns export-pdf.ts's.
   it('starts from the command line and exits 64 with no --data', () => {
     const r = spawnSync(
       process.execPath,

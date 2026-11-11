@@ -2,7 +2,7 @@ import type { ExportTools } from '../pdf-export.ts'
 import type { FindTools, MissingTools, ReaderSearch, ToolSearch } from '../tools.ts'
 
 // A lookup that finds nothing it is not told about, so entry-point tests run without Chrome or
-// poppler. `asked` records each call's argument, to show who looked and for what.
+// poppler. `asked` records each call's argument: undefined for the full search, 'poppler' for the reader-only one.
 export const findingMissing = (
   missing: MissingTools,
 ): { find: FindTools; asked: (string | undefined)[] } => {
