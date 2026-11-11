@@ -2,6 +2,7 @@
 // later step adds. A test holds each table and its template in step.
 import { ROCKETSHIP_EMPLOYMENT, ROCKETSHIP_SENIORITY, searchNotes } from './boards/rocketship.ts'
 import { CvDataSchema, HistoryFileSchema, WinsFileSchema } from './cv-schema.ts'
+import { FIGURE } from './cv-voice.ts'
 import {
   type DataTable,
   entries,
@@ -221,7 +222,7 @@ const wins: DataTable = {
           approved: 'approved',
         }),
         themes: list('Themes', 'exempt'),
-        metric: standingIn(value('Figure', 'default'), 'no number yet'),
+        metric: ruled(standingIn(value('Figure', 'default'), 'no number yet'), FIGURE),
         action: value('What you did'),
         never_say: list('Never say', 'default'),
         competencies: list('Competencies', 'exempt'),
