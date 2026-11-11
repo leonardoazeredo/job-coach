@@ -68,6 +68,29 @@ describe('a pronoun in a quoted figure inside a longer bullet', () => {
     expect(found[0]).toContain("achievement's figure needs rewording")
   })
 
+  it.each([
+    [
+      'I cut build time 40%; API latency fell 50%',
+      'API latency fell 50%',
+      'I cut build time 40%',
+      '"I"',
+    ],
+    [
+      'he cut build time 40%; the team grew 3x',
+      'the team grew 3x',
+      'he cut build time 40%',
+      '"he"',
+    ],
+  ])(
+    'blames the figure only for the clause the bullet quotes: %s',
+    (figure, clean, offending, phrase) => {
+      expect(quoting(figure, `Rebuilt the pipeline, ${clean}`)).toEqual([])
+      const found = quoting(figure, `Rebuilt the pipeline, ${offending}`)
+      expect(found).toEqual([expect.stringContaining(phrase)])
+      expect(found[0]).toContain("achievement's figure needs rewording")
+    },
+  )
+
   it('passes a name that follows a semicolon in the figure', () => {
     const figure = 'down 20%; Her Campus traffic up 5%'
     expect(quoting(figure, `Rebuilt the pipeline, ${figure}`)).toEqual([])

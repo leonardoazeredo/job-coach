@@ -81,6 +81,11 @@ const pronounsIn = (text: string, words: string[]): string[] =>
       .map((m) => m[0]),
   )
 
+// Whether text holds a phrase a finding named: a bracket as written, a word by the same rules the
+// finding used, so "he" is not found inside "the" nor "I" inside "API".
+export const holdsPhrase = (text: string, phrase: string): boolean =>
+  /^[([]/.test(phrase) ? text.includes(phrase) : wordPattern(phrase).test(text)
+
 const BRACKETED = /\([^()\n]*\)|\[[^[\]\n]*\]/g
 
 // A bracket that holds a note word or an error pronoun is reported whole; its words are then

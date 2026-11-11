@@ -5,7 +5,7 @@
 // whole-CV claims (including limits on text only master.json supplies), and shape.
 import type { BuildResult, Line, MasterLine } from './cv-build.ts'
 import type { CvData, CvJob, SourcedText, Win } from './cv-schema.ts'
-import { type VoiceFinding, voiceFindings } from './cv-voice.ts'
+import { holdsPhrase, type VoiceFinding, voiceFindings } from './cv-voice.ts'
 import { NOT_SPECIFIED } from './not-specified.ts'
 import type { Problem } from './problem.ts'
 import type { Profile } from './profile.ts'
@@ -139,7 +139,7 @@ const quotedFigureVoice = (entry: Line, wins: Win[], profile: Profile): Found[] 
       .map((part) => part.trim())
       .filter((clause) => clause !== '' && lower.includes(clause.toLowerCase()))
     for (const f of voiceFindings(win.metric, profile.config)) {
-      if (f.level !== 'error' || !quoted.some((clause) => clause.includes(f.phrase))) continue
+      if (f.level !== 'error' || !quoted.some((clause) => holdsPhrase(clause, f.phrase))) continue
       const message = `cv ${entry.where}: ${voiceMessage(f, win)}`
       found.set(message, { level: 'error', message })
     }
