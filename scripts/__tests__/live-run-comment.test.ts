@@ -55,27 +55,13 @@ describe('the live-run comment builder', () => {
     expect(text).not.toContain('line 11:**')
   })
 
-  it('ends a run with no judge report in one plain line and the missing-input code', () => {
-    rmSync(join(run, 'judge-report.txt'))
-    const out = build()
-    expect(out.status).toBe(EXIT.missing)
-    expect(out.stdout).toBe('')
-    expect(out.stderr.trim().split('\n')).toHaveLength(1)
-    expect(out.stderr).toContain('judge-report.txt')
-    expect(existsSync(join(run, 'comment.md'))).toBe(false)
-  })
-
-  it('refuses a usage fault', () => {
-    expect(commentCommand([])).toBe(EXIT.usage)
-    expect(commentCommand(['a', 'b', 'c'])).toBe(EXIT.usage)
-    expect(commentCommand(['--post'])).toBe(EXIT.usage)
-  })
-
   it('posts nothing: the builder never calls gh or the network', () => {
     const source = readFileSync(script, 'utf8')
     expect(source).not.toMatch(/child_process|fetch\(|https?:\/\//)
   })
+})
 
+describe('the live-run comment builder, further cases', () => {
   it('carries every verdict line verbatim, passes included, in a text fence', () => {
     build(previous)
     const text = readFileSync(join(run, 'comment.md'), 'utf8')
@@ -138,6 +124,24 @@ describe('the live-run comment builder', () => {
     rmSync(join(run, 'raw'), { recursive: true })
     build()
     expect(readFileSync(join(run, 'comment.md'), 'utf8')).toContain('The scorer marked no line.')
+  })
+})
+
+describe('the live-run comment builder on input it cannot use', () => {
+  it('ends a run with no judge report in one plain line and the missing-input code', () => {
+    rmSync(join(run, 'judge-report.txt'))
+    const out = build()
+    expect(out.status).toBe(EXIT.missing)
+    expect(out.stdout).toBe('')
+    expect(out.stderr.trim().split('\n')).toHaveLength(1)
+    expect(out.stderr).toContain('judge-report.txt')
+    expect(existsSync(join(run, 'comment.md'))).toBe(false)
+  })
+
+  it('refuses a usage fault', () => {
+    expect(commentCommand([])).toBe(EXIT.usage)
+    expect(commentCommand(['a', 'b', 'c'])).toBe(EXIT.usage)
+    expect(commentCommand(['--post'])).toBe(EXIT.usage)
   })
 
   it('refuses a report with no verdict line, writing no comment', () => {
