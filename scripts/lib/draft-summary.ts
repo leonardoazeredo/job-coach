@@ -2,18 +2,21 @@
 // new file, or only what changes in an existing one. Scalars render as their label and value,
 // list items through their table's frame, ISO dates and pay in the user's locale, yes and no as
 // words, job ids as the job; the rest verbatim.
-import type {
-  EntriesField,
-  Field,
-  GroupField,
-  ItemsField,
-  Reading,
-  Shape,
-  ValueField,
+import {
+  type EntriesField,
+  type Field,
+  fieldIn,
+  type GroupField,
+  groupOf,
+  type ItemsField,
+  idOf,
+  isObj,
+  type Obj,
+  type Reading,
+  type Shape,
+  same,
+  type ValueField,
 } from './draft-fields.ts'
-import { entryGroup, fieldIn, idOf, isObj, itemGroup, type Obj } from './draft-merge.ts'
-
-const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 
 export type Render = {
   locale: string
@@ -181,12 +184,12 @@ const without = (item: Obj, paths: string[][]): Obj => {
 const pad = (lines: string[], by: string) => lines.map((l) => `${by}${l}`)
 
 const headOf = (f: ItemsField, item: unknown, r: Render): string =>
-  isObj(item) ? framed({ frame: f.frame, fields: itemGroup(f).fields }, item, r).line : String(item)
+  isObj(item) ? framed({ frame: f.frame, fields: groupOf(f).fields }, item, r).line : String(item)
 
 // One item: its frame, then whatever the frame does not say.
 const itemLines = (f: ItemsField, item: unknown, r: Render): string[] => {
   if (!isObj(item)) return [String(item)]
-  const g = itemGroup(f)
+  const g = groupOf(f)
   const { line, used } = framed({ frame: f.frame, fields: g.fields }, item, r)
   const rest = without(
     item,
@@ -196,7 +199,7 @@ const itemLines = (f: ItemsField, item: unknown, r: Render): string[] => {
 }
 
 const entryLine = (f: EntriesField, key: string, v: unknown, r: Render) => {
-  const fields = entryGroup(f)?.fields ?? {}
+  const fields = groupOf(f)?.fields ?? {}
   const name = f.levels ? levelIn(key) : key
   return framed({ frame: f.frame, fields }, { key: name, value: v, ...obj(v) }, r).line
 }
@@ -248,20 +251,20 @@ const itemChange = (f: ItemsField, b: unknown, a: unknown, r: Render): string[] 
     return [`Changed in ${f.label}: ${head}`, ...pad(rest, '  ')]
   }
   // A list the frame already says, such as the jobs of a limit, is not repeated beneath it.
-  const said = framed({ frame: f.frame, fields: itemGroup(f).fields }, a, r).used
-  const skip = said.filter((p) => fieldAt(itemGroup(f).fields, p.split('.'))?.t === 'list')
+  const said = framed({ frame: f.frame, fields: groupOf(f).fields }, a, r).used
+  const skip = said.filter((p) => fieldAt(groupOf(f).fields, p.split('.'))?.t === 'list')
   const gone = skip.map((p) => p.split('.'))
   // Different ids can read alike (no job history, or two jobs with one title and company), so
   // a list that changed but reads the same is said to have changed.
   const unseen = skip.flatMap((p) => {
     const path = p.split('.')
-    const field = fieldAt(itemGroup(f).fields, path)
+    const field = fieldAt(groupOf(f).fields, path)
     const [was, now] = [valueAt(b, path), valueAt(a, path)]
     if (field?.t !== 'list') return []
     const alike = shown(was, field, r) === shown(now, field, r)
     return alike && !same(was, now) ? [`${field.label}: changed`] : []
   })
-  const inner = [...unseen, ...groupChanges(itemGroup(f), without(b, gone), without(a, gone), r)]
+  const inner = [...unseen, ...groupChanges(groupOf(f), without(b, gone), without(a, gone), r)]
   // Only what the frame says may have changed, such as the jobs of a limit.
   if (inner.length === 0)
     return headOf(f, a, r) === headOf(f, b, r) ? [] : [`Changed in ${f.label}: ${headOf(f, a, r)}`]

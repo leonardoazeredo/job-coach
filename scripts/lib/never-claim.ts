@@ -5,7 +5,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parse } from 'yaml'
-import { isObj } from './draft-merge.ts'
+import { isObj } from './draft-fields.ts'
 
 type NeverClaim = { item: string; patterns: string[] }
 type Hit = NeverClaim & { pattern: string; line: string }

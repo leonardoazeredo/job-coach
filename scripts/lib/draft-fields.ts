@@ -137,3 +137,59 @@ export const standingIn = (field: ValueField, says: string): ValueField => ({
   ...field,
   standIn: { text: NOT_SPECIFIED, says },
 })
+
+export type Obj = { [key: string]: unknown }
+export const isObj = (v: unknown): v is Obj =>
+  typeof v === 'object' && v !== null && !Array.isArray(v)
+
+// A key the table does not name reads as a plain value. Refusing such a key in a closed group
+// is the merge's check on `open`, not this lookup's.
+export const fieldIn = (shape: Shape, key: string): Field =>
+  shape[key] ?? value(key.replaceAll('_', ' '), 'default')
+
+export const idOf = (f: ItemsField, item: unknown): unknown => {
+  if (typeof item === 'string') return item
+  return isObj(item) ? item[f.id] : undefined
+}
+
+// The group a container's items, list entries or entry values are read by; undefined where the
+// table gives none, so a caller falls back to reading them as plain values.
+export function groupOf(f: ItemsField): GroupField
+export function groupOf(f: Field): GroupField | undefined
+export function groupOf(f: Field): GroupField | undefined {
+  switch (f.t) {
+    case 'items':
+      return f.open ? group(f.fields, 'open') : group(f.fields)
+    case 'entries':
+      return f.value ? group(f.value) : undefined
+    case 'list':
+      return f.item ? group(f.item.fields) : undefined
+    default:
+      return undefined
+  }
+}
+
+export const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
+
+const stepInto = (at: unknown, step: string | number): unknown => {
+  if (Array.isArray(at)) return at[Number(step)]
+  return isObj(at) ? at[String(step)] : undefined
+}
+
+// A key path in words, named the way the merge names a value.
+export const labelAt = (root: GroupField, path: (string | number)[], data: unknown): string => {
+  let field: Field = root
+  let at = data
+  let where = ''
+  let label = ''
+  for (const step of path) {
+    at = stepInto(at, step)
+    if (field.t === 'group') field = fieldIn(field.fields, String(step))
+    else if (field.t === 'items') {
+      where = `${String(isObj(at) ? at[field.id] : at)} in ${field.label}`
+      field = groupOf(field)
+    } else break
+    if (field.t !== 'group') label = field.label
+  }
+  return where ? `"${label}" (${where})` : `"${label}"`
+}

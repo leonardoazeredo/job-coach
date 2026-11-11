@@ -1,0 +1,9 @@
+# Each Draft consumer walks the table itself; only the lookups are shared
+
+The Draft's table (`TABLES` in `scripts/lib/draft-table.ts`) describes each profile file as a tree of five kinds of field: value, list, group, items and entries. Each consumer of a Draft walks that tree for itself: the merge, the summary, the marks and YAML text, and the label lookup. Only the lookups that every walk needs are shared, in `scripts/lib/draft-fields.ts`: `isObj`, `fieldIn` with its fallback for a key the table does not name, `idOf`, `groupOf`, `labelAt` and `same`. No single shared walk fits all four consumers without an interface about as wide as the code it would replace, and the walks order keys three different ways. This applies ADR 0008: the summary and the file still come from one value, and the table stays the single source for both. The cost we accept is that a new kind of field is an edit in each consumer, not one edit in a shared walk. Decided in #119 when an architecture review of 2026-11-11 proposed one walk over the table.
+
+## Considered options
+
+- **One traversal with a handler per kind**: rejected because each consumer needs different companion values at every node (the file, the input and the template for the merge; before, after and given for the marks; before and after for the summary; document nodes for the YAML text), so the handler interface would be nearly as wide as the code it replaced.
+- **A step that lines up a field's children across several values, with each caller recursing**: rejected because the merge applies given items one at a time to a list that changes as it goes, and no view lined up in advance fits that.
+- **Flat rows addressed by key and item id**: rejected because the summary's tests on a field's kind say what that kind means, so a row would only rename them, and the walks order keys three different ways, which one row order cannot serve.
