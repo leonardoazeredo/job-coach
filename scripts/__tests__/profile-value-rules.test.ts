@@ -132,6 +132,13 @@ describe('the Draft refuses a figure that would not read on a CV', () => {
     expect((await run(['drafts'])).stdout).toContain('No drafts are waiting.')
   })
 
+  it('accepts a figure holding a name with a pronoun in it', async () => {
+    const taken = await draft('profile/wins.yaml', {
+      wins: [{ slug: 'bw-aws-cost', metric: 'down 20% for Her Campus' }],
+    })
+    expect(taken.code).toBe(0)
+  })
+
   it('accepts a figure holding a tool name in brackets', async () => {
     const taken = await draft('profile/wins.yaml', {
       wins: [{ slug: 'bw-aws-cost', metric: 'down 20% (Notebook)' }],

@@ -1,4 +1,7 @@
-// Finds the wrong grammatical person and bracketed notes in text that will be printed on a CV.
+// Finds the wrong grammatical person and bracketed notes in prose that will be printed on a CV:
+// the headline, summary, bullets, training, projects and a job's note, and an achievement's figure.
+// Names (company, role, tech, skills, education) are not checked, and a pronoun in capitals, or in
+// Title Case away from a sentence start, is read as part of a name and skipped.
 // The word lists are config/cv.yaml's, so the user can edit them; these defaults stand in for a
 // copy of the file that predates them. The draft rule (FIGURE) cannot read the config and always
 // uses the defaults, so an edited list changes the CV lint and the record check, not the Draft.
@@ -31,9 +34,6 @@ const wordPattern = (word: string): RegExp =>
     ? /(?<![\w/-])I(?![\w/-])/g
     : new RegExp(`(?<!\\w)${escapeRegExp(word)}(?!\\w)`, 'gi')
 
-const wordsIn = (text: string, words: string[]): string[] =>
-  words.flatMap((word) => [...text.matchAll(wordPattern(word))].map((m) => m[0]))
-
 const NOTE_ENDINGS = ['s', 'd', 'ed', 'es', 'ing', 'ly', 'imate', 'imately']
 const APPROX_ENDINGS = ['imated', 'imating']
 
@@ -55,10 +55,21 @@ const notesIn = (bracket: string, words: string[]): string[] =>
     ),
   )
 
-// A pronoun of two or more capitals is an acronym or a state code ("ME" in Portland, ME), which
-// the user cannot reword away, so only lowercase and Title Case count. Note words keep every case.
+// A pronoun of two or more capitals is an acronym or a state code ("ME" in Portland, ME), and a
+// Title Case one that neither starts the text nor follows a sentence end is part of a name
+// ("Her Campus"); the user cannot reword either away. Lowercase pronouns, and Title Case ones
+// where a sentence starts, count. Note words keep every case.
+const STARTS_SENTENCE = /(?:^|[.!?]\s+|\n\s*)$/
+const isName = (found: string, before: string): boolean =>
+  found.length > 1 &&
+  (found === found.toUpperCase() || (/^[A-Z][a-z]+$/.test(found) && !STARTS_SENTENCE.test(before)))
+
 const pronounsIn = (text: string, words: string[]): string[] =>
-  wordsIn(text, words).filter((found) => found.length < 2 || found !== found.toUpperCase())
+  words.flatMap((word) =>
+    [...text.matchAll(wordPattern(word))]
+      .filter((m) => !isName(m[0], text.slice(0, m.index)))
+      .map((m) => m[0]),
+  )
 
 const BRACKETED = /\([^()\n]*\)|\[[^[\]\n]*\]/g
 

@@ -8,7 +8,6 @@ import {
   editMaster,
   errorsFor,
   larkspur,
-  masterTech,
   messages,
   repo,
   roleProblems,
@@ -192,13 +191,6 @@ describe('the voice check on text no bullet covers', () => {
     expect(voiceErrorsAt()).toEqual([expect.stringContaining('cv headline: has the pronoun "she"')])
   })
 
-  it('refuses a pronoun in a skill', () => {
-    larkspur.writeVariant((v) => {
-      v.skills = ['Python', 'what she knows']
-    })
-    expect(voiceErrorsAt()).toEqual([expect.stringContaining('cv skills: ')])
-  })
-
   it('refuses a note in a training line', () => {
     editMaster((m) => {
       m.training = ['Safety course (todo)']
@@ -208,26 +200,58 @@ describe('the voice check on text no bullet covers', () => {
     ])
   })
 
-  it('refuses a pronoun in a language line', () => {
-    editMaster((m) => {
-      m.languages = ['English (my first)']
-    })
-    expect(voiceErrorsAt()).toEqual([expect.stringContaining('cv languages: ')])
-  })
-
-  it('refuses a note in an education line', () => {
-    editMaster((m) => {
-      m.education = [degree('BSc (todo)')]
-    })
-    expect(voiceErrorsAt()).toEqual([expect.stringContaining('cv education: ')])
-  })
-
-  it('refuses a note in a job tech list', () => {
+  it('does not check names: company, role, tech, skills, languages, education', () => {
     const master = JSON.parse(repo.read('cv/master.json'))
-    for (const job of master.work)
-      if (job.id === 'brightwell') job.tech = [...(masterTech('brightwell') ?? []), 'Go (todo)']
+    master.languages = ['Help Me Grow']
+    master.education = [{ ...degree('BSc'), institution: "Her Majesty's Treasury" }]
+    for (const job of master.work) if (job.id === 'brightwell') job.tech = ['Me & Em']
     repo.write('cv/master.json', `${JSON.stringify(master, null, 2)}\n`)
-    expect(voiceErrorsAt()).toEqual([expect.stringContaining('cv work: ')])
+    repo.editYaml<{ roles: { id: string; company: string; public: { title: string } }[] }>(
+      'profile/history.yaml',
+      (file) => {
+        const role = file.roles.find((r) => r.id === 'brightwell')
+        if (role) {
+          role.company = 'Her Campus'
+          role.public.title = 'Help Me Grow Lead'
+        }
+      },
+    )
+    larkspur.writeVariant((v) => {
+      v.skills = ['Python', 'Her Campus']
+    })
+    expect(voiceErrorsAt()).toEqual([])
+  })
+})
+
+describe('a pronoun in Title Case inside a name', () => {
+  it.each([
+    'Wrote for Her Campus',
+    'Helped Me Grow ship',
+    'Shipped it (Her Campus)',
+    "Shipped it - His Majesty's Treasury",
+  ])('passes "%s"', (text) => {
+    expect(voiceFindings(text, DEFAULT_VOICE)).toEqual([])
+  })
+
+  it.each([
+    ['Her team shipped it', 'Her'],
+    ['Built it. He scaled it', 'He'],
+    ['Built it! He scaled it', 'He'],
+    ['Shipped what he built', 'he'],
+    ['Phase I done', 'I'],
+    ['Shipped it (he built it)', '(he built it)'],
+  ])('refuses "%s"', (text, phrase) => {
+    expect(voiceFindings(text, DEFAULT_VOICE).map((f) => f.phrase)).toEqual([phrase])
+  })
+
+  it('refuses it in a bullet at the start of the line', () => {
+    const v = withBullet('brightwell', 'Her team shipped it.', ['win:bw-aws-cost'])
+    expect(errorsFor(v)).toEqual([expect.stringContaining('"Her"')])
+  })
+
+  it('passes it mid-sentence in a bullet', () => {
+    const v = withBullet('brightwell', 'Wrote for Her Campus.', ['win:bw-aws-cost'])
+    expect(errorsFor(v)).toEqual([])
   })
 })
 

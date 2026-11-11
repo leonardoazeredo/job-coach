@@ -130,24 +130,13 @@ const voiceOf = (where: string, text: string, profile: Profile, wins: Win[] = []
 const lineVoice = (entry: Line, profile: Profile): Found[] =>
   voiceOf(entry.where, entry.line.text, profile, citeSources(entry, profile.sources).wins)
 
-// Text no line covers: the headline, the printed lists (skills, languages), education, the job
-// fields (role, company, location, note, tech) and the lines only master.json supplies.
+// Prose no line covers: the headline, a job's note and the lines only master.json supplies.
+// Names (company, role, location, tech, skills, languages, education) are left out, since the
+// user cannot reword a real name.
 const unsourcedVoice = ({ cv, masterOnly }: BuildResult, profile: Profile): Found[] => {
   const places: [string, string[]][] = [
     ['headline', [cv.headline]],
-    ['skills', cv.skills],
-    ['languages', cv.languages],
-    ['education', cv.education.flatMap((e) => [e.degree, e.institution, e.location ?? ''])],
-    [
-      'work',
-      cv.work.flatMap((j) => [
-        j.role,
-        j.company,
-        j.location ?? '',
-        j.note ?? '',
-        ...(j.tech ?? []),
-      ]),
-    ],
+    ['work', cv.work.flatMap((j) => (j.note ? [j.note] : []))],
     ...masterOnly.map(({ where, text }): [string, string[]] => [where, [text]]),
   ]
   return places.flatMap(([where, texts]) => texts.flatMap((text) => voiceOf(where, text, profile)))
