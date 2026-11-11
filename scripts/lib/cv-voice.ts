@@ -1,6 +1,7 @@
 // Finds the wrong grammatical person and bracketed notes in text that will be printed on a CV.
 // The word lists are config/cv.yaml's, so the user can edit them; these defaults stand in for a
-// copy of the file that predates them.
+// copy of the file that predates them. The draft rule (FIGURE) cannot read the config and always
+// uses the defaults, so an edited list changes the CV lint and the record check, not the Draft.
 
 import type { Rule } from './draft-fields.ts'
 
