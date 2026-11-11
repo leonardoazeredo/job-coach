@@ -9,6 +9,7 @@ import { ExportError } from '../cv-pdf/export-pdf.ts'
 import type { ExportTools, PagePrinter } from '../cv-pdf/pdf-export.ts'
 import type { MissingTools } from '../cv-pdf/tools.ts'
 import { expectations } from '../cv-pdf/verify/expectations.ts'
+import { PopplerMissingError } from '../cv-pdf/verify/poppler.ts'
 import type { PdfReader } from '../cv-pdf/verify/reader.ts'
 import { type PrintJob, printWith } from '../lib/cv-export.ts'
 import { CvDataSchema } from '../lib/cv-schema.ts'
@@ -88,6 +89,18 @@ describe('printWith', () => {
     expect(await printWith(tools)(job('boom.pdf'))).toEqual({
       ok: false,
       report: 'ERROR: poppler vanished\n',
+    })
+  })
+
+  // Only the two hand-run commands map a vanished tool to 66; cv-export reports a failed print.
+  it('turns a vanished poppler into a failed run, not a thrown error', async () => {
+    const gone = new PopplerMissingError(['pdftotext'], 'brew install poppler')
+    const tools = printer(async () => {
+      throw gone
+    })
+    expect(await printWith(tools)(job('gone.pdf'))).toEqual({
+      ok: false,
+      report: `ERROR: ${gone.message}\n`,
     })
   })
 })

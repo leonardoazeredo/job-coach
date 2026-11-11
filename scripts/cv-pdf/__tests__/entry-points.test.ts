@@ -1,13 +1,19 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, afterEach, beforeEach, describe, it, vi } from 'vitest'
+import { CvDataSchema } from '../../lib/cv-schema.ts'
+import { pdfFileName } from '../../lib/identity.ts'
 import { exportPdfCommand } from '../export-pdf.ts'
+import type { ExportTools } from '../pdf-export.ts'
 import { verifyCommand } from '../verify/cli.ts'
-import { findingMissing } from './fake-find.ts'
+import { expectations } from '../verify/expectations.ts'
+import { PopplerMissingError } from '../verify/poppler.ts'
+import type { PdfReader } from '../verify/reader.ts'
+import { findingMissing, findingTools } from './fake-find.ts'
 
 const missing = findingMissing
 const POPPLER = { names: ['pdftotext', 'pdfinfo'], install: 'brew install poppler' }
@@ -141,5 +147,115 @@ describe('the verify command', () => {
     err.length = 0
     assert.equal(await verifyCommand(['--data', SEED], find), 64)
     assert.match(said(err), /^usage: node verify\/cli.ts/)
+  })
+})
+
+// Fakes that pass every check, so a run through the real command functions needs no tools.
+const cv = CvDataSchema.parse(JSON.parse(readFileSync(SAMPLE_CV, 'utf8')))
+const exp = expectations(cv)
+const text = [
+  ...exp.contact,
+  ...exp.headings,
+  ...exp.keywords,
+  ...exp.pairs.map(([company, start]) => `${company} ${start}`),
+  'Built and ran the analytical engine for a team of engineers and mathematicians. '.repeat(8),
+].join('\n')
+const reader = (over: Partial<PdfReader> = {}): PdfReader => ({
+  info: async () => ({ pages: 1, size: 'A4', tagged: 'yes' }),
+  pageText: async () => '',
+  textInEveryEngine: async () =>
+    ['poppler', 'pdfjs', 'mupdf'].map((name) => ({ name, text, streamOrder: false })),
+  glyphSizes: async () => new Map([[10, 100]]),
+  linkTargets: async () => [{ uri: 'mailto:ada@example.com' }],
+  ...over,
+})
+const tools = (over: Partial<PdfReader> = {}, printed: string[] = []): ExportTools => ({
+  printer: {
+    async print(_cv, pdf) {
+      printed.push(pdf)
+      writeFileSync(pdf, 'x')
+      return { fittedPages: 1, mounted: true }
+    },
+  },
+  reader: reader(over),
+})
+const gone = new PopplerMissingError(['pdftotext'], 'brew install poppler')
+const vanishing = { info: async () => Promise.reject(gone) }
+
+describe('the commands on found tools', () => {
+  it('exports and exits 0, writing the given path', async () => {
+    const printed: string[] = []
+    const pdf = join(DIR, 'given.pdf')
+    const code = await exportPdfCommand(
+      ['--data', SAMPLE_CV, pdf],
+      findingTools(tools({}, printed)).find,
+    )
+    assert.equal(code, 0)
+    assert.deepEqual(printed, [pdf])
+    assert.match(said(out), /Done: /)
+  })
+
+  it('writes the default file name in the current directory when no path is given', async () => {
+    const cwd = process.cwd()
+    const work = join(DIR, 'cwd')
+    mkdirSync(work)
+    process.chdir(work)
+    try {
+      const code = await exportPdfCommand(['--data', SAMPLE_CV], findingTools(tools()).find)
+      assert.equal(code, 0)
+      assert.ok(existsSync(join(work, pdfFileName(cv.name))))
+    } finally {
+      process.chdir(cwd)
+    }
+  })
+
+  it('reads --keywords into the expectations, so a keyword the PDF lacks fails the run', async () => {
+    const pdf = join(DIR, 'kw.pdf')
+    const ok = file('kw-ok.txt', `${exp.keywords[0]}\n\n`)
+    assert.equal(
+      await exportPdfCommand(
+        ['--data', SAMPLE_CV, '--keywords', ok, pdf],
+        findingTools(tools()).find,
+      ),
+      0,
+    )
+    const bad = file('kw-bad.txt', 'Zzyzx-not-in-the-pdf\n')
+    assert.equal(
+      await exportPdfCommand(
+        ['--data', SAMPLE_CV, '--keywords', bad, pdf],
+        findingTools(tools()).find,
+      ),
+      1,
+    )
+    assert.match(said(err), /failed verification/)
+  })
+})
+
+describe('the commands when poppler vanishes or checks fail', () => {
+  it('exits 66 with the message once when poppler vanishes during the export', async () => {
+    const pdf = join(DIR, 'gone.pdf')
+    const code = await exportPdfCommand(
+      ['--data', SAMPLE_CV, pdf],
+      findingTools(tools(vanishing)).find,
+    )
+    assert.equal(code, 66)
+    assert.equal(count(said(err), gone.message), 1)
+  })
+
+  it('verify exits 0 when the checks pass and 1 when one fails', async () => {
+    const pdf = file('v.pdf', 'x')
+    assert.equal(await verifyCommand(['--data', SAMPLE_CV, pdf], findingTools(tools()).find), 0)
+    const short = tools({ info: async () => ({ pages: 9, size: 'A4', tagged: 'yes' }) })
+    assert.equal(await verifyCommand(['--data', SAMPLE_CV, pdf], findingTools(short).find), 1)
+  })
+
+  it('verify exits 66 with the message once when poppler vanishes during a read', async () => {
+    const pdf = file('v2.pdf', 'x')
+    const code = await verifyCommand(
+      ['--data', SAMPLE_CV, pdf],
+      findingTools(tools(vanishing)).find,
+    )
+    assert.equal(code, 66)
+    assert.equal(count(said(err), gone.message), 1)
   })
 })
