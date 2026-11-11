@@ -66,6 +66,8 @@ export type DataTable = {
   format: 'yaml' | 'json'
   template: string
   root: GroupField
+  // Only a file a script reads later has one: the schema guards what that script relies on, so
+  // history-private.yaml and standard-answers.yaml, which no script reads, have none on purpose.
   schema?: ZodType
   // Lines the summary adds about what the values will do, from the file as it would be and as it
   // was, undefined for a new file.
@@ -171,7 +173,7 @@ export function groupOf(f: Field): GroupField | undefined {
 
 export const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 
-const stepInto = (at: unknown, step: string | number): unknown => {
+export const stepInto = (at: unknown, step: string | number): unknown => {
   if (Array.isArray(at)) return at[Number(step)]
   return isObj(at) ? at[String(step)] : undefined
 }

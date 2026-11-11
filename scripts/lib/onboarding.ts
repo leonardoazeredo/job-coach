@@ -5,10 +5,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parse } from 'yaml'
-
-// The token the templates in templates/ put in values the user must replace. It counts anywhere
-// in a file, comments included, so the template headers that name it must be stripped on write.
-export const PLACEHOLDER = 'CHANGE_ME'
+import { PLACEHOLDER } from './placeholder.ts'
 
 // Shown in place of a file when the identity names no pack, so the board says what to set.
 const NO_PACK = 'competency_pack in profile/identity.yaml'
@@ -28,6 +25,9 @@ export type OnboardingSection = {
 
 type Spec = Pick<OnboardingSection, 'id' | 'label' | 'required' | 'optIn'> & { files: string[] }
 
+// Every profile file belongs to a section except profile/lessons.md and profile/glossary.md: they
+// are logs that start with no values to replace, so there is nothing to finish. A new profile file
+// goes into a section here or is named as a log (templates.test.ts checks this).
 const specs = (pack: string | undefined): Spec[] => [
   {
     id: 'cv-import',

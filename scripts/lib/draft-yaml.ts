@@ -29,8 +29,9 @@ import {
   isObj,
   type Obj,
   same,
+  stepInto,
 } from './draft-fields.ts'
-import { PLACEHOLDER } from './onboarding.ts'
+import { PLACEHOLDER } from './placeholder.ts'
 
 type Commented = { comment?: string | null; commentBefore?: string | null }
 type Path = (string | number)[]
@@ -101,11 +102,6 @@ const findMarks = (doc: Document): Mark[] => {
   return found
 }
 
-const step = (v: unknown, key: string | number): unknown => {
-  if (Array.isArray(v)) return v[Number(key)]
-  return isObj(v) ? v[String(key)] : undefined
-}
-
 // Stands for a key the draft's input does not reach.
 const UNSAID = Symbol('unsaid')
 
@@ -152,8 +148,8 @@ const walkInto = (w: Walk, key: string | number): Walk | undefined => {
     field: child,
     section: field?.t === 'group' && child?.t === 'group',
     idKey: undefined,
-    before: step(w.before, key),
-    after: step(w.after, key),
+    before: stepInto(w.before, key),
+    after: stepInto(w.after, key),
     given: named,
     out: [...w.out, key],
   }
@@ -180,7 +176,7 @@ const covers = (u: Under, idKey?: string): boolean => {
         k === idKey ||
         covers({
           field: childField(field, k),
-          before: step(u.before, k),
+          before: stepInto(u.before, k),
           after: a,
           given: keySaid(u.given, k),
         }),

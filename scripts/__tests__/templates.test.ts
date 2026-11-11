@@ -1,20 +1,18 @@
 // The templates onboarding copies must not drift from the schemas the scripts read. Those with a
 // schema are checked against it, and identity, search and stack also against the example
 // persona's keys; each Draft table must name exactly its template's keys; then every template,
-// placeholders filled, is loaded as a profile and has to pass the record check.
-import { readFileSync } from 'node:fs'
+// placeholders filled, is loaded as a profile and has to pass the record check. The Draft's
+// tables are the one list of profile files; the only list kept here is the three the persona check
+// names, because those are the files scripts read beyond what their schemas require.
+import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { parse } from 'yaml'
-import type { ZodType } from 'zod'
-import { CvDataSchema, HistoryFileSchema, WinsFileSchema } from '../lib/cv-schema.ts'
+import { isMap, isNode, isScalar, isSeq, parse, parseDocument } from 'yaml'
 import { type Field, groupOf, type Shape } from '../lib/draft-fields.ts'
 import { TABLES } from '../lib/draft-table.ts'
-import { IdentitySchema } from '../lib/identity.ts'
-import { PLACEHOLDER } from '../lib/onboarding.ts'
+import { onboardingStatus } from '../lib/onboarding.ts'
+import { PLACEHOLDER } from '../lib/placeholder.ts'
 import { loadProfile } from '../lib/profile.ts'
-import { SearchSchema } from '../lib/schema.ts'
-import { StackFileSchema } from '../lib/stack.ts'
 import { repoRoot } from '../lib/workspace.ts'
 import { PERSONA, type TempRepo, tempRepo } from './temp-repo.ts'
 import { errors } from './workspace-repo.ts'
@@ -23,62 +21,21 @@ import { errors } from './workspace-repo.ts'
 const TEMPLATES = join(repoRoot(), 'templates')
 const text = (path: string) => readFileSync(path, 'utf8')
 
-// template -> where onboarding writes it
-const targets = {
-  'profile/identity.example.yaml': 'profile/identity.yaml',
-  'profile/search.example.yaml': 'profile/search.yaml',
-  'profile/coach.example.md': 'profile/coach.md',
-  'profile/stack.example.yaml': 'profile/stack.yaml',
-  'profile/history.example.yaml': 'profile/history.yaml',
-  'profile/history-private.example.yaml': 'profile/history-private.yaml',
-  'profile/wins.example.yaml': 'profile/wins.yaml',
-  'profile/voice.example.md': 'profile/voice.md',
-  'profile/standard-answers.example.yaml': 'profile/standard-answers.yaml',
-  'profile/lessons.example.md': 'profile/lessons.md',
-  'profile/glossary.example.md': 'profile/glossary.md',
-  'cv/master.example.json': 'cv/master.json',
-}
+const tables = Object.entries(TABLES)
+const dataTables = tables.flatMap(([target, t]) =>
+  t.format === 'text' ? [] : [[target, t] as const],
+)
+const parseTemplate = (format: 'yaml' | 'json', src: string) =>
+  format === 'json' ? JSON.parse(src) : parse(src)
+
+// Logs and vocabulary start empty of values the user must replace, so onboarding lists no
+// section for them and their templates carry no marker.
+const LOGS = ['profile/glossary.md', 'profile/lessons.md']
 
 // Stands in for the user's answers: the marker goes, the rest of the wording stays.
 const filled = (src: string) => src.replaceAll(`${PLACEHOLDER} `, 'x ').replaceAll(PLACEHOLDER, 'x')
 
-const schemas: Record<string, ZodType> = {
-  'profile/identity.example.yaml': IdentitySchema,
-  'profile/search.example.yaml': SearchSchema,
-  'profile/stack.example.yaml': StackFileSchema,
-  'profile/history.example.yaml': HistoryFileSchema,
-  'profile/wins.example.yaml': WinsFileSchema,
-}
-
-// A sample value that is personal yet parses cleanly would pass as done if nothing marked it.
-const sampleValues: Record<string, string[]> = {
-  'profile/identity.example.yaml': [
-    'since:',
-    'timezone:',
-    'experience_years:',
-    'currency:',
-    'floor:',
-    'mid:',
-    'office_days_ok:',
-  ],
-  'profile/history.example.yaml': ['employment_type:', 'start:', 'end:'],
-  // The level goes to a job board search, so an unanswered one must not pass for a real one.
-  'profile/search.example.yaml': ['seniority:'],
-}
-
 describe('templates', () => {
-  it.each(Object.entries(sampleValues))(
-    '%s marks every sample value as unfinished',
-    (name, keys) => {
-      const lines = text(join(TEMPLATES, name)).split('\n')
-      for (const key of keys) {
-        const line = lines.find((l) => l.trimStart().startsWith(key))
-        expect(line, `${key} has a line`).toBeDefined()
-        expect(line, key).toContain(PLACEHOLDER)
-      }
-    },
-  )
-
   it('cv/master.example.json carries the marker in its sample dates, and holds no note', () => {
     const work = JSON.parse(text(join(TEMPLATES, 'cv/master.example.json'))).work[0]
     for (const key of ['start', 'end']) expect(work[key]).toContain(PLACEHOLDER)
@@ -104,44 +61,45 @@ describe('templates', () => {
     expect(edu.start).toContain(PLACEHOLDER)
   })
 
-  // Logs and vocabulary start empty of values the user must replace, so onboarding never lists them.
-  it.each(Object.keys(targets))('%s carries the placeholder marker unless it is a log', (name) => {
-    expect(text(join(TEMPLATES, name)).includes(PLACEHOLDER)).toBe(!/lessons|glossary/.test(name))
-  })
+  it.each(tables)(
+    '%s carries the placeholder marker unless it is a log',
+    (target, { template }) => {
+      expect(text(join(TEMPLATES, template)).includes(PLACEHOLDER)).toBe(!LOGS.includes(target))
+    },
+  )
 
-  it.each(Object.entries(schemas))('%s validates against its schema', (name, schema) => {
-    const data = parse(text(join(TEMPLATES, name)))
-    expect(schema.safeParse(data).success).toBe(true)
-  })
-
-  it('cv/master.example.json validates against the CV schema', () => {
-    const data = JSON.parse(text(join(TEMPLATES, 'cv/master.example.json')))
-    expect(CvDataSchema.safeParse(data).success).toBe(true)
-  })
+  it.each(dataTables.flatMap(([, t]) => (t.schema ? [[t.template, t] as const] : [])))(
+    '%s validates against its schema',
+    (_, table) => {
+      const data = parseTemplate(table.format, text(join(TEMPLATES, table.template)))
+      expect(table.schema?.safeParse(data).success).toBe(true)
+    },
+  )
 
   // Identity, search and stack are read beyond what the schemas require, so a key the persona
   // has and the template lacks is drift; the check goes two levels deep.
-  it.each([
-    'profile/identity.example.yaml',
-    'profile/search.example.yaml',
-    'profile/stack.example.yaml',
-  ] as const)('%s has every key the example persona has', (name) => {
-    const persona = parse(text(join(PERSONA, targets[name])))
-    const template = parse(text(join(TEMPLATES, name)))
-    const shape = (v: Record<string, unknown>) =>
-      Object.entries(v).flatMap(([k, inner]) =>
-        inner && typeof inner === 'object' && !Array.isArray(inner)
-          ? [k, ...Object.keys(inner).map((i) => `${k}.${i}`)]
-          : [k],
+  it.each(['profile/identity.yaml', 'profile/search.yaml', 'profile/stack.yaml'])(
+    '%s has every key the example persona has',
+    (target) => {
+      const name = TABLES[target]?.template
+      if (name === undefined) throw new Error(`${target} is not a table entry`)
+      const persona = parse(text(join(PERSONA, target)))
+      const template = parse(text(join(TEMPLATES, name)))
+      const shape = (v: Record<string, unknown>) =>
+        Object.entries(v).flatMap(([k, inner]) =>
+          inner && typeof inner === 'object' && !Array.isArray(inner)
+            ? [k, ...Object.keys(inner).map((i) => `${k}.${i}`)]
+            : [k],
+        )
+      const have = new Set(shape(template))
+      // Tiers and the right-to-work countries are keyed by the person's own choices, and the
+      // pack is left unset in the template so the pack step of onboarding must set it.
+      const missing = shape(persona).filter(
+        (k) => !have.has(k) && k !== 'competency_pack' && !/^(tiers|right_to_work)\./.test(k),
       )
-    const have = new Set(shape(template))
-    // Tiers and the right-to-work countries are keyed by the person's own choices, and the
-    // pack is left unset in the template so the pack step of onboarding must set it.
-    const missing = shape(persona).filter(
-      (k) => !have.has(k) && k !== 'competency_pack' && !/^(tiers|right_to_work)\./.test(k),
-    )
-    expect(missing).toEqual([])
-  })
+      expect(missing).toEqual([])
+    },
+  )
 })
 
 type Obj = Record<string, unknown>
@@ -184,22 +142,97 @@ const inner = (f: Field, v: unknown, at: string): string[] => {
   return [...leaf, ...values.filter(isObj).flatMap((item) => drift(fields, item, `${at}[].`))]
 }
 
+// A value counts as marked when the marker is in it, or on the template line that holds it: an
+// inline map such as `mid: {min: 0, max: 0}  # CHANGE_ME ...` is marked as a whole by its line.
+type Sample = { key: string; marked: boolean }
+
+// What a container holds, keyed by entry key or list place.
+const partsOf = (v: unknown): [string, unknown][] =>
+  isObj(v) ? Object.entries(v) : arr(v).map((x, i) => [String(i), x])
+
+const sampleAt = (at: string[], v: unknown, line: (at: string[]) => string): Sample => ({
+  key: at.join('.'),
+  marked: JSON.stringify(v).includes(PLACEHOLDER) || line(at).includes(PLACEHOLDER),
+})
+
+const samplesIn = (shape: Shape, data: unknown, at: string[], line: (at: string[]) => string) => {
+  const found: Sample[] = []
+  if (!isObj(data)) return found
+  for (const [k, f] of Object.entries(shape)) {
+    if (f.later || !(k in data)) continue
+    const here = [...at, k]
+    if (f.t === 'group') {
+      found.push(...samplesIn(f.fields, data[k], here, line))
+      continue
+    }
+    // A container with fields is judged by those fields, each on its own line.
+    const whole: Field = f
+    const fields = groupOf(whole)?.fields
+    if (!fields) {
+      if (f.kind === 'sample') found.push(sampleAt(here, data[k], line))
+      continue
+    }
+    for (const [id, item] of partsOf(data[k]))
+      found.push(...samplesIn(fields, item, [...here, id], line))
+  }
+  return found
+}
+
+// The template line holding the key at a path; a JSON template has no comments, so no line.
+const lineOf = (src: string, path: string[]): string => {
+  const doc = parseDocument(src)
+  const parent = doc.getIn(path.slice(0, -1), true)
+  const last = path.at(-1) ?? ''
+  let node: unknown
+  if (isMap(parent))
+    node = parent.items.find((p) => String(isScalar(p.key) ? p.key.value : p.key) === last)?.key
+  else if (isSeq(parent)) node = parent.items[Number(last)]
+  const at = isNode(node) ? node.range?.[0] : undefined
+  if (at === undefined) return ''
+  const from = src.lastIndexOf('\n', at - 1) + 1
+  const to = src.indexOf('\n', at)
+  return src.slice(from, to === -1 ? undefined : to)
+}
+
+// Samples whose template carries no marker, each named by file and key. All are tracked in
+// #127, which decides what becomes of them; no template or kind changes before then. The check
+// below fails when one of them stops being unmarked, so this list cannot outlive that issue.
+const UNMARKED_SAMPLES = [
+  'profile/identity.yaml locale',
+  'profile/identity.yaml work_setup.remote',
+  'profile/search.yaml discovery.search.regions',
+  'profile/search.yaml discovery.search.employment',
+  'profile/search.yaml discovery.search.hybrid',
+]
+
 describe('draft tables', () => {
-  it('name a table for every template onboarding copies', () => {
-    expect(Object.keys(TABLES).sort()).toEqual(Object.values(targets).sort())
-    for (const [name, target] of Object.entries(targets))
-      expect(TABLES[target]?.template).toBe(name)
+  // Onboarding copies a template to the table's path, so a template no table names would never
+  // be written, and one named twice would be written to two places.
+  it('name every template under templates/ once, and every template exists', () => {
+    const onDisk = readdirSync(TEMPLATES, { recursive: true, withFileTypes: true })
+      .filter((e) => e.isFile())
+      .map((e) => join(e.parentPath, e.name).slice(TEMPLATES.length + 1))
+    expect(tables.map(([, t]) => t.template).sort()).toEqual(onDisk.sort())
   })
 
-  it.each(Object.entries(TABLES).filter(([, t]) => t.format !== 'text'))(
-    '%s holds every key of its template, and no other',
-    (_, table) => {
-      if (table.format === 'text') return
+  // A sample is only an example, and one that parses cleanly would pass as done if nothing
+  // marked it.
+  it('mark every sample value in its template, bar the named exceptions', () => {
+    const unmarked = dataTables.flatMap(([target, table]) => {
       const src = text(join(TEMPLATES, table.template))
-      const tpl = table.format === 'json' ? JSON.parse(src) : parse(src)
-      expect(drift(table.root.fields, tpl, '')).toEqual([])
-    },
-  )
+      const data = parseTemplate(table.format, src)
+      const line = (at: string[]) => (table.format === 'json' ? '' : lineOf(src, at))
+      return samplesIn(table.root.fields, data, [], line)
+        .filter((s) => !s.marked)
+        .map((s) => `${target} ${s.key}`)
+    })
+    expect(unmarked.sort()).toEqual([...UNMARKED_SAMPLES].sort())
+  })
+
+  it.each(dataTables)('%s holds every key of its template, and no other', (_, table) => {
+    const tpl = parseTemplate(table.format, text(join(TEMPLATES, table.template)))
+    expect(drift(table.root.fields, tpl, '')).toEqual([])
+  })
 })
 
 describe('templates, filled in', () => {
@@ -208,8 +241,8 @@ describe('templates, filled in', () => {
     repo = tempRepo()
     // The template names no pack, so the record check loads the frontend pack that older copies
     // fall back to from the engine; the test repo needs the engine's copy.
-    for (const [name, target] of Object.entries(targets))
-      repo.write(target, filled(text(join(TEMPLATES, name))))
+    for (const [target, { template }] of tables)
+      repo.write(target, filled(text(join(TEMPLATES, template))))
     repo.write(
       'config/competencies/frontend.yaml',
       text(join(repoRoot(), 'config/competencies/frontend.yaml')),
@@ -223,8 +256,7 @@ describe('templates, filled in', () => {
   })
 
   it('count as unfinished while the marker is still in them', () => {
-    for (const [name, target] of Object.entries(targets))
-      repo.write(target, text(join(TEMPLATES, name)))
+    for (const [target, { template }] of tables) repo.write(target, text(join(TEMPLATES, template)))
     const left = repo
       .workspace()
       .onboarding()
@@ -242,5 +274,24 @@ describe('template text a person reads in a summary', () => {
     for (const tier of Object.values(tiers) as Record<string, string>[])
       for (const [key, value] of Object.entries(tier)) expect(value, key).not.toMatch(words)
     expect(text(join(TEMPLATES, 'profile/coach.example.md'))).not.toMatch(words)
+  })
+})
+
+describe('onboarding sections', () => {
+  // Nothing exists under a missing root, so every file a section names comes back as missing.
+  const sections = onboardingStatus(join(repoRoot(), 'no-such-folder'), 'pack')
+  const named = sections.flatMap((s) => (s.id === 'competency-pack' ? [] : s.missing))
+
+  it('name only files the Draft tables know, bar the competency pack, which is no profile file', () => {
+    expect(named.filter((f) => !(f in TABLES))).toEqual([])
+  })
+
+  // A new profile file is placed in a section or named as a log.
+  it('leave out only the logs', () => {
+    expect(
+      Object.keys(TABLES)
+        .filter((f) => !named.includes(f))
+        .sort(),
+    ).toEqual(LOGS)
   })
 })
