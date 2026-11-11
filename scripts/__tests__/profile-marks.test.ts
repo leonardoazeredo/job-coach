@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { parse } from 'yaml'
 import { EXIT } from '../lib/problem.ts'
-import { draft, drafted, repo, run, useProfileRepo } from './profile-repo.ts'
+import { draft, drafted, personaFile, repo, run, useProfileRepo } from './profile-repo.ts'
 
 useProfileRepo()
 
@@ -109,5 +110,67 @@ describe('profile draft of a copy that still holds template marks', () => {
     })
     expect(shown.stderr).toBe('')
     expect(drafted('profile/history.yaml')).toContain('- id: independent # CHANGE_ME')
+  })
+})
+
+describe('values the templates mark as samples', () => {
+  // The identity and search files share one onboarding section.
+  const unfinished = () =>
+    repo
+      .workspace()
+      .onboarding()
+      .some((s) => s.id === 'identity' && s.placeholders.length > 0)
+
+  // Each case puts the template's own marked line back into the persona's finished file.
+  const cases = [
+    {
+      key: 'locale',
+      file: 'profile/identity.yaml',
+      marked: 'locale: en-US                  # CHANGE_ME BCP 47 language tag',
+      given: { locale: 'en-US' },
+    },
+    {
+      key: 'work_setup.remote',
+      file: 'profile/identity.yaml',
+      marked: 'remote: true                 # CHANGE_ME whether you accept fully remote work',
+      given: { work_setup: { remote: true } },
+    },
+    {
+      key: 'discovery.search.regions',
+      file: 'profile/search.yaml',
+      marked: 'regions: [CHANGE_ME Remote]',
+      given: { discovery: { search: { regions: ['Remote'] } } },
+    },
+  ]
+
+  it.each(cases)(
+    'counts the file unfinished while $key is as the template has it',
+    async ({ key, file, marked, given }) => {
+      const text = repo.read(file)
+      const name = key.split('.').at(-1) ?? ''
+      const line = text.split('\n').find((l) => l.trim().startsWith(`${name}:`)) ?? ''
+      expect(line).not.toBe('')
+      expect(unfinished()).toBe(false)
+      repo.write(file, text.replace(line, `${line.match(/^ */)?.[0]}${marked}`))
+      expect(unfinished()).toBe(true)
+
+      const shown = await draft(file, given)
+      expect(shown.stderr).toBe('')
+      expect(drafted(file)).not.toContain('CHANGE_ME')
+    },
+  )
+
+  it('takes a new search file drafted without employment and hybrid, and shows both', async () => {
+    const values = personaFile('profile/search.yaml')
+    repo.remove('profile/search.yaml')
+    delete values.discovery.search.employment
+    delete values.discovery.search.hybrid
+    const shown = await draft('profile/search.yaml', values)
+    expect(shown.stderr).toBe('')
+    expect(shown.code).toBe(0)
+    expect(shown.stdout).toMatch(/^Employment searched: full-time$/m)
+    expect(shown.stdout).toMatch(/^Include hybrid roles: yes$/m)
+    const { employment, hybrid } = parse(drafted('profile/search.yaml')).discovery.search
+    expect([employment, hybrid]).toEqual(['full-time', true])
   })
 })
