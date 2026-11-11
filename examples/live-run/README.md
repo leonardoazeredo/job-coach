@@ -42,6 +42,6 @@ The same kind of proof for `update-coach` in a folder that keeps history. The fi
 
 1. Commit the change. Run `examples/live-run/start-update.sh <run-dir>` with the token in its environment, with a new folder outside this checkout as `<run-dir>`. It builds the copy and the engine, starts the container and installs the coach's packages.
 2. Start one agent with the player's brief above, with `examples/personas/austin-update.md` as the brief to read and no nudge: drop the "Once only" paragraph. When it stops, it runs `examples/live-run/finish-update.sh <run-dir>` in place of `finish.sh`.
-3. Run the scorer as above; for an update run it marks the line on the words she reads.
+3. Run the scorer as above; for an update run it marks only the narrated steps and notes to itself in the line on the words she reads. A `line 13 PASS` leaves the judge to read that line for file names, commands and git words, which the scorer does not look for.
 4. Start a different agent with the judge's brief above, with `examples/live-run/update-checklist.md` as the checklist and `examples/personas/austin-update.md` as the persona's brief.
 5. Read the report and spot-check its quotes, as above.
