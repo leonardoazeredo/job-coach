@@ -157,6 +157,8 @@ describe('values the templates mark as samples', () => {
       const shown = await draft(file, given)
       expect(shown.stderr).toBe('')
       expect(drafted(file)).not.toContain('CHANGE_ME')
+      // The note on the marked line goes with the mark.
+      if (key === 'locale') expect(drafted(file)).not.toContain('BCP 47')
     },
   )
 
@@ -172,5 +174,27 @@ describe('values the templates mark as samples', () => {
     expect(shown.stdout).toMatch(/^Include hybrid roles: yes$/m)
     const { employment, hybrid } = parse(drafted('profile/search.yaml')).discovery.search
     expect([employment, hybrid]).toEqual(['full-time', true])
+  })
+
+  it('lets a new search file give its own employment and hybrid over the defaults', async () => {
+    const values = personaFile('profile/search.yaml')
+    repo.remove('profile/search.yaml')
+    values.discovery.search.employment = 'contract'
+    values.discovery.search.hybrid = false
+    const shown = await draft('profile/search.yaml', values)
+    expect(shown.code).toBe(0)
+    expect(shown.stdout).toMatch(/^Employment searched: contract$/m)
+    expect(shown.stdout).toMatch(/^Include hybrid roles: no$/m)
+    const { employment, hybrid } = parse(drafted('profile/search.yaml')).discovery.search
+    expect([employment, hybrid]).toEqual(['contract', false])
+  })
+
+  it('still refuses a bad employment on a new search file', async () => {
+    const values = personaFile('profile/search.yaml')
+    repo.remove('profile/search.yaml')
+    values.discovery.search.employment = 'permanent'
+    const refused = await draft('profile/search.yaml', values)
+    expect(refused.code).toBe(EXIT.problems)
+    expect(refused.stderr).toContain('"Employment searched"')
   })
 })
