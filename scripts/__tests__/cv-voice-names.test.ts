@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_VOICE, voiceFindings } from '../lib/cv-voice.ts'
-import { errorsFor, withBullet } from './role-cv-helpers.ts'
+import { errorsFor, repo, withBullet } from './role-cv-helpers.ts'
 
 describe('a pronoun in Title Case inside a name', () => {
   it.each([
@@ -51,5 +51,26 @@ describe('a pronoun in Title Case inside a name', () => {
   it('passes it mid-sentence in a bullet', () => {
     const v = withBullet('brightwell', 'Wrote for Her Campus.', ['win:bw-aws-cost'])
     expect(errorsFor(v)).toEqual([])
+  })
+})
+
+describe('a pronoun in a quoted figure inside a longer bullet', () => {
+  const quoting = (figure: string, bullet: string) => {
+    repo.editYaml<{ wins: { slug: string; metric: string }[] }>('profile/wins.yaml', (file) => {
+      for (const win of file.wins) if (win.slug === 'bw-aws-cost') win.metric = figure
+    })
+    return errorsFor(withBullet('brightwell', bullet, ['win:bw-aws-cost']))
+  }
+
+  it('is refused as the figure, though mid-sentence it reads as a name', () => {
+    const found = quoting('He cut costs by 20%', 'Rebuilt the pipeline, He cut costs by 20%')
+    expect(found).toEqual([expect.stringContaining('"He"')])
+    expect(found[0]).toContain("achievement's figure needs rewording")
+  })
+
+  it('passes a figure holding a name', () => {
+    expect(
+      quoting('down 20% for Her Campus', 'Rebuilt the pipeline, down 20% for Her Campus'),
+    ).toEqual([])
   })
 })

@@ -127,8 +127,34 @@ const voiceOf = (where: string, text: string, profile: Profile, wins: Win[] = []
     message: `cv ${where}: ${voiceMessage(f, figureHolding(f.phrase, text, wins, profile))}`,
   }))
 
-const lineVoice = (entry: Line, profile: Profile): Found[] =>
-  voiceOf(entry.where, entry.line.text, profile, citeSources(entry, profile.sources).wins)
+// A quoted figure is read on its own as well, the way the Draft and the record check read it:
+// inside a longer bullet a pronoun can look like part of a name that it is not alone.
+const quotedFigureVoice = (entry: Line, wins: Win[], profile: Profile): Found[] => {
+  const lower = entry.line.text.toLowerCase()
+  const phrases = new Set<string>()
+  const found: Found[] = []
+  for (const win of wins)
+    for (const part of win.metric.split(';')) {
+      const clause = part.trim()
+      if (clause === '' || !lower.includes(clause.toLowerCase())) continue
+      for (const f of voiceFindings(clause, profile.config)) {
+        const message = `cv ${entry.where}: ${voiceMessage(f, win)}`
+        if (f.level !== 'error' || phrases.has(message)) continue
+        phrases.add(message)
+        found.push({ level: 'error', message })
+      }
+    }
+  return found
+}
+
+const lineVoice = (entry: Line, profile: Profile): Found[] => {
+  const { wins } = citeSources(entry, profile.sources)
+  const own = voiceOf(entry.where, entry.line.text, profile, wins)
+  const alone = quotedFigureVoice(entry, wins, profile)
+  // The bullet read whole already named a phrase that the figure alone also holds.
+  const named = new Set(own.map((f) => f.message.match(/"([^"]*)"/)?.[1]))
+  return [...own, ...alone.filter((f) => !named.has(f.message.match(/"([^"]*)"/)?.[1]))]
+}
 
 // Prose no line covers: the headline, a job's note and the lines only master.json supplies.
 // Names (company, role, location, tech, skills, languages, education) are left out, since the
