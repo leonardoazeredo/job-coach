@@ -1,6 +1,9 @@
 import { afterEach, beforeEach } from 'vitest'
+import { buildCv } from '../lib/cv-build.ts'
 import type { BulletsFile } from '../lib/cv-schema.ts'
 import type { Problem } from '../lib/problem.ts'
+import { loadProfile } from '../lib/profile.ts'
+import { readCvFile } from '../lib/role-folder.ts'
 import { SLUG, variant } from './fixtures.ts'
 import { type TempRepo, tempRepo, type WorkedExample } from './temp-repo.ts'
 
@@ -27,9 +30,11 @@ export const warningsFor = (v: BulletsFile): string[] => {
   return messages(roleProblems(), 'warning')
 }
 export const built = () => {
-  const { build } = repo.workspace().roleCv(SLUG)
-  if (!build) throw new Error('nothing built')
-  return build
+  const ws = repo.workspace()
+  const { profile } = loadProfile(repo.path(''), ws.identity())
+  const bullets = readCvFile(repo.path(''), SLUG, 'bullets').data
+  if (!profile || !bullets) throw new Error('nothing built')
+  return buildCv(bullets, profile.master, profile.sources.history())
 }
 export const masterTech = (id: string): string[] | undefined => {
   const master = JSON.parse(repo.read('cv/master.json'))

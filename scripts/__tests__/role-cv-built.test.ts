@@ -45,7 +45,6 @@ describe('profile problems', () => {
     expect(profileErrors(ws.check().problems)).toEqual(expected)
     expect(profileErrors(ws.lintCvs().problems)).toEqual(expected)
     expect(profileErrors(ws.lintCvs(SLUG).problems)).toEqual(expected)
-    expect(profileErrors(ws.roleCv(SLUG).problems)).toEqual(expected)
   })
 })
 

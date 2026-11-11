@@ -12,6 +12,7 @@ import { type Field, groupOf, type Shape } from '../lib/draft-fields.ts'
 import { TABLES } from '../lib/draft-table.ts'
 import { IdentitySchema } from '../lib/identity.ts'
 import { PLACEHOLDER } from '../lib/onboarding.ts'
+import { loadProfile } from '../lib/profile.ts'
 import { SearchSchema } from '../lib/schema.ts'
 import { StackFileSchema } from '../lib/stack.ts'
 import { repoRoot } from '../lib/workspace.ts'
@@ -218,7 +219,7 @@ describe('templates, filled in', () => {
 
   it('load as a profile that the record check accepts', () => {
     expect(errors(repo.workspace().check().problems)).toEqual([])
-    expect(repo.workspace().profile().profile).toBeDefined()
+    expect(loadProfile(repo.path(''), repo.workspace().identity()).profile).toBeDefined()
   })
 
   it('count as unfinished while the marker is still in them', () => {

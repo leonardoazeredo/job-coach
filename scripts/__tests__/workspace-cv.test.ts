@@ -78,7 +78,7 @@ describe('roleCv', () => {
   it('treats a missing variant as a fact until write() needs it', () => {
     withoutBullets()
     const rc = repo.workspace().roleCv(SLUG)
-    expect(errors(rc.problems)).toEqual([])
+    expect(errors(repo.workspace().lintCvs(SLUG).problems)).toEqual([])
     expect(errors(rc.write())).toEqual(['larkspur-backend-engineer: cv/bullets.yaml is missing'])
     expect(existsSync(rc.files.cvJson)).toBe(false)
   })
@@ -95,7 +95,6 @@ describe('roleCv', () => {
   it('returns the problems and writes nothing when there is no build', () => {
     repo.write('profile/wins.yaml', 'wins:\n  - slug: broken\n')
     const rc = repo.workspace().roleCv(SLUG)
-    expect(rc.build).toBeUndefined()
     expect(errors(rc.write())).toEqual([
       expect.stringMatching(/^profile\/wins\.yaml: could not be read: /),
     ])
@@ -103,7 +102,7 @@ describe('roleCv', () => {
   })
 
   it('fails an unknown slug, including one that escapes the pipeline', () => {
-    expect(errors(repo.workspace().roleCv('../profile').problems)).toEqual([
+    expect(errors(repo.workspace().lintCvs('../profile').problems)).toEqual([
       '../profile: no pipeline/../profile folder',
     ])
   })
@@ -116,7 +115,6 @@ describe('roleCv', () => {
       'no-such-role: no pipeline/no-such-role folder',
     ]
     expect(errors(ws.lintCvs('no-such-role').problems)).toEqual(expected)
-    expect(errors(ws.roleCv('no-such-role').problems)).toEqual(expected)
     expect(errors(ws.roleCv('no-such-role').evidence().problems)).toEqual(expected)
     expect(errors(ws.roleCv('no-such-role').write())).toEqual(expected)
   })

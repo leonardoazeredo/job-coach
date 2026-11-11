@@ -42,11 +42,6 @@ export const repoRoot = (): string => resolve(import.meta.dirname, '..', '..')
 export type Command = (args: string[], workspace: Workspace) => number | Promise<number>
 
 export type RoleCv = {
-  slug: string
-  problems: Problem[]
-  requirements: RequirementsFile | undefined
-  variant: BulletsFile | undefined
-  build: BuildResult | undefined
   keywords: string[]
   files: { cvJson: string; keywords: string; pdf: string; verify: string }
   // Candidates for each requirement, with the problems through the requirements step
@@ -63,7 +58,6 @@ export type Workspace = {
   // The jobs in profile/history.yaml on their own, so a draft can name a job while other profile files are still to come.
   history: () => { history: HistoryRole[] | undefined; problems: Problem[] }
   rules: () => { rules: Rules | undefined; problems: Problem[] }
-  profile: () => { profile: Profile | undefined; problems: Problem[] }
   // Undefined when it cannot be told; see repo-visibility.ts.
   visibility: () => Promise<RepoVisibility | undefined>
   check: () => { problems: Problem[]; roles: number }
@@ -339,11 +333,6 @@ export const openWorkspace = (
       return { problems: [...gate, ...found.problems], evidence: found.evidence }
     }
     return {
-      slug,
-      problems: [...gate, ...cv.problems()],
-      requirements: cv.requirements,
-      variant: cv.variant,
-      build: cv.build,
       keywords: cv.keywords,
       files,
       evidence,
@@ -370,7 +359,6 @@ export const openWorkspace = (
     identity,
     history,
     rules,
-    profile,
     visibility,
     check,
     lintCvs,
