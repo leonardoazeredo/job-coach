@@ -1,9 +1,8 @@
 // Shapes of the files the per-role CV scripts read and write: the profile
 // files they cite, the config they obey, and the two files cv-for-role
-// writes per role (requirements.yaml and cv/bullets.yaml). The CV output
-// mirrors CvData in cv-pdf/types.ts, which the PDF export renders.
+// writes per role (requirements.yaml and cv/bullets.yaml). CvData, the CV
+// output the PDF export renders, is inferred from CvDataSchema here.
 import { z } from 'zod'
-import type { CvData as RendererCvData } from '../cv-pdf/types.ts'
 
 const str = z.string()
 const strList = z.array(str).default([])
@@ -110,7 +109,7 @@ export const BulletsFileSchema = z.object({
 })
 export type BulletsFile = z.infer<typeof BulletsFileSchema>
 
-// cv/master.json and every built cv.json; same keys as CvData in cv-pdf/types.ts
+// cv/master.json and every built cv.json; the PDF renderer takes its types from here
 export const CvJobSchema = z.object({
   id: str,
   role: str,
@@ -123,6 +122,17 @@ export const CvJobSchema = z.object({
   bullets: z.array(str),
 })
 export type CvJob = z.infer<typeof CvJobSchema>
+
+export const CvEducationSchema = z.object({
+  id: str,
+  degree: str,
+  institution: str,
+  location: str.optional(),
+  // A course whose source gives no start date leaves the key out.
+  start: str.optional(),
+  end: str,
+})
+export type CvEducation = z.infer<typeof CvEducationSchema>
 
 export const CvDataSchema = z.object({
   name: str,
@@ -137,25 +147,7 @@ export const CvDataSchema = z.object({
   work: z.array(CvJobSchema),
   training: z.array(str).default([]),
   projects: z.array(str).default([]),
-  education: z
-    .array(
-      z.object({
-        id: str,
-        degree: str,
-        institution: str,
-        location: str.optional(),
-        // A course whose source gives no start date leaves the key out.
-        start: str.optional(),
-        end: str,
-      }),
-    )
-    .default([]),
+  education: z.array(CvEducationSchema).default([]),
   languages: z.array(str).default([]),
 })
 export type CvData = z.infer<typeof CvDataSchema>
-
-// Fails the typecheck when either side lacks a required field of the other or their types
-// conflict; an optional field added to only one side still passes.
-const _rendererAcceptsSchema = (d: CvData): RendererCvData => d
-const _schemaAcceptsRenderer = (d: RendererCvData): CvData => d
-void [_rendererAcceptsSchema, _schemaAcceptsRenderer]

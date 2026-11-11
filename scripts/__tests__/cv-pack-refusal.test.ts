@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { cvBuild } from '../cv-build.ts'
 import { cvEvidence } from '../cv-evidence.ts'
 import { cvLint } from '../cv-lint.ts'
-import { exportCv, type PdfPrinter } from '../lib/cv-export.ts'
+import { exportCv, type PrintRun } from '../lib/cv-export.ts'
 import { EXIT } from '../lib/problem.ts'
 import { type TempRepo, tempRepo, type WorkedExample } from './temp-repo.ts'
 import { errors } from './workspace-repo.ts'
@@ -29,18 +29,15 @@ const namePack = (pack: string | undefined) =>
 
 const fakePrinter = () => {
   const state = { calls: 0 }
-  const printer: PdfPrinter = {
-    unavailable: () => undefined,
-    print: async () => {
-      state.calls++
-      return { ok: true, report: '' }
-    },
+  const print = async (): Promise<PrintRun> => {
+    state.calls++
+    return { ok: true, report: '' }
   }
-  return { printer, state }
+  return { print, state }
 }
 
-const exportRole = (printer: PdfPrinter) =>
-  exportCv({ workspace: repo.workspace(), slug: larkspur.slug, printer })
+const exportRole = (print: () => Promise<PrintRun>) =>
+  exportCv({ workspace: repo.workspace(), slug: larkspur.slug, print })
 
 const NEXT_STEP = /no competency pack is chosen.*competency pack step of onboarding/s
 const written = () =>
@@ -72,8 +69,8 @@ describe('CV commands on an identity that names no competency pack', () => {
   })
 
   it('cv-export stops before printing and writes no files', async () => {
-    const { printer, state } = fakePrinter()
-    const outcome = await exportRole(printer)
+    const { print, state } = fakePrinter()
+    const outcome = await exportRole(print)
     expect(outcome.kind).toBe('lint-blocked')
     expect(errors(outcome.problems).join('\n')).toMatch(NEXT_STEP)
     expect(state.calls).toBe(0)
@@ -99,8 +96,8 @@ describe('CV commands with a pack named', () => {
     expect((await repo.run(cvLint, larkspur.slug)).code).toBe(0)
     expect((await repo.run(cvBuild, larkspur.slug)).code).toBe(0)
     expect(written()).toEqual(['cv/cv.json', 'cv/keywords.txt'])
-    const { printer, state } = fakePrinter()
-    const outcome = await exportRole(printer)
+    const { print, state } = fakePrinter()
+    const outcome = await exportRole(print)
     expect(outcome.kind).not.toBe('lint-blocked')
     expect(state.calls).toBe(1)
   })

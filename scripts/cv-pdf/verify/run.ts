@@ -1,9 +1,8 @@
 import { existsSync, statSync } from 'node:fs'
 import { basename } from 'node:path'
 import { BODY_PT_MAX, BODY_PT_MIN, TEXT_PT_MAX } from './constants.ts'
-import { extractAll } from './extractors.ts'
-import { glyphSizes, linkTargets } from './glyphs.ts'
-import { ensurePoppler, PopplerMissingError, pdfInfo, pdfToText } from './poppler.ts'
+import { PopplerMissingError } from './poppler.ts'
+import type { PdfReader } from './reader.ts'
 import { formatResult, section } from './report.ts'
 import {
   checkContact,
@@ -39,12 +38,11 @@ interface PageMeasure {
   lastLines: string[]
 }
 
-async function measurePages(pdf: string, pages: number): Promise<PageMeasure> {
+async function measurePages(reader: PdfReader, pdf: string, pages: number): Promise<PageMeasure> {
   const measure: PageMeasure = { yMax: [], lastLines: [] }
   if (pages <= 1) return measure
-  const page = String(pages)
   try {
-    const bbox = await pdfToText(pdf, ['-bbox', '-f', page, '-l', page])
+    const bbox = await reader.pageText(pdf, pages, { bbox: true })
     const height = /<page width="[\d.]+" height="([\d.]+)"/.exec(bbox)?.[1]
     if (height !== undefined) measure.height = Number(height)
     measure.yMax = [...bbox.matchAll(/yMax="([\d.]+)"/g)].map((m) => Number(m[1]))
@@ -56,7 +54,7 @@ async function measurePages(pdf: string, pages: number): Promise<PageMeasure> {
   // blank line, which can never be a heading.
   for (let i = 1; i < pages; i++) {
     try {
-      const text = await pdfToText(pdf, ['-f', String(i), '-l', String(i)])
+      const text = await reader.pageText(pdf, i)
       const nonBlank = text
         .split('\n')
         .map((l) => l.trim())
@@ -72,18 +70,17 @@ async function measurePages(pdf: string, pages: number): Promise<PageMeasure> {
 
 /**
  * Runs the ten checks against one PDF and returns the number of failures. A
- * missing file counts as one failure and skips the checks. On macOS in a
- * terminal, ensurePoppler may offer to install poppler; it throws
- * PopplerMissingError if poppler is still missing, and the caller owns the exit
- * code.
+ * missing file counts as one failure and skips the checks. Every read of the
+ * PDF's content goes through `reader`; the file's existence and size are checked
+ * on disk. A PopplerMissingError from a poppler read propagates, and the caller
+ * owns the exit code.
  */
 export async function verifyPdf(
   pdf: string,
   exp: Expectations,
+  reader: PdfReader,
   log: (line: string) => void = console.log,
 ): Promise<number> {
-  await ensurePoppler()
-
   log(`\n${RULE}\n${basename(pdf)}\n${RULE}`)
   if (!existsSync(pdf)) {
     log('  MISSING FILE')
@@ -99,7 +96,7 @@ export async function verifyPdf(
   let pages = 0
   let infoError: string | undefined
   try {
-    const info = await pdfInfo(pdf)
+    const info = await reader.info(pdf)
     pages = info.pages
     log(`  pages=${info.pages || '?'}  size=${info.size}  tagged=${info.tagged}`)
   } catch (e) {
@@ -112,7 +109,7 @@ export async function verifyPdf(
     `  file size = ${(bytes / 1024).toFixed(0)} KB (${bytes < SIZE_CEILING_BYTES ? 'OK' : 'OVER Greenhouse 2.5MB ceiling'})`,
   )
 
-  const texts = await extractAll(pdf)
+  const texts = await reader.textInEveryEngine(pdf)
 
   log(section(1, 'ligature glyphs (U+FB00-FB06) per engine'))
   emit(checkLigatures(texts))
@@ -134,7 +131,7 @@ export async function verifyPdf(
 
   log(section(6, 'link annotations'))
   try {
-    emit(describeLinks(await linkTargets(pdf)))
+    emit(describeLinks(await reader.linkTargets(pdf)))
   } catch (e) {
     emit(describeLinks([], message(e)))
   }
@@ -144,7 +141,7 @@ export async function verifyPdf(
 
   log(section(8, `text size band (${BODY_PT_MIN}-${BODY_PT_MAX}pt body, ${TEXT_PT_MAX}pt max)`))
   try {
-    emit(checkTextSizes(await glyphSizes(pdf)))
+    emit(checkTextSizes(await reader.glyphSizes(pdf)))
   } catch (e) {
     emit(checkTextSizes(null, message(e)))
   }
@@ -160,7 +157,7 @@ export async function verifyPdf(
       ],
     })
   } else {
-    const m = await measurePages(pdf, pages)
+    const m = await measurePages(reader, pdf, pages)
     emit(
       checkPageBalance({
         pages,
@@ -178,6 +175,12 @@ export async function verifyPdf(
   return failures
 }
 
+// `verify` stands in for verifyPdf so a test can make one file fail.
+export interface VerifyEachOptions {
+  log?: (line: string) => void
+  verify?: typeof verifyPdf
+}
+
 /**
  * Verifies each PDF in turn and sums the failures. An unexpected error on one
  * file is reported as a failure of that file and does not stop the rest;
@@ -186,13 +189,13 @@ export async function verifyPdf(
 export async function verifyEach(
   pdfs: string[],
   exp: Expectations,
-  log: (line: string) => void = console.log,
-  verify: typeof verifyPdf = verifyPdf,
+  reader: PdfReader,
+  { log = console.log, verify = verifyPdf }: VerifyEachOptions = {},
 ): Promise<number> {
   let total = 0
   for (const pdf of pdfs) {
     try {
-      total += await verify(pdf, exp, log)
+      total += await verify(pdf, exp, reader, log)
     } catch (e) {
       if (e instanceof PopplerMissingError) throw e
       log(`\n  FAIL could not verify ${pdf}: ${message(e)}`)
