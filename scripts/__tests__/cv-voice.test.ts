@@ -65,7 +65,15 @@ describe('words that do not belong on a CV', () => {
     ])
   })
 
-  it.each(['(estimated)', '(approximately)', '[estimates]'])('refuses the note %s', (note) => {
+  it.each([
+    '(estimated)',
+    '(estimating)',
+    '(noting)',
+    '(approximated)',
+    '(approximating)',
+    '(approximately)',
+    '[estimates]',
+  ])('refuses the note %s', (note) => {
     expect(voiceFindings(`down 20% ${note}`, DEFAULT_VOICE)).toEqual([
       { level: 'error', phrase: note },
     ])
@@ -78,6 +86,8 @@ describe('words that do not belong on a CV', () => {
     '(Notion)',
     '(Nottingham)',
     '(Notepad++)',
+    '(Noteworthy)',
+    '(Notable)',
     '(ME)',
     '(IT)',
     '(React, TypeScript)',

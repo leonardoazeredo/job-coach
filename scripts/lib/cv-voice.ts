@@ -24,7 +24,8 @@ const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\
 // "I" counts only as a capital standing alone, so I/O, CI/CD, IT and "other" trip nothing.
 // Every other word is whole and case-insensitive; a slash there is a boundary ("he/she").
 // A note word inside a bracket is also matched as a whole word, or that word with an ending such as
-// -s, -d, -ed, -ing, -ly ("(estimated)", "(approximately)"), so "Notebook" and "Todoist" pass.
+// -s, -d, -ed, -ing, -ly ("(estimated)", "(estimating)", "(approximately)"), so "Notebook",
+// "Noteworthy" and "Todoist" pass.
 const wordPattern = (word: string): RegExp =>
   word === 'I'
     ? /(?<![\w/-])I(?![\w/-])/g
@@ -33,15 +34,25 @@ const wordPattern = (word: string): RegExp =>
 const wordsIn = (text: string, words: string[]): string[] =>
   words.flatMap((word) => [...text.matchAll(wordPattern(word))].map((m) => m[0]))
 
-const NOTE_ENDINGS = 's|d|ed|es|ing|ly|imate|imately'
+const NOTE_ENDINGS = ['s', 'd', 'ed', 'es', 'ing', 'ly', 'imate', 'imately']
+const APPROX_ENDINGS = ['imated', 'imating']
+
+// The forms of one note word: itself, itself plus an ending, and for a word ending in "e" its
+// stem plus "ing" ("estimating", "noting").
+const noteForms = (word: string): string => {
+  const base = escapeRegExp(word)
+  const endings =
+    word.toLowerCase() === 'approx' ? [...NOTE_ENDINGS, ...APPROX_ENDINGS] : NOTE_ENDINGS
+  const forms = [`${base}(?:${endings.join('|')})?`]
+  if (word.toLowerCase().endsWith('e')) forms.push(`${escapeRegExp(word.slice(0, -1))}ing`)
+  return forms.join('|')
+}
 
 const notesIn = (bracket: string, words: string[]): string[] =>
   words.flatMap((word) =>
-    [
-      ...bracket.matchAll(
-        new RegExp(`(?<!\\w)${escapeRegExp(word)}(?:${NOTE_ENDINGS})?(?!\\w)`, 'gi'),
-      ),
-    ].map((m) => m[0]),
+    [...bracket.matchAll(new RegExp(`(?<!\\w)(?:${noteForms(word)})(?!\\w)`, 'gi'))].map(
+      (m) => m[0],
+    ),
   )
 
 // A pronoun of two or more capitals is an acronym or a state code ("ME" in Portland, ME), which

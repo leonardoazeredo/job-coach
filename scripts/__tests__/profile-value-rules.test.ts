@@ -120,15 +120,24 @@ describe('the summary says what a job site will not know', () => {
 })
 
 describe('the Draft refuses a figure that would not read on a CV', () => {
-  it.each(['down 20% (his estimate)', 'cut by my team to 12 minutes', 'about 40 (approx)'])(
-    'refuses "%s"',
-    async (metric) => {
-      const refused = await draft('profile/wins.yaml', { wins: [{ slug: 'bw-aws-cost', metric }] })
-      expect(refused.code).toBe(EXIT.problems)
-      expect(refused.stderr).toContain('needs a figure worded as it reads on a CV')
-      expect((await run(['drafts'])).stdout).toContain('No drafts are waiting.')
-    },
-  )
+  it.each([
+    'down 20% (estimating)',
+    'down 20% (his estimate)',
+    'cut by my team to 12 minutes',
+    'about 40 (approx)',
+  ])('refuses "%s"', async (metric) => {
+    const refused = await draft('profile/wins.yaml', { wins: [{ slug: 'bw-aws-cost', metric }] })
+    expect(refused.code).toBe(EXIT.problems)
+    expect(refused.stderr).toContain('needs a figure worded as it reads on a CV')
+    expect((await run(['drafts'])).stdout).toContain('No drafts are waiting.')
+  })
+
+  it('accepts a figure holding a tool name in brackets', async () => {
+    const taken = await draft('profile/wins.yaml', {
+      wins: [{ slug: 'bw-aws-cost', metric: 'down 20% (Notebook)' }],
+    })
+    expect(taken.code).toBe(0)
+  })
 
   it('leaves a figure on file alone when the draft does not touch it', async () => {
     repo.editYaml<{ wins: { slug: string; metric: string }[] }>('profile/wins.yaml', (file) => {

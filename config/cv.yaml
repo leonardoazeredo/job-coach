@@ -25,7 +25,7 @@ seniority_words: [Staff, Principal, Lead, Head, Director, Manager, VP]
 # list only warns, since a script cannot tell whom "they" means. "I" counts only as a capital on
 # its own. Every other word is matched whole, in any case, except that a pronoun in two or more
 # capitals ("ME" in "Portland, ME") is left alone. Inside brackets a note word is matched as a
-# whole word, or that word with an ending such as -s, -d, -ed, -ing, -ly ("estimated", "approximately").
+# whole word, or that word with an ending such as -s, -d, -ed, -ing, -ly ("estimated", "estimating", "approximately").
 error_pronouns: [he, his, him, she, her, I, my, me]
 warning_pronouns: [they, their, we, our]
 note_words: [estimate, approx, unverified, tbc, todo, note]
