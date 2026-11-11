@@ -113,7 +113,37 @@ export const totalAfter = (costlog: string, turn: number): number | undefined =>
 export const sampleSpend = (costlog: string, turn: number, base: number): number => {
   const total = totalAfter(costlog, turn)
   if (total === undefined) throw new Error(`the cost log has no cost for turn ${turn}`)
+  if (total < base) throw new Error(`the cost for turn ${turn} is below the run's total before it`)
   return total - base
+}
+
+// turn.sh stops when the log's total reaches its budget. The sample's log starts at the run's
+// total before the turn, so the replay's budget is added to it: it is the budget for the replay.
+export const turnBudget = (base: number, remaining: number): number => base + remaining
+
+type Sample = { sample: string; spend: number }
+
+// Runs samples one after another until n are done, the budget is reached or one fails; what was
+// done is kept in every case, because it was paid for.
+export const replaySamples = (opts: {
+  n: number
+  budget: number
+  runOne: (i: number, remaining: number) => Sample
+}): { done: string[]; spent: number; stop?: string; error?: string } => {
+  const done: string[] = []
+  let spent = 0
+  for (let i = 1; i <= opts.n; i++) {
+    if (shouldStop(spent, opts.budget))
+      return { done, spent, stop: stopMessage(spent, opts.budget, i, opts.n) }
+    try {
+      const r = opts.runOne(i, opts.budget - spent)
+      spent += r.spend
+      done.push(r.sample)
+    } catch (e) {
+      return { done, spent, error: `sample ${i} failed: ${e instanceof Error ? e.message : e}` }
+    }
+  }
+  return { done, spent }
 }
 
 // The replay's budget in dollars: unset is 5; anything else must be a number above 0.
@@ -201,8 +231,6 @@ export const prepareSample = (run: string, turn: number, sample: string, root: s
 
 const stamp = () => `[${new Date().toTimeString().slice(0, 8)}]`
 
-// turn.sh stops when the log's total reaches its budget. The sample's log starts at the run's
-// total before the turn, so the replay's budget is added to it: it is the budget for the replay.
 type SampleJob = {
   run: string
   turn: number
@@ -224,7 +252,7 @@ const runSample = ({ run, turn, sample, hasPackages, remaining }: SampleJob): nu
     const base = turn > 1 ? costAfter(run, turn - 1) : 0
     const t = spawnSync(join(HERE, 'turn.sh'), [sample, String(turn), join(sample, 'reply.txt')], {
       stdio: ['ignore', 'ignore', 'inherit'],
-      env: { ...process.env, LIVE_RUN_BUDGET_USD: String(base + remaining) },
+      env: { ...process.env, LIVE_RUN_BUDGET_USD: String(turnBudget(base, remaining)) },
     })
     if (t.status !== 0) throw new Error(`turn.sh failed (exit ${t.status}); see ${sample}/raw`)
     return sampleSpend(readFileSync(join(sample, 'costlog.txt'), 'utf8'), turn, base)
@@ -302,26 +330,20 @@ export const replayCommand = (args: string[]): number => {
     return EXIT.problems
   }
 
-  let spent = 0
-  const done: string[] = []
-  for (let i = 1; i <= n; i++) {
-    if (shouldStop(spent, budget)) {
-      console.log(stopMessage(spent, budget, i, n))
-      break
-    }
-    const sample = sampleFolder(out, i)
-    console.log(
-      `${stamp()} sample ${i} of ${n} (expected 1-3 min); folder ${sample}, tail -f ${sample}/raw/turn${turn}.jsonl`,
-    )
-    try {
+  const { done, spent, stop, error } = replaySamples({
+    n,
+    budget,
+    runOne: (i, remaining) => {
+      const sample = sampleFolder(out, i)
+      console.log(
+        `${stamp()} sample ${i} of ${n} (expected 1-3 min); folder ${sample}, tail -f ${sample}/raw/turn${turn}.jsonl`,
+      )
       prepareSample(run, turn, sample, root)
-      spent += runSample({ run, turn, sample, hasPackages, remaining: budget - spent })
-      done.push(sample)
-    } catch (e) {
-      console.error(`sample ${i} failed: ${e instanceof Error ? e.message : e}`)
-      break
-    }
-  }
+      return { sample, spend: runSample({ run, turn, sample, hasPackages, remaining }) }
+    },
+  })
+  if (stop) console.log(stop)
+  if (error) console.error(error)
   if (done.length === 0) return EXIT.problems
 
   printResults(turn, done, spent)

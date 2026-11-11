@@ -4,11 +4,11 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   parseBudget,
+  replaySamples,
   sampleFolder,
   sampleSpend,
-  shouldStop,
-  stopMessage,
   totalAfter,
+  turnBudget,
 } from '../../examples/live-run/replay.ts'
 
 describe('the budget', () => {
@@ -32,22 +32,59 @@ describe('the budget', () => {
       expect(parseBudget(bad), bad).toMatch(/LIVE_RUN_BUDGET_USD must be a number above 0/)
   })
 
-  it('stops before the sample that would start at or over the budget', () => {
-    const budget = 0.3
-    const spends = [0.1, 0.1, 0.1, 0.1, 0.1]
-    let spent = 0
-    let stoppedAt = 0
-    for (const [k, cost] of spends.entries()) {
-      if (shouldStop(spent, budget)) {
-        stoppedAt = k + 1
-        break
-      }
-      spent += cost
-    }
-    expect(stoppedAt).toBe(4)
-    expect(stopMessage(spent, budget, 4, 5)).toBe(
-      'STOP: 0.300 spent, the stop is 0.3. 2 samples were not run.',
-    )
+  it('refuses a total below the base', () => {
+    expect(() => sampleSpend(log, 2, 0.8)).toThrow(/below/)
+  })
+
+  it('hands turn.sh the run total before the turn plus what is left of the replay', () => {
+    expect(turnBudget(0.75, 2)).toBe(2.75)
+    expect(turnBudget(0, 5)).toBe(5)
+    expect(sampleSpend('turn 1 0.3\n', 1, 0)).toBeCloseTo(0.3)
+  })
+})
+
+describe('the sample loop', () => {
+  it('stops before the sample that would start at the budget, and the remainder shrinks', () => {
+    const seen: number[] = []
+    const r = replaySamples({
+      n: 5,
+      budget: 0.3,
+      runOne: (i, remaining) => {
+        seen.push(remaining)
+        return { sample: `s${i}`, spend: 0.1 }
+      },
+    })
+    expect(r.done).toEqual(['s1', 's2', 's3'])
+    expect(seen[0]).toBe(0.3)
+    expect(seen[1]).toBeCloseTo(0.2)
+    expect(seen[2]).toBeCloseTo(0.1)
+    expect(r.stop).toBe('STOP: 0.300 spent, the stop is 0.3. 2 samples were not run.')
+  })
+
+  it('keeps the samples done when a later one throws', () => {
+    const r = replaySamples({
+      n: 3,
+      budget: 5,
+      runOne: (i) => {
+        if (i === 2) throw new Error('no container')
+        return { sample: `s${i}`, spend: 0.2 }
+      },
+    })
+    expect(r.done).toEqual(['s1'])
+    expect(r.spent).toBeCloseTo(0.2)
+    expect(r.error).toBe('sample 2 failed: no container')
+  })
+
+  it('leaves nothing done when the first throws', () => {
+    const r = replaySamples({
+      n: 3,
+      budget: 5,
+      runOne: () => {
+        throw new Error('no container')
+      },
+    })
+    expect(r.done).toEqual([])
+    expect(r.error).toMatch(/sample 1 failed/)
   })
 })
 

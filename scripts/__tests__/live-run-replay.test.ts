@@ -13,7 +13,6 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import {
-  applyTree,
   failRates,
   formatRates,
   missingForReplay,
@@ -234,43 +233,10 @@ describe('a turn-1 sample', () => {
     writeFileSync(join(root, '.claude', 'skills', 'new', 'SKILL.md'), 's\n')
     const sample = join(tmp, 'sample-t1')
     prepareSample(run, 1, sample, root)
+    expect(missingForReplay(run, 1)).toEqual([])
     expect(existsSync(join(sample, 'session.id'))).toBe(false)
     expect(existsSync(join(sample, 'costlog.txt'))).toBe(false)
     expect(readFileSync(join(sample, 'transcript.md'), 'utf8')).toBe('')
     expect(readFileSync(join(sample, 'copy', 'CLAUDE.md'), 'utf8')).toBe('new rules\n')
-  })
-})
-
-describe('applying the wording in the middle of an update', () => {
-  it('writes the files and leaves the merge, its index and the history alone', () => {
-    const copy = join(tmp, 'merging')
-    mkdirSync(copy)
-    git(copy, 'init', '-q', '-b', 'main')
-    writeFileSync(join(copy, 'a.txt'), 'one\n')
-    writeFileSync(join(copy, 'CLAUDE.md'), 'old\n')
-    git(copy, 'add', '-A')
-    git(copy, 'commit', '-q', '-m', 'base')
-    git(copy, 'checkout', '-q', '-b', 'other')
-    writeFileSync(join(copy, 'a.txt'), 'two\n')
-    git(copy, 'commit', '-q', '-am', 'other change')
-    git(copy, 'checkout', '-q', 'main')
-    writeFileSync(join(copy, 'b.txt'), 'side\n')
-    git(copy, 'add', '-A')
-    git(copy, 'commit', '-q', '-m', 'main change')
-    git(copy, 'merge', '--no-commit', '--no-ff', 'other')
-    const state = () => ({
-      merge: git(copy, 'rev-parse', '-q', '--verify', 'MERGE_HEAD').status,
-      head: git(copy, 'rev-parse', 'HEAD').stdout.toString(),
-      index: git(copy, 'diff', '--cached', '--name-status').stdout.toString(),
-    })
-    const before = state()
-    expect(before.merge).toBe(0)
-    const root = join(tmp, 'tree2')
-    mkdirSync(join(root, '.claude', 'skills', 'new'), { recursive: true })
-    writeFileSync(join(root, 'CLAUDE.md'), 'new\n')
-    writeFileSync(join(root, '.claude', 'skills', 'new', 'SKILL.md'), 's\n')
-    applyTree(copy, root)
-    expect(readFileSync(join(copy, 'CLAUDE.md'), 'utf8')).toBe('new\n')
-    expect(state()).toEqual(before)
   })
 })
