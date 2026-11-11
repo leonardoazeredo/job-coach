@@ -5,7 +5,7 @@ import { cvBuild } from '../cv-build.ts'
 import { pull } from '../discovery/pull.ts'
 import { shortlist } from '../discovery/shortlist.ts'
 import { BOARD_NAMES } from '../lib/boards/index.ts'
-import type { BoardDeps } from '../lib/listings.ts'
+import type { BoardDeps } from '../lib/boards/pull-loop.ts'
 import { EXIT } from '../lib/problem.ts'
 import { larkspur, repo, useWorkspaceRepo } from './workspace-repo.ts'
 

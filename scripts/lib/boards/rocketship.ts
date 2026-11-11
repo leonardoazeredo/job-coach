@@ -5,10 +5,12 @@
 // already returned. An empty page, one answered with an error status, or one whose
 // JSON lacks the expected envelope ends the search too, without a retry, since the board
 // answers 404 to a title it has no page for and a reshaped payload will not fix itself
-// on a second request. A page that fails to connect or is not JSON is retried with a growing pause,
-// and fails the whole pull only once every attempt has failed.
-import { type BoardDeps, isWorkMode, type JobBoard, type Listing } from '../listings.ts'
+// on a second request. A page that fails to connect or is not JSON is retried by the shared
+// loop, which fails the whole pull only once every attempt has failed.
+import { isWorkMode, type Listing } from '../listings.ts'
 import type { SearchPreferences } from '../schema.ts'
+import type { JobBoard } from './index.ts'
+import { ask, type BoardDeps, pages } from './pull-loop.ts'
 import {
   ROCKETSHIP_COUNTRIES,
   ROCKETSHIP_EMPLOYMENT,
@@ -179,10 +181,6 @@ const filters = (search: SearchPreferences) => ({
 })
 // A guard against runaway paging; the repeat check normally ends a search long before it.
 const PAGE_CAP = 20
-const ATTEMPTS = 4
-const RETRY_MS = 1500
-// Pause between the pages of one search, so the board is not hit in a burst.
-const PAUSE_MS = 200
 
 const keyOf = (j: Card): string => `${j.company.slug}/${j.slug}`
 
@@ -232,27 +230,25 @@ export const rocketshipBoard = ({
   searchTitles,
   search: preferences,
 }: BoardDeps & { searchTitles: string[]; search: SearchPreferences }): JobBoard => {
+  const deps: BoardDeps = log ? { fetch, sleep, log } : { fetch, sleep }
+
   const readBuildId = async (): Promise<string> => {
-    const html = await (await fetch(`${SITE}/gb/remote-jobs/`, { headers: HEADERS })).text()
+    const html = await ask<string>(deps, 'Rocketship', {
+      url: `${SITE}/gb/remote-jobs/`,
+      read: (r) => r.text(),
+      headers: HEADERS,
+    })
     const buildId = html.match(/"buildId":"([^"]+)"/)?.[1]
     if (!buildId) throw new Error('Rocketship build id not found; the page layout may have changed')
     return buildId
   }
 
-  const getPage = async (url: string): Promise<Answer> => {
-    for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
-      const answer = await fetch(url, { headers: HEADERS })
-        .then(async (r): Promise<Answer> => {
-          if (!r.ok) return { status: r.status }
-          // Valid JSON of the wrong shape will not change on a retry, unlike a dropped connection.
-          const page = toPage(await r.json())
-          return page ? { page } : { unexpected: true }
-        })
-        .catch(() => undefined)
-      if (answer) return answer
-      if (attempt < ATTEMPTS) await sleep(RETRY_MS * attempt)
-    }
-    throw new Error(`Rocketship failed ${ATTEMPTS} times: ${url}`)
+  // An HTTP error and a wrong-shaped page are answers, not failures: a retry would not change them,
+  // unlike a dropped connection or a body that is not JSON, which throw and are asked again.
+  const read = async (r: Response): Promise<Answer> => {
+    if (!r.ok) return { status: r.status }
+    const page = toPage(await r.json())
+    return page ? { page } : { unexpected: true }
   }
 
   // Skipped cards are left out of the repeat check; a page with no valid card left ends the
@@ -264,24 +260,33 @@ export const rocketshipBoard = ({
     return cards
   }
 
+  // False when the page added nothing this search had not already returned.
+  const remember = (jobs: Card[], inSearch: Set<string>, seen: Map<string, Listing>): boolean => {
+    if (jobs.every((j) => inSearch.has(keyOf(j)))) return false
+    for (const j of jobs) {
+      inSearch.add(keyOf(j))
+      seen.set(keyOf(j), toListing(j))
+    }
+    return true
+  }
+
   const search = async (buildId: string, title: string, seen: Map<string, Listing>) => {
     const query = new URLSearchParams({ ...filters(preferences), jobTitle: title })
     const inSearch = new Set<string>()
-    for (let page = 1; page <= PAGE_CAP; page++) {
-      const url = `${SITE}/_next/data/${buildId}/gb/remote-jobs.json?page=${page}&${query}`
-      const answer = await getPage(url)
+    const urlOf = (page: number) =>
+      `${SITE}/_next/data/${buildId}/gb/remote-jobs.json?page=${page}&${query}`
+    for await (const { page, answer } of pages(deps, 'Rocketship', {
+      urlOf,
+      read,
+      headers: HEADERS,
+    })) {
       if (!('page' in answer)) {
         log?.(stopNote(title, page, answer))
         return
       }
       if (page === 1) log?.(`${title}: ${answer.page.total} listed`)
       const jobs = validCards(answer.page, `${title}, page ${page}`)
-      if (jobs.every((j) => inSearch.has(keyOf(j)))) return
-      for (const j of jobs) {
-        inSearch.add(keyOf(j))
-        seen.set(keyOf(j), toListing(j))
-      }
-      await sleep(PAUSE_MS)
+      if (!remember(jobs, inSearch, seen) || page === PAGE_CAP) return
     }
   }
 

@@ -56,45 +56,28 @@ describe('rocketship paging', () => {
     })
     expect(await board(fetch).pull()).toHaveLength(6)
   })
+})
 
-  it('retries a page whose fetch throws, then takes the answer', async () => {
-    let failed = false
+describe('rocketship retries and failures', () => {
+  it('asks again when the connection drops on the build id page', async () => {
+    let dropped = false
     const { fetch } = fakeFetch((u) => {
-      if (!isData(u)) return html(index)
-      if (failed) return json(page)
-      failed = true
+      if (isData(u)) return json(page)
+      if (dropped) return html(index)
+      dropped = true
       throw new Error('ECONNRESET')
     })
     expect(await board(fetch).pull()).toHaveLength(6)
   })
-})
 
-describe('rocketship retries and failures', () => {
-  it('throws after four failed attempts at one page, naming the URL', async () => {
-    const { fetch, urls } = fakeFetch((u) =>
-      isData(u) ? html('<html>not JSON</html>') : html(index),
-    )
-    await expect(board(fetch).pull()).rejects.toThrow(
-      /Rocketship failed 4 times: https:\/\/www\.remoterocketship\.com\/_next\/data\/.*page=1/,
-    )
-    expect(urls.filter(isData)).toHaveLength(4)
-  })
-
-  it('pauses through the injected sleep, longer after each failed attempt', async () => {
-    let failures = 0
-    const pauses: number[] = []
-    const { fetch } = fakeFetch((u) => {
-      if (!isData(u)) return html(index)
-      if (failures === 3) return json(page)
-      failures += 1
-      return html('<html>not JSON</html>')
+  it('throws after four dropped connections on the build id page, with the URL in the message', async () => {
+    const { fetch, urls } = fakeFetch(() => {
+      throw new Error('ECONNRESET')
     })
-    const sleep = (ms: number) => {
-      pauses.push(ms)
-      return Promise.resolve()
-    }
-    await rocketshipBoard({ fetch, sleep, search, searchTitles: ['Frontend Engineer'] }).pull()
-    expect(pauses).toEqual([1500, 3000, 4500, 200])
+    await expect(board(fetch).pull()).rejects.toThrow(
+      'Rocketship failed 4 times: https://www.remoterocketship.com/gb/remote-jobs/',
+    )
+    expect(urls).toHaveLength(4)
   })
 
   it('does not retry a page that is not OK, and runs the remaining searches', async () => {

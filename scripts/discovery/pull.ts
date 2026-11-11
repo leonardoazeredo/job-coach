@@ -3,7 +3,8 @@
 // Exit 64 on bad arguments, 1 when the pull fails or its listings cannot be written,
 // or when config/rules.yaml, which holds every board's search, cannot be read.
 import { BOARD_NAMES, boardFor } from '../lib/boards/index.ts'
-import { type BoardDeps, type Listing, savePull } from '../lib/listings.ts'
+import type { BoardDeps } from '../lib/boards/pull-loop.ts'
+import { type Listing, savePull } from '../lib/listings.ts'
 import { EXIT, printProblems } from '../lib/problem.ts'
 import { openWorkspace, type Workspace } from '../lib/workspace.ts'
 

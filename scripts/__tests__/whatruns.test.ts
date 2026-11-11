@@ -49,12 +49,6 @@ describe('whatruns', () => {
     expect(urls).toHaveLength(9)
   })
 
-  it('throws after four failed attempts at one page', async () => {
-    const { fetch, urls } = fakeFetch(() => html('<html>502 Bad Gateway</html>'))
-    await expect(whatrunsBoard({ fetch, sleep, search }).pull()).rejects.toThrow(/failed 4 times/)
-    expect(urls).toHaveLength(4)
-  })
-
   it('keeps one listing per id across locations', async () => {
     const { fetch } = fakeFetch(() => json({ ...page1, totalPages: 1 }))
     expect(await whatrunsBoard({ fetch, sleep, search }).pull()).toHaveLength(4)
