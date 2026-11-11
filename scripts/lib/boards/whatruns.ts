@@ -71,8 +71,9 @@ export const whatrunsBoard = ({
       for (const j of answer.data) seen.set(j.id, toListing(j))
       if (page === 1 || page % 10 === 0)
         log?.(`${location}: page ${page}/${answer.totalPages} (${answer.total} listings)`)
-      // Breaking here, not after a pause, keeps the last page from being followed by one.
-      if (page >= answer.totalPages) break
+      // Breaking here, not after a pause, keeps the last page from being followed by one. The
+      // negation stops the run on a page with no usable count, which the payload check allows.
+      if (!(page < answer.totalPages)) break
     }
   }
 

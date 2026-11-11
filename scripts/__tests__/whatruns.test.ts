@@ -49,6 +49,14 @@ describe('whatruns', () => {
     expect(urls).toHaveLength(9)
   })
 
+  it('stops after the first page when it carries no page count', async () => {
+    const { totalPages: _, ...noCount } = page1
+    // Past page 1 the route fails, so a run that keeps paging rejects instead of looping.
+    const { fetch, urls } = fakeFetch((u) => (pageOf(u) === 1 ? json(noCount) : undefined))
+    await whatrunsBoard({ fetch, sleep, search }).pull()
+    expect(urls.map(pageOf)).toEqual([1, 1, 1, 1])
+  })
+
   it('keeps one listing per id across locations', async () => {
     const { fetch } = fakeFetch(() => json({ ...page1, totalPages: 1 }))
     expect(await whatrunsBoard({ fetch, sleep, search }).pull()).toHaveLength(4)
