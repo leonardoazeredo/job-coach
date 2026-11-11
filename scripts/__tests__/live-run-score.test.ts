@@ -7,8 +7,9 @@ import { scoreCommand, scoreRun } from '../../examples/live-run/score.ts'
 import { EXIT } from '../lib/problem.ts'
 import { repoRoot } from '../lib/workspace.ts'
 
-// The fixture is a small invented run (the fictional Leeds persona) holding one example of each
-// fault the scorer marks, plus a turn that relays its summary whole under one framing sentence.
+// The fixture is a small invented onboarding run (the fictional Leeds persona) holding the faults
+// of lines 4, 5, 18, 26 and 28, plus a turn that relays its summary whole under one framing
+// sentence. The update-run line is built in a temporary folder further down.
 const fixture = join(repoRoot(), 'examples/live-run/fixture')
 const lines = scoreRun(fixture)
 const has = (prefix: string, ...parts: string[]) =>
