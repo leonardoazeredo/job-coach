@@ -10,8 +10,9 @@ It needs Docker and a Claude Code token in `CLAUDE_CODE_OAUTH_TOKEN`. Give the t
 
 1. Commit the change. Run `examples/live-run/start.sh <run-dir>` with the token in its environment, with a new folder outside this checkout as `<run-dir>`. It copies this checkout's HEAD.
 2. Start one agent with the player's brief below. It plays until the coach finishes, then runs `examples/live-run/finish.sh <run-dir>`.
-3. Start a different agent with the judge's brief below.
-4. Read the report and spot-check its quotes. A line that fails is either fixed in the skill or filed as an issue.
+3. Run `node examples/live-run/score.ts <run-dir>` and save its output to `<run-dir>/score.txt`. It marks the lines of the checklist a script can mark (summary relayed whole, extra framing sentences, working words, ordinals, pronouns in written files, the turn count), one finding per line, and writes nothing into the run folder. A finding is a report: the exit code says only whether the folder could be scored.
+4. Start a different agent with the judge's brief below.
+5. Read the report and spot-check its quotes. A line that fails is either fixed in the skill or filed as an issue.
 
 ## The player's brief
 
@@ -31,7 +32,7 @@ It needs Docker and a Claude Code token in `CLAUDE_CODE_OAUTH_TOKEN`. Give the t
 
 > You judge a finished live test of a job-search coach. You took no part in it. All the content is fictional. Be exact and sceptical, and quote the transcript. Do not soften a failure or invent one.
 >
-> Read `examples/live-run/checklist.md` and report on every line. Your evidence is the persona's brief (`examples/personas/leeds-transport-planner.md`), `<run-dir>/transcript.md`, `<run-dir>/written/` and, for tool calls, `<run-dir>/raw/turn<n>.jsonl` (large: use grep or targeted reads). You may read the engine's rule text and templates to understand a line, but judge what the coach did, not what its files say. T<n> means the persona's n-th message and the coach reply that follows it. Read no earlier run, and not the player's reasoning.
+> Read `examples/live-run/checklist.md` and report on every line. A script has already marked some lines: its output is in `<run-dir>/score.txt`. Take each finding as a lead to check against the transcript, quote it only if it holds, and spend your reading on the lines the script cannot mark (the others, and which extra framing sentences are notes the skill asks for). Your evidence is the persona's brief (`examples/personas/leeds-transport-planner.md`), `<run-dir>/transcript.md`, `<run-dir>/written/` and, for tool calls, `<run-dir>/raw/turn<n>.jsonl` (large: use grep or targeted reads). You may read the engine's rule text and templates to understand a line, but judge what the coach did, not what its files say. T<n> means the persona's n-th message and the coach reply that follows it. Read no earlier run, and not the player's reasoning.
 >
 > Every quote must be exact, because it will be spot-checked. Write the full report to `<run-dir>/judge-report.txt`, with a verdict line per checklist line at the top. Send back the path and those verdict lines.
 
@@ -41,5 +42,6 @@ The same kind of proof for `update-coach` in a folder that keeps history. The fi
 
 1. Commit the change. Run `examples/live-run/start-update.sh <run-dir>` with the token in its environment, with a new folder outside this checkout as `<run-dir>`. It builds the copy and the engine, starts the container and installs the coach's packages.
 2. Start one agent with the player's brief above, with `examples/personas/austin-update.md` as the brief to read and no nudge: drop the "Once only" paragraph. When it stops, it runs `examples/live-run/finish-update.sh <run-dir>` in place of `finish.sh`.
-3. Start a different agent with the judge's brief above, with `examples/live-run/update-checklist.md` as the checklist and `examples/personas/austin-update.md` as the persona's brief.
-4. Read the report and spot-check its quotes, as above.
+3. Run the scorer as above; for an update run it marks only the narrated steps and notes to itself in the line on the words she reads. A `line 13 PASS` leaves the judge to read that line for file names, commands and git words, which the scorer does not look for.
+4. Start a different agent with the judge's brief above, with `examples/live-run/update-checklist.md` as the checklist and `examples/personas/austin-update.md` as the persona's brief.
+5. Read the report and spot-check its quotes, as above.
