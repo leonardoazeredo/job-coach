@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { describe, it, vi } from 'vitest'
 import type { CvData } from '../../types.ts'
 import { expectations } from '../expectations.ts'
+import { realPdfReader } from '../reader.ts'
 import { verifyPdf } from '../run.ts'
 import type { Expectations } from '../types.ts'
 import { hasPoppler } from './hasPoppler.ts'
@@ -54,8 +55,11 @@ function sectionsOf(lines: string[]): Map<number, string[]> {
 
 async function collect(name: string): Promise<Report> {
   const lines: string[] = []
-  const failures = await verifyPdf(join(BAD, `${name}.pdf`), expectationsFor(name), (l) =>
-    lines.push(...l.split('\n')),
+  const failures = await verifyPdf(
+    join(BAD, `${name}.pdf`),
+    expectationsFor(name),
+    realPdfReader,
+    (l) => lines.push(...l.split('\n')),
   )
   return { failures, sections: sectionsOf(lines) }
 }

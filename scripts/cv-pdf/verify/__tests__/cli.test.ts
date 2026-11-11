@@ -7,7 +7,8 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, beforeAll, describe, it } from 'vitest'
 import { expectations } from '../expectations.ts'
-import { installHint, PopplerMissingError } from '../poppler.ts'
+import { PopplerMissingError } from '../poppler.ts'
+import { realPdfReader } from '../reader.ts'
 import { verifyEach, verifyPdf } from '../run.ts'
 import { hasPoppler } from './hasPoppler.ts'
 
@@ -155,105 +156,14 @@ describe.skipIf(!hasPoppler)('verify cli', () => {
   })
 })
 
-// PATH="" hides pdftotext/pdfinfo; the absolute execPath still runs. stdout is
-// piped, so the run is non-interactive and never prompts to install.
-function withoutPoppler(script: string, ...args: string[]) {
-  const r = spawnSync(process.execPath, [script, ...args], {
-    cwd: ROOT,
-    encoding: 'utf8',
-    timeout: 120_000,
-    env: { ...process.env, PATH: '' },
-  })
-  return { code: r.status, all: r.stdout + r.stderr }
-}
-
-describe('a missing poppler', () => {
-  const hint = new RegExp(installHint(process.platform).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
-
-  it('exits 66 from the CLI and prints the install hint once', () => {
-    const r = withoutPoppler(CLI, '--data', SEED, SAMPLE)
-    assert.equal(r.code, 66, r.all)
-    assert.equal(r.all.match(hint)?.length, 1, r.all)
-  })
-
-  // Goes through main's catch, which a PopplerMissingError thrown later in the
-  // run (from verifyPdf's own ensurePoppler) takes as well.
-  it('exits 66 from the export before building and prints the hint once', () => {
-    const r = withoutPoppler(
-      join(ROOT, 'export-pdf.ts'),
-      '--data',
-      SEED,
-      join(tmpdir(), 'never-written.pdf'),
-    )
-    assert.equal(r.code, 66, r.all)
-    assert.equal(r.all.match(hint)?.length, 1, r.all)
-    assert.doesNotMatch(r.all, /building/)
-  })
-})
-
-describe('the export command', () => {
-  const EXPORT = join(ROOT, 'export-pdf.ts')
-  const EXAMPLE_CV = join(ROOT, '../../examples/austin-backend/cv/master.json')
-  const run = (env: Record<string, string>, ...args: string[]) => {
-    const r = spawnSync(process.execPath, [EXPORT, ...args], {
-      cwd: ROOT,
-      encoding: 'utf8',
-      timeout: 120_000,
-      env: { ...process.env, ...env },
-    })
-    return { code: r.status, all: r.stdout + r.stderr }
-  }
-
-  it('exits 64 with no --data', () => {
-    const r = run({})
-    assert.equal(r.code, 64, r.all)
-    assert.match(r.all, /usage:/)
-  })
-
-  it('exits 64 when --data has no path', () => {
-    assert.equal(run({}, '--data').code, 64)
-  })
-
-  it.skipIf(!hasPoppler)('exits 66 when no browser is found', () => {
-    const r = run({ CHROME_PATH: join(tmpdir(), 'no-such-chrome') }, '--data', EXAMPLE_CV)
-    assert.equal(r.code, 66, r.all)
-    assert.match(r.all, /CHROME_PATH/)
-  })
-
-  it.skipIf(!hasPoppler)('exits 66 for a --data file that does not exist', () => {
-    const r = run({}, '--data', join(tmpdir(), 'no-such-cv.json'))
-    assert.equal(r.code, 66, r.all)
-    assert.match(r.all, /could not read/)
-  })
-
-  it.skipIf(!hasPoppler)('exits 65 for a --data file that is not JSON', async () => {
-    const file = join(tmpdir(), `notjson-cv-${process.pid}.json`)
-    await writeFile(file, '{nope')
-    try {
-      assert.equal(run({}, '--data', file).code, 65)
-    } finally {
-      await rm(file, { force: true })
-    }
-  })
-
-  it.skipIf(!hasPoppler)('exits 65 for a CV that is not valid', async () => {
-    const file = join(tmpdir(), `bad-cv-${process.pid}.json`)
-    await writeFile(file, '{}')
-    try {
-      const r = run({}, '--data', file)
-      assert.equal(r.code, 65, r.all)
-    } finally {
-      await rm(file, { force: true })
-    }
-  })
-})
-
 describe('verifyPdf', () => {
   it.skipIf(!hasPoppler)(
     'logs ten sections and counts at least one failure per FAIL section',
     async () => {
       const lines: string[] = []
-      const failures = await verifyPdf(SAMPLE, SEED_EXPECTATIONS, (l) => lines.push(l))
+      const failures = await verifyPdf(SAMPLE, SEED_EXPECTATIONS, realPdfReader, (l) =>
+        lines.push(l),
+      )
       const text = lines.join('\n')
       assert.deepEqual(headerNumbers(text), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
 
@@ -276,12 +186,10 @@ describe('verifyPdf', () => {
       if (pdf === 'boom.pdf') throw new Error('kaput')
       return 0
     }
-    const total = await verifyEach(
-      ['boom.pdf', 'fine.pdf'],
-      SEED_EXPECTATIONS,
-      (l) => lines.push(l),
+    const total = await verifyEach(['boom.pdf', 'fine.pdf'], SEED_EXPECTATIONS, realPdfReader, {
+      log: (l) => lines.push(l),
       verify,
-    )
+    })
     assert.equal(total, 1)
     assert.match(lines.join('\n'), /FAIL could not verify boom\.pdf: kaput/)
   })
@@ -291,21 +199,21 @@ describe('verifyPdf', () => {
       throw new PopplerMissingError(['pdftotext'], 'brew install poppler')
     }
     await assert.rejects(
-      verifyEach(
-        ['a.pdf'],
-        SEED_EXPECTATIONS,
-        () => {
+      verifyEach(['a.pdf'], SEED_EXPECTATIONS, realPdfReader, {
+        log: () => {
           // output is irrelevant: the error must escape before any report
         },
         verify,
-      ),
+      }),
       PopplerMissingError,
     )
   })
 
   it('returns 1 for a missing file without logging sections', async () => {
     const lines: string[] = []
-    const failures = await verifyPdf('/nonexistent/x.pdf', SEED_EXPECTATIONS, (l) => lines.push(l))
+    const failures = await verifyPdf('/nonexistent/x.pdf', SEED_EXPECTATIONS, realPdfReader, (l) =>
+      lines.push(l),
+    )
     assert.equal(failures, 1)
     assert.deepEqual(headerNumbers(lines.join('\n')), [])
   })

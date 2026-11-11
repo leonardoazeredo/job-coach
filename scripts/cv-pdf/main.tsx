@@ -12,7 +12,7 @@ const App = () => {
   const [fit, setFit] = useState<FitResult | null>(null)
   useEffect(() => {
     void fetch('./cv.json')
-      // biome-ignore lint/nursery/noUnsafeTypeAssertion: export-pdf validates cv.json against CvDataSchema before serving this page, and a compile-time check keeps that schema in sync with CvData
+      // biome-ignore lint/nursery/noUnsafeTypeAssertion: export-pdf validates cv.json against CvDataSchema before serving this page, and CvData is inferred from that schema, so the cast holds
       .then((res) => res.json() as Promise<CvData>)
       .then(setData)
   }, [])
@@ -23,7 +23,7 @@ const App = () => {
       <div className="cv-pages">
         <CvDocument data={data} fit={fit} />
       </div>
-      <FitMeasurer data={data} mode="auto" onFit={onFit} />
+      <FitMeasurer data={data} onFit={onFit} />
     </>
   )
 }

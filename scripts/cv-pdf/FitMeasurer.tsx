@@ -1,16 +1,11 @@
 import { useLayoutEffect, useRef } from 'react'
 import { CvDocument } from './CvDocument.tsx'
 import {
-  COMPACT_LEVELS,
   chooseFit,
-  chooseOnePageFit,
-  chooseTwoPageFit,
   FIT_LEVELS,
   type FitLevel,
-  type FitMode,
   type FitResult,
   fitVars,
-  type PageMeasure,
   pageMeasure,
 } from './fit.ts'
 import type { CvData } from './types.ts'
@@ -21,15 +16,7 @@ import type { CvData } from './types.ts'
  * Same component and stylesheet as the visible sheet, so the measure cannot
  * drift from what prints.
  */
-export function FitMeasurer({
-  data,
-  mode,
-  onFit,
-}: {
-  data: CvData
-  mode: FitMode
-  onFit: (fit: FitResult) => void
-}) {
+export function FitMeasurer({ data, onFit }: { data: CvData; onFit: (fit: FitResult) => void }) {
   const box = useRef<HTMLDivElement>(null)
 
   useLayoutEffect(() => {
@@ -48,26 +35,13 @@ export function FitMeasurer({
       if (!cv) return
       const els = [cv, ...cv.querySelectorAll('*')]
       const origin = wrap.getBoundingClientRect()
-      // two-pages mode asks again for the band levels the automatic pass has
-      // just laid out. Scoped to one run: the next can follow an edit or a late
-      // webfont, and either one moves line breaks. Keyed by identity: both
-      // passes must be given the same FIT_LEVELS objects.
-      const measured = new Map<FitLevel, PageMeasure>()
       const measure = (level: FitLevel) => {
-        const known = measured.get(level)
-        if (known) return known
         setLevel(level)
         const rects: DOMRect[] = []
         for (const el of els) rects.push(...el.getClientRects())
-        const result = pageMeasure(rects, origin, wrap.clientWidth, wrap.clientHeight)
-        measured.set(level, result)
-        return result
+        return pageMeasure(rects, origin, wrap.clientWidth, wrap.clientHeight)
       }
-      const auto = chooseFit(FIT_LEVELS, measure)
-      if (mode === 'one-page') onFit(chooseOnePageFit(auto, COMPACT_LEVELS, measure))
-      else if (mode === 'two-pages')
-        onFit(chooseTwoPageFit(auto, FIT_LEVELS, COMPACT_LEVELS, measure))
-      else onFit(auto)
+      onFit(chooseFit(FIT_LEVELS, measure))
     }
 
     let live = true
@@ -82,7 +56,7 @@ export function FitMeasurer({
     return () => {
       live = false
     }
-  }, [data, mode, onFit])
+  }, [data, onFit])
 
   return (
     <div className="cv-measure" aria-hidden="true" ref={box}>

@@ -1,13 +1,8 @@
 /**
  * Page-fit policy and its presentation helpers. Pure functions, no DOM: the
  * caller measures the rendered document at each level and this module decides
- * which level to keep. There are three policies. The automatic one (chooseFit)
- * keeps body text inside the MIN_PT..MAX_PT band. The one-page one
- * (chooseOnePageFit) starts from that result and goes under the band, as far
- * as ONE_PAGE_MIN_PT, only when the automatic result is more than one page.
- * The two-page one (chooseTwoPageFit) also leaves a one-page result alone;
- * otherwise it takes the largest band level with two pages or fewer, and goes
- * under the band, to the same floor, only when every band level needs a third.
+ * which level to keep. The one policy (chooseFit) keeps body text inside the
+ * MIN_PT..MAX_PT band.
  */
 
 export interface FitLevel {
@@ -20,15 +15,11 @@ export interface PageMeasure {
   /** 0..1 of the last page's content height */
   lastFill: number
 }
-export type FitMode = 'auto' | 'one-page' | 'two-pages'
-export type FitStatus = 'one-page' | 'balanced' | 'sparse' | 'stub' | 'squeezed'
+export type FitStatus = 'one-page' | 'balanced' | 'sparse' | 'stub'
 export interface FitResult extends PageMeasure {
   index: number
   level: FitLevel
   status: FitStatus
-  /** set to the fit mode's page target when no size down to ONE_PAGE_MIN_PT
-   *  reached it; the other fields are then the automatic fit's */
-  missedPages?: 1 | 2
 }
 export interface RectLike {
   left: number
@@ -53,26 +44,6 @@ const levelAt = (t: number): FitLevel => ({
 
 export const FIT_LEVELS: readonly FitLevel[] = Array.from({ length: STEPS + 1 }, (_, i) =>
   levelAt(i / STEPS),
-)
-
-const TIGHTEST = levelAt(0)
-
-/** floor of both page-target modes, not only one-page */
-export const ONE_PAGE_MIN_PT = 9
-
-const COMPACT_STEPS = 8
-
-/** Under the band, smallest first: squeezeTo takes the last level within its
- *  page target as the largest. COMPACT_STEPS keeps the step equal to FIT_LEVELS',
- *  which the negative index of a squeezed result relies on. Line height and
- *  gap stay at the band's tightest. */
-export const COMPACT_LEVELS: readonly FitLevel[] = Array.from(
-  { length: COMPACT_STEPS },
-  (_, i) => ({
-    fontPt: ONE_PAGE_MIN_PT + ((MIN_PT - ONE_PAGE_MIN_PT) * i) / COMPACT_STEPS,
-    leading: TIGHTEST.leading,
-    gap: TIGHTEST.gap,
-  }),
 )
 
 interface Row extends PageMeasure {
@@ -137,58 +108,6 @@ export function chooseFit(
   return onePageChoice(rows) ?? balancedChoice(rows, nominalIndex) ?? stubChoice(rows)
 }
 
-/** The pass under the band that the page-target modes share: the largest
- *  compact level that gives `target` pages or fewer, else the automatic fit
- *  flagged as a miss. */
-function squeezeTo(
-  target: 1 | 2,
-  auto: FitResult,
-  compact: readonly FitLevel[],
-  measure: (level: FitLevel, index: number) => PageMeasure,
-): FitResult {
-  // every level, as in chooseFit: jobs move to the next page whole, so page
-  // count is not assumed to be monotonic in font size and a bisection, or
-  // stopping at the first level that overflows, could miss the largest
-  // level that fits
-  const rows = measureAll(compact, measure)
-  const best = rows.filter((r) => r.pages <= target).at(-1)
-  if (!best) return { ...auto, missedPages: target }
-  return {
-    ...toResult(best, 'squeezed'),
-    // negative so it can never collide with a FIT_LEVELS index; offset by the
-    // length so that COMPACT_LEVELS continues the FIT_LEVELS scale downwards
-    // (-1 is one step under MIN_PT)
-    index: best.index - compact.length,
-  }
-}
-
-export function chooseOnePageFit(
-  auto: FitResult,
-  compact: readonly FitLevel[],
-  measure: (level: FitLevel, index: number) => PageMeasure,
-): FitResult {
-  if (auto.pages === 1) return auto
-  return squeezeTo(1, auto, compact, measure)
-}
-
-export function chooseTwoPageFit(
-  auto: FitResult,
-  band: readonly FitLevel[],
-  compact: readonly FitLevel[],
-  measure: (level: FitLevel, index: number) => PageMeasure,
-): FitResult {
-  // two-pages mode never stretches a CV that fits one page onto a second
-  if (auto.pages === 1) return auto
-  // the band is searched even when auto is more than two pages: chooseFit adds
-  // a page rather than leave the last one under MIN_LAST_FILL, so two-page
-  // levels can exist that it passed over
-  const best = measureAll(band, measure)
-    .filter((r) => r.pages <= 2)
-    .at(-1)
-  if (!best) return squeezeTo(2, auto, compact, measure)
-  return toResult(best, best.lastFill < MIN_LAST_FILL ? 'stub' : 'balanced')
-}
-
 export function pageMeasure(
   rects: Iterable<RectLike>,
   origin: { left: number; top: number },
@@ -230,10 +149,6 @@ export function describeFit(fit: FitResult): string {
   const pt = `${Math.round(fit.level.fontPt * 10) / 10}pt`
   const pct = Math.round(fit.lastFill * 100)
   const pages = `${fit.pages} ${fit.pages === 1 ? 'page' : 'pages'}`
-  if (fit.missedPages) {
-    const target = fit.missedPages === 1 ? 'one page' : 'two pages'
-    return `${pages} · ${pt} · does not fit ${target} at ${ONE_PAGE_MIN_PT}pt; automatic fit used`
-  }
   switch (fit.status) {
     case 'one-page':
       return `${pages} · ${pt} · ${pct}% full`
@@ -243,13 +158,9 @@ export function describeFit(fit: FitResult): string {
       return `${pages} · ${pt} · only ${pct}% full at the largest safe text size`
     case 'stub':
       return `${pages} · ${pt} · last page only ${pct}% full. Trim content to drop a page, or add more.`
-    case 'squeezed':
-      return `${pages} · ${pt} · ${fit.pages === 1 ? '' : 'last page '}${pct}% full · below the ${MIN_PT}pt band`
   }
 }
 
 export function fitNeedsAttention(fit: FitResult): boolean {
-  // "squeezed" is not flagged: it is what a page-target mode was turned on
-  // to get
-  return fit.missedPages !== undefined || fit.status === 'sparse' || fit.status === 'stub'
+  return fit.status === 'sparse' || fit.status === 'stub'
 }
