@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { loadProfile } from '../lib/profile.ts'
 import type { Record } from '../lib/schema.ts'
 import { SLUG } from './fixtures.ts'
 import {
@@ -38,17 +39,17 @@ describe('check', () => {
     ])
   })
 
-  it('reports a missing experience bank through profile()', () => {
+  it('reports a missing experience bank through loadProfile()', () => {
     repo.remove('experience-bank')
-    expect(repo.workspace().profile().problems).toEqual([
+    expect(loadProfile(repo.path(''), repo.workspace().identity()).problems).toEqual([
       { slug: 'experience-bank', level: 'error', message: 'is missing' },
     ])
   })
 
-  it('reports an unreadable experience bank through profile()', () => {
+  it('reports an unreadable experience bank through loadProfile()', () => {
     repo.remove('experience-bank')
     repo.write('experience-bank', 'not a directory')
-    expect(repo.workspace().profile().problems).toEqual([
+    expect(loadProfile(repo.path(''), repo.workspace().identity()).problems).toEqual([
       {
         slug: 'experience-bank',
         level: 'error',
@@ -225,13 +226,12 @@ describe('today and the locale from identity.yaml', () => {
 
 describe('the competency pack chosen in identity.yaml', () => {
   const profileProblems = () =>
-    repo
-      .workspace()
-      .profile()
-      .problems.map((p) => `${p.slug}: ${p.message}`)
+    loadProfile(repo.path(''), repo.workspace().identity()).problems.map(
+      (p) => `${p.slug}: ${p.message}`,
+    )
 
   it('loads config/competencies/<pack>.yaml for the pack the identity names', () => {
-    const { profile, problems } = repo.workspace().profile()
+    const { profile, problems } = loadProfile(repo.path(''), repo.workspace().identity())
     expect(problems).toEqual([])
     expect(profile?.competencies.competencies.map((c) => c.id)).toContain('stakeholder-management')
   })

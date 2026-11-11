@@ -7,7 +7,7 @@ describe('claims in master-only sections', () => {
     editMaster((m) => {
       m.training = ['Angular course']
     })
-    const { problems } = repo.workspace().roleCv(SLUG)
+    const { problems } = repo.workspace().lintCvs(SLUG)
     expect(messages(problems, 'error')).toContainEqual(
       expect.stringContaining('do_not_claim "Frontend framework development"'),
     )
@@ -17,7 +17,7 @@ describe('claims in master-only sections', () => {
     editMaster((m) => {
       m.languages = ['English (native)', 'halved cloud spend']
     })
-    const { problems } = repo.workspace().roleCv(SLUG)
+    const { problems } = repo.workspace().lintCvs(SLUG)
     expect(messages(problems, 'error')).toContainEqual(expect.stringContaining('never_say phrase'))
   })
 
@@ -28,9 +28,11 @@ describe('claims in master-only sections', () => {
     larkspur.writeRequirements((_r1, r2) => {
       r2.keywords = ['Zorbology']
     })
-    const rc = repo.workspace().roleCv(SLUG)
-    expect(rc.keywords).toEqual(['Zorbology'])
-    expect(messages(rc.problems, 'error')).toContainEqual(expect.stringContaining('do_not_claim'))
+    const ws = repo.workspace()
+    expect(ws.roleCv(SLUG).keywords).toEqual(['Zorbology'])
+    expect(messages(ws.lintCvs(SLUG).problems, 'error')).toContainEqual(
+      expect.stringContaining('do_not_claim'),
+    )
   })
 
   it('reports only the build error for a Variant job missing from history', () => {
@@ -40,14 +42,14 @@ describe('claims in master-only sections', () => {
         bullets: [{ text: 'Did a thing.', sources: ['win:bw-intern-programme'], answers: [] }],
       })
     })
-    const { problems } = repo.workspace().roleCv(SLUG)
+    const { problems } = repo.workspace().lintCvs(SLUG)
     expect(messages(problems, 'error')).toEqual([expect.stringContaining('"acme"')])
   })
 })
 
 describe('stack limits in master-only text', () => {
   const limitErrors = () =>
-    messages(repo.workspace().roleCv(SLUG).problems, 'error').filter((m) =>
+    messages(repo.workspace().lintCvs(SLUG).problems, 'error').filter((m) =>
       m.includes('has a limit in profile/stack.yaml'),
     )
 
