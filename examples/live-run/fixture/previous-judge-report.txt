@@ -1,0 +1,7 @@
+line 4 FAIL T59
+line 5 FAIL T16
+line 11 FAIL T12
+line 18 FAIL profile/voice.md:2
+line 26 FAIL T15, T16, T17
+line 28 BORDERLINE T40, T53, T55
+line 30 FAIL T12

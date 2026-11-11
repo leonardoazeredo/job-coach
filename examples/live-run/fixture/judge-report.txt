@@ -1,0 +1,19 @@
+line 4 FAIL T59
+line 5 FAIL T16
+line 11 PASS
+line 18 FAIL profile/voice.md:2
+line 26 FAIL T15, T16, T17
+line 28 BORDERLINE T40, T53, T55
+line 30 PASS
+
+Quotes
+line 4 T59 "Title: Senior Transport Planner"
+line 5 T16 "None counts as approved yet."
+line 5 T16 "We'll go through them one by one later."
+line 18 profile/voice.md:2 "She opens with the point."
+line 26 T15 "The user said \"none\" for the start, so null is theirs."
+line 26 T16 "so there's a file to work from"
+line 26 T17 "I've put together the draft achievements for you to look at."
+line 28 T40 "Now the first one on the list."
+line 28 T53 "Next is the seventh one."
+line 28 T55 "Last one."

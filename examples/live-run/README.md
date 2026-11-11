@@ -13,6 +13,7 @@ It needs Docker and a Claude Code token in `CLAUDE_CODE_OAUTH_TOKEN`. Give the t
 3. Run `node examples/live-run/score.ts <run-dir>` and save its output to `<run-dir>/score.txt`. It marks the lines of the checklist a script can mark (summary relayed whole, extra framing sentences, working words, ordinals, pronouns in written files, the turn count), one finding per line, and writes nothing into the run folder. A finding is a report: the exit code says only whether the folder could be scored.
 4. Start a different agent with the judge's brief below.
 5. Read the report and spot-check its quotes. A line that fails is either fixed in the skill or filed as an issue.
+6. Build the comment with `node examples/live-run/comment.ts <run-dir> [<previous-comment-or-report>]` and read it. It writes `<run-dir>/comment.md` and posts nothing. Post it as one comment on the issue the run tests, or on the PR when there is no issue: `gh issue comment <n> --repo <owner/repo> --body-file <run-dir>/comment.md`. The run folder does not outlast the run, so this comment is the record. It holds the verdict lines verbatim; keep its text (copy `comment.md` to a file outside the run folder, or fetch just the latest run's comment later with `gh issue view <n> --repo <owner/repo> --json comments --jq '.comments[-1].body' > <file>`, after checking that the last comment on the issue is that run's verdict) and pass that file as the second argument of the next run's build, which then names the lines fixed since. A judge report works as that argument too.
 
 ## The player's brief
 
@@ -34,7 +35,7 @@ It needs Docker and a Claude Code token in `CLAUDE_CODE_OAUTH_TOKEN`. Give the t
 >
 > Read `examples/live-run/checklist.md` and report on every line. A script has already marked some lines: its output is in `<run-dir>/score.txt`. Take each finding as a lead to check against the transcript, quote it only if it holds, and spend your reading on the lines the script cannot mark (the others, and which extra framing sentences are notes the skill asks for). Your evidence is the persona's brief (`examples/personas/leeds-transport-planner.md`), `<run-dir>/transcript.md`, `<run-dir>/written/` and, for tool calls, `<run-dir>/raw/turn<n>.jsonl` (large: use grep or targeted reads). You may read the engine's rule text and templates to understand a line, but judge what the coach did, not what its files say. T<n> means the persona's n-th message and the coach reply that follows it. Read no earlier run, and not the player's reasoning.
 >
-> Every quote must be exact, because it will be spot-checked. Write the full report to `<run-dir>/judge-report.txt`, with a verdict line per checklist line at the top. Send back the path and those verdict lines.
+> Every quote must be exact, because it will be spot-checked. Write the full report to `<run-dir>/judge-report.txt`, with a verdict line per checklist line at the top, written `line 26 FAIL T15, T16` (`PASS`, `FAIL`, `BORDERLINE` or `SKIPPED`, then the turns or the file and line), followed by the quotes, one per line, written `line 26 T15 "exact quote"`. Send back the path and those verdict lines.
 
 ## An update run
 
@@ -45,3 +46,4 @@ The same kind of proof for `update-coach` in a folder that keeps history. The fi
 3. Run the scorer as above; for an update run it marks only the narrated steps and notes to itself in the line on the words she reads. A `line 13 PASS` leaves the judge to read that line for file names, commands and git words, which the scorer does not look for.
 4. Start a different agent with the judge's brief above, with `examples/live-run/update-checklist.md` as the checklist and `examples/personas/austin-update.md` as the persona's brief.
 5. Read the report and spot-check its quotes, as above.
+6. Build the comment and post it as in step 6 above, on the issue the update run tests, or on the PR when there is no issue.
