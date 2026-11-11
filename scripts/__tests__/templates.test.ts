@@ -168,6 +168,8 @@ const samplesIn = (shape: Shape, data: unknown, at: string[], line: (at: string[
       continue
     }
     // A container with fields is judged by those fields, each on its own line.
+    // The alias keeps biome from narrowing `f` to a group after the early continue above, which
+    // would flag the check below as always false.
     const whole: Field = f
     const fields = groupOf(whole)?.fields
     if (!fields) {
