@@ -1,7 +1,7 @@
 # Template for profile/identity.yaml: who you are and what you are looking for.
 # The onboarding skill fills it from your answers. CHANGE_ME marks a value still to replace;
 # the board lists a file that still contains it as unfinished. The sample values that are personal
-# (dates, timezone, years, pay, office days) carry a trailing CHANGE_ME comment, so a copy left
+# (dates, timezone, locale, years, pay, office days, remote) carry a trailing CHANGE_ME comment, so a copy left
 # unedited is not mistaken for a finished one. Remove each comment when you set the value.
 # Read by the scripts: name (the CV PDF is named from it), location.timezone (decides "today"),
 # locale (passed with the timezone when today's date is computed), competency_pack. The rest is read by the skills.
@@ -11,7 +11,7 @@ email: CHANGE_ME name@example.com
 phone: CHANGE_ME +00 000 000 0000
 linkedin: CHANGE_ME linkedin.com/in/your-handle
 github: CHANGE_ME github.com/your-handle
-locale: en-US                  # BCP 47 language tag; dates in files stay ISO whatever it is
+locale: en-US                  # CHANGE_ME BCP 47 language tag; dates in files stay ISO whatever it is
 # competency_pack: set by the competency pack step of onboarding (a file name under config/competencies/ without .yaml)
 
 location:
@@ -36,7 +36,7 @@ compensation:
 
 work_setup:
   office_days_ok: 0            # CHANGE_ME most office days a week you accept
-  remote: true
+  remote: true                 # CHANGE_ME whether you accept fully remote work
 
 ideal_role_criteria:           # what a good role has, in your words; job-intake weighs a role against these
   - CHANGE_ME One thing you want in a role

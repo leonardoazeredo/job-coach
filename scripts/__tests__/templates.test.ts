@@ -198,17 +198,6 @@ const lineOf = (src: string, path: string[]): string => {
   return src.slice(from, to === -1 ? undefined : to)
 }
 
-// Samples whose template carries no marker, each named by file and key. All are tracked in
-// #127, which decides what becomes of them; no template or kind changes before then. The check
-// below fails when one of them stops being unmarked, so this list cannot outlive that issue.
-const UNMARKED_SAMPLES = [
-  'profile/identity.yaml locale',
-  'profile/identity.yaml work_setup.remote',
-  'profile/search.yaml discovery.search.regions',
-  'profile/search.yaml discovery.search.employment',
-  'profile/search.yaml discovery.search.hybrid',
-]
-
 describe('draft tables', () => {
   // Onboarding copies a template to the table's path, so a template no table names would never
   // be written, and one named twice would be written to two places.
@@ -221,7 +210,7 @@ describe('draft tables', () => {
 
   // A sample is only an example, and one that parses cleanly would pass as done if nothing
   // marked it.
-  it('mark every sample value in its template, bar the named exceptions', () => {
+  it('mark every sample value in its template', () => {
     const unmarked = dataTables.flatMap(([target, table]) => {
       const src = text(join(TEMPLATES, table.template))
       const data = parseTemplate(table.format, src)
@@ -231,7 +220,7 @@ describe('draft tables', () => {
         .filter((s) => !s.marked)
         .map((s) => `${target} ${s.key}`)
     })
-    expect(unmarked.sort()).toEqual([...UNMARKED_SAMPLES].sort())
+    expect(unmarked).toEqual([])
   })
 
   it.each(dataTables)('%s holds every key of its template, and no other', (_, table) => {

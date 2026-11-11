@@ -35,7 +35,7 @@ discovery:
   search:
     city: CHANGE_ME City
     country: CHANGE_ME Country
-    regions: [Remote]
+    regions: [CHANGE_ME Remote]   # the places the job board searches, in its words; Remote suits only some boards
     seniority: [CHANGE_ME level]   # the levels the user asked for, in the job board's words; no default
     stack: [CHANGE_ME Language]
     employment: full-time
