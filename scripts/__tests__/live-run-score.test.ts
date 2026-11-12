@@ -20,6 +20,12 @@ describe('the live-run scorer', () => {
     expect(has('line 26 FAIL T15', 'The user said')).toBe(true)
   })
 
+  it('marks a note to itself that names the person as "the user" and a skill to load', () => {
+    expect(has('line 26 FAIL T60', 'The user already asked to update, so load the skill')).toBe(
+      true,
+    )
+  })
+
   it('marks every framing sentence around a summary, and a file named', () => {
     expect(lines.filter((l) => l.startsWith('line 5 FAIL T16'))).toHaveLength(3)
     expect(has('line 26 FAIL T16', 'a file')).toBe(true)
@@ -43,7 +49,7 @@ describe('the live-run scorer', () => {
   })
 
   it('counts the turns', () => {
-    expect(lines).toContain('line 36 INFO 8 turns')
+    expect(lines).toContain('line 36 INFO 9 turns')
   })
 
   it('finds nothing in a reply that relays its summary whole under one framing sentence', () => {
@@ -157,5 +163,38 @@ describe('what the scorer will not call a pass or a fault', () => {
     expect(bad.some((l) => l.startsWith('line 13 FAIL T2'))).toBe(true)
     expect(bad.some((l) => l.startsWith('line 36'))).toBe(false)
     expect(scoreRun(update('The coach is updated.'))).toEqual(['line 13 PASS'])
+  })
+
+  it("marks the same note to itself on an update run, and leaves the person's own words alone", () => {
+    const update = (reply: string) =>
+      makeRun((d) => {
+        mkdirSync(join(d, 'written'))
+        writeFileSync(join(d, 'written/log.txt'), 'abc Updated the coach\n')
+        writeFileSync(join(d, 'transcript.md'), turn(1, reply))
+      })
+    expect(scoreRun(update('the user already asked to update, so load the skill.'))[0]).toMatch(
+      /^line 13 FAIL T1 /,
+    )
+    expect(scoreRun(update('Running the update-coach skill now.'))[0]).toMatch(/^line 13 FAIL/)
+    for (const fair of [
+      'You said yes.',
+      'You asked to update.',
+      'Which of your skills should lead?',
+      'These are the skills you listed.',
+      'Is your user name still the same?',
+      'Your username is saved.',
+    ]) {
+      expect(scoreRun(update(fair)), fair).toEqual(['line 13 PASS'])
+    }
+  })
+
+  it('leaves the same fair words alone on an onboarding run', () => {
+    const dir = makeRun((d) => {
+      const fair =
+        'You said yes. You asked for more. Which of your skills lead? These are the skills you listed. Is your user name right?'
+      writeFileSync(join(d, 'transcript.md'), turn(1, fair))
+    })
+    expect(scoreRun(dir).filter((l) => l.startsWith('line 26'))).toEqual(['line 26 PASS'])
+    rmSync(dir, { recursive: true })
   })
 })
