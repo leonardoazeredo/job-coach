@@ -89,8 +89,9 @@ export const sampleSpend = (costlog: string, turn: number, base: number): number
 // total before the turn, so the replay's budget is added to it. Every sample gets the same value:
 // the claude command writes the budget into the last message of the turn, where the cache mark
 // sits, so a budget that shrinks from sample to sample makes every sample miss the cache the
-// first one wrote. The stop between samples (replaySamples) is what keeps the replay within its
-// budget.
+// first one wrote. The value depends only on the run's total before the turn and the replay's
+// budget, so a later invocation with the same setting sends the same text too. The stop between
+// samples (replaySamples) is what keeps the replay within its budget.
 export const turnBudget = (base: number, budget: number): number => base + budget
 
 type Sample = { sample: string; spend: number }
