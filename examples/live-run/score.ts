@@ -108,7 +108,7 @@ const PRONOUN = /\b(he|she|him|his|her|hers|himself|herself|they|them|their|thei
 const WORKING_WORD = /\b(drafts?|files?)\b|\b[\w-]+\.(?:ya?ml|md|json|ts|txt)\b|the draft says/i
 // The coach speaks to the person, so a sentence that calls them "the user" is a note to itself.
 // "user name", "username" and "user-facing" are not a name for the person.
-const NOTE_TO_SELF = /\bthe user\b(?!\s*-?\s*name|-facing)/i
+const NOTE_TO_SELF = /\bthe user\b(?!\s*-?\s*name\b|-facing)/i
 // "skill" is the coach's working word only when a determiner joins it to load or run, or when a
 // skill's name comes before it; the person's own skills ("your skills", "run any skills") stay
 // unmarked, so no free word may sit between the verb and "skill".

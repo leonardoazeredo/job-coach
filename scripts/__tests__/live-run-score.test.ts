@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -180,12 +180,21 @@ describe('what the scorer will not call a pass or a fault', () => {
 
 describe('the words the scorer marks as a note to itself', () => {
   it('marks "the user" alone and "load the skill" alone, on both run kinds', () => {
-    for (const reply of ['The user wants this one.', 'THE USER wants this one.']) {
+    for (const reply of [
+      'The user wants this one.',
+      'THE USER wants this one.',
+      'The user named Anna asked.',
+      "Here is the user's plan.",
+    ]) {
       expect(scoreRun(updateRun(reply))[0], reply).toMatch(/^line 13 FAIL T1 /)
       expect(line26(onboardingRun(reply))[0], reply).toMatch(/^line 26 FAIL T1 /)
     }
     for (const reply of [
       'Now load the skill.',
+      'Now run the skill.',
+      'It loads the skill.',
+      'It runs the skill.',
+      'Load the skills now.',
       'She loaded the skill.',
       'I loaded the skill.',
       'Running the skill next.',
@@ -194,6 +203,15 @@ describe('the words the scorer marks as a note to itself', () => {
     ]) {
       expect(scoreRun(updateRun(reply))[0], reply).toMatch(/^line 13 FAIL T1 /)
       expect(line26(onboardingRun(reply))[0], reply).toMatch(/^line 26 FAIL T1 /)
+    }
+  })
+
+  it('marks every skill folder by its name, so a new skill must join the scorer', () => {
+    const skills = readdirSync(join(repoRoot(), '.claude/skills'), { withFileTypes: true })
+    for (const name of skills.filter((e) => e.isDirectory()).map((e) => e.name)) {
+      const reply = `We are in the ${name} skill.`
+      expect(scoreRun(updateRun(reply))[0], name).toMatch(/^line 13 FAIL T1 /)
+      expect(line26(onboardingRun(reply))[0], name).toMatch(/^line 26 FAIL T1 /)
     }
   })
 
@@ -215,6 +233,7 @@ describe('the words the scorer marks as a note to itself', () => {
       'I ran a skill-building workshop.',
       'Loading skills onto the team was my job.',
       'Is the user-facing app yours?',
+      'These are the onboarding skills you listed.',
     ]) {
       expect(scoreRun(updateRun(fair)), fair).toEqual(['line 13 PASS'])
       const out = scoreRun(onboardingRun(fair)).filter((l) => l.startsWith('line 26'))
