@@ -173,11 +173,48 @@ describe('the live-run comment builder on a judge report that varies its quote l
     ])
     expect(readFileSync(join(run, 'comment.md'), 'utf8')).toContain('T59 "fine"')
   })
+})
 
+describe('the live-run comment builder, cost and round trips', () => {
   it('prints the cost to two decimals', () => {
     writeFileSync(join(run, 'cost.txt'), 'total_usd 1.2699870999999996\n')
     build(previous)
     expect(readFileSync(join(run, 'comment.md'), 'utf8')).toContain('`$1.27`')
+  })
+
+  it('shows a verdict line that holds a quote once, under one heading', () => {
+    writeFileSync(
+      join(run, 'judge-report.txt'),
+      'line 26 BORDERLINE config/x.yaml:1 "# hi"\nline 26 T3 "another"\n',
+    )
+    build()
+    const text = readFileSync(join(run, 'comment.md'), 'utf8')
+    expect(text).toContain(
+      '**Borderline, line 26:**\n\n```\nconfig/x.yaml:1 "# hi"\nT3 "another"\n```',
+    )
+    expect(text.match(/Borderline, line 26/g)).toHaveLength(1)
+    expect(text.match(/config\/x\.yaml:1 "# hi"/g)).toHaveLength(2) // the section and the verdict block
+  })
+
+  it('prints a cost that is not a number as read', () => {
+    writeFileSync(join(run, 'cost.txt'), 'total_usd n/a\n')
+    build()
+    expect(readFileSync(join(run, 'comment.md'), 'utf8')).toContain('`n/a`')
+  })
+
+  it('reads a comment built from the new quote shapes as the previous verdict', () => {
+    writeFileSync(
+      join(run, 'judge-report.txt'),
+      'line 18 FAIL profile/voice.md:17\nline 30 FAIL T72\nline 18 T61 profile/voice.md:17 "q"\nline 30 T72 FAIL "q"\n',
+    )
+    build()
+    const saved = join(run, 'saved.md')
+    cpSync(join(run, 'comment.md'), saved)
+    writeFileSync(join(run, 'judge-report.txt'), 'line 18 PASS\nline 30 FAIL T80\n')
+    build(saved)
+    expect(readFileSync(join(run, 'comment.md'), 'utf8')).toContain(
+      'Fixed since the previous run: line 18.',
+    )
   })
 
   it('reads a comment built before this change as a previous verdict', () => {

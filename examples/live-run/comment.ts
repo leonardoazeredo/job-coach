@@ -35,7 +35,8 @@ const verdicts = (report: string): Verdict[] =>
 
 const quotesFor = (report: string, line: number): string[] =>
   report.split('\n').flatMap((l) => {
-    const m = QUOTE.exec(l.trim())
+    // A verdict line that holds a quote is shown through its own text, not a second time here.
+    const m = VERDICT.test(l.trim()) ? null : QUOTE.exec(l.trim())
     return m && Number(m[1]) === line ? [m[2] ?? ''] : []
   })
 
@@ -113,7 +114,7 @@ export const buildComment = (run: string, previousPath?: string): string => {
     .replace(/`/g, '')
   // The file holds a float sum (1.2699870999999996); a value that is not a number is shown as is.
   const cost =
-    Number.isFinite(Number(rawCost)) && rawCost !== '' ? Number(rawCost).toFixed(2) : rawCost
+    Number.isFinite(Number(rawCost)) && rawCost !== '' ? `$${Number(rawCost).toFixed(2)}` : rawCost
   const turns = (readFileSync(join(run, 'transcript.md'), 'utf8').match(/^## Turn \d+\s*$/gm) ?? [])
     .length
   const flagged = [
@@ -126,7 +127,7 @@ export const buildComment = (run: string, previousPath?: string): string => {
   ]
   const previous = previousPath === undefined ? undefined : readFileSync(previousPath, 'utf8')
   return `${[
-    `Live run at commit \`${commit}\`, ${turns} turns, \`$${cost}\`, judged on the checklist. All details are fictional.`,
+    `Live run at commit \`${commit}\`, ${turns} turns, \`${cost}\`, judged on the checklist. All details are fictional.`,
     '',
     ...section(report, 'Failed', 'FAIL'),
     ...section(report, 'Borderline', 'BORDERLINE'),
