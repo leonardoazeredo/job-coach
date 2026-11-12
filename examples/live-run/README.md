@@ -47,7 +47,7 @@ A replay needs a run that `turn.sh` kept snapshots for (`<run-dir>/snap`), so a 
 
 Replay when the change touches the wording of one turn: what the coach says given what it was asked and what it already knows. Run in full when the change alters the order of questions or of files, or anything a later turn depends on, because a replay starts from the run as it was and never plays the turns after.
 
-Two limits. A skill the coach loaded in an earlier turn stays in the session as it was then, so a change to a skill's wording shows only in a replay of the turn that loads it or of an earlier one; `CLAUDE.md` is read afresh and always applies. And a sample's reply is one draw: read a rate over five as a direction, and raise `n` before trusting a small difference.
+Two limits. A skill the coach loaded in an earlier turn stays in the session as it was then, so a change to a skill's wording shows only in a replay of the turn that loads it or of an earlier one; `CLAUDE.md` is read afresh and always applies. Putting the working tree's skill text into the saved session does not help: the session still resumes, but the coach does not follow the new text (a marker sentence added to the onboarding skill was followed in 0 of 5 replies at turn 25, the same sentence in `CLAUDE.md` in 5 of 5), so a wording fault that depends on a skill loaded earlier is measured by a full run. And a sample's reply is one draw: read a rate over five as a direction, and raise `n` before trusting a small difference.
 
 ## An update run
 
