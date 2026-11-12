@@ -98,12 +98,18 @@ export const withoutGitVariables = (env: NodeJS.ProcessEnv): NodeJS.ProcessEnv =
 const sh = (cmd: string, args: string[], cwd?: string) =>
   spawnSync(cmd, args, { cwd, encoding: 'utf8', env: withoutGitVariables(process.env) })
 
-// The session id a turn ended with is in the result line of its raw stream.
+// The session id a turn ended with is in the result line of its raw stream. The line is found by
+// its parsed type, as turn.sh does: the claude command does not write `type` first.
 const sessionAfter = (run: string, turn: number): string => {
   for (const line of readFileSync(join(run, 'raw', `turn${turn}.jsonl`), 'utf8').split('\n')) {
-    if (!line.startsWith('{"type":"result"')) continue
-    const id = JSON.parse(line).session_id
-    if (typeof id === 'string' && id !== '') return id
+    let event: { type?: unknown; session_id?: unknown }
+    try {
+      event = JSON.parse(line)
+    } catch {
+      continue
+    }
+    if (event?.type !== 'result') continue
+    if (typeof event.session_id === 'string' && event.session_id !== '') return event.session_id
   }
   throw new Error(`raw/turn${turn}.jsonl holds no result with a session id`)
 }

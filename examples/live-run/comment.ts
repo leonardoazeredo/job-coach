@@ -6,7 +6,8 @@
 // Writes <run-dir>/comment.md and prints its path; it posts nothing, so the last step of the guide
 // is the one `gh issue comment --body-file`.
 // The judge's report starts with a verdict line per checklist line (`line 26 FAIL T15, T16`),
-// then holds the quotes (`line 26 T15 "..."`). The scorer's output is not read from a file:
+// then holds the quotes (`line 26 T15 "..."`, and with a verdict word or a file and line before
+// the quote: `line 30 T72 FAIL "..."`, `line 18 T61 profile/voice.md:17 "..."`). The scorer's output is not read from a file:
 // scoreRun is called, so its findings are the ones the judge was given.
 // The previous verdicts are read from a comment saved to a file (the one posted for the run
 // before, kept because run folders do not outlast a run) or from a judge report.
@@ -22,7 +23,9 @@ const USAGE = 'usage: node examples/live-run/comment.ts <run-dir> [<previous-com
 type Verdict = { line: number; status: string; where: string }
 
 const VERDICT = /^line (\d+) (PASS|FAIL|BORDERLINE|SKIPPED)\b[ \t]*(.*)$/
-const QUOTE = /^line (\d+) (\S+) "(.*)"$/
+// Whatever sits between the line number and the first double quote is kept before the quote, as
+// the judge wrote it, so a judge that adds another word loses no quote.
+const QUOTE = /^line (\d+) ([^"]*".*)$/
 
 const verdicts = (report: string): Verdict[] =>
   report.split('\n').flatMap((l) => {
@@ -33,7 +36,7 @@ const verdicts = (report: string): Verdict[] =>
 const quotesFor = (report: string, line: number): string[] =>
   report.split('\n').flatMap((l) => {
     const m = QUOTE.exec(l.trim())
-    return m && Number(m[1]) === line ? [`${m[2]} "${m[3]}"`] : []
+    return m && Number(m[1]) === line ? [m[2] ?? ''] : []
   })
 
 // Quotes and the judge's own words go into a code fence, so GitHub neither styles them nor turns
@@ -43,6 +46,16 @@ const fenced = (lines: string[], info = '') => {
   const fence = '`'.repeat(Math.max(3, longest + 1))
   return [`${fence}${info}`, ...lines, fence]
 }
+
+// A line that claims to be about a checklist line and holds a quote, yet is neither a verdict nor
+// a quote line, would otherwise vanish from the comment without a word.
+export const unreadableQuotes = (report: string): string[] =>
+  report.split('\n').flatMap((l, i) => {
+    const t = l.trim()
+    return /^line \d+/.test(t) && t.includes('"') && !VERDICT.test(t) && !QUOTE.test(t)
+      ? [`judge-report.txt:${i + 1}: not read as a quote: ${t}`]
+      : []
+  })
 
 const isFault = (v: Verdict) => v.status === 'FAIL' || v.status === 'BORDERLINE'
 
@@ -94,10 +107,13 @@ export const buildComment = (run: string, previousPath?: string): string => {
   // Both are printed in code spans, so a stray backtick in either file is dropped.
   const commit = readFileSync(join(run, 'commit.txt'), 'utf8').trim().replace(/`/g, '')
   // finish.sh writes `total_usd <n>`, already the running total, so it is read and never summed.
-  const cost = readFileSync(join(run, 'cost.txt'), 'utf8')
+  const rawCost = readFileSync(join(run, 'cost.txt'), 'utf8')
     .trim()
     .replace(/^total_usd\s+/, '')
     .replace(/`/g, '')
+  // The file holds a float sum (1.2699870999999996); a value that is not a number is shown as is.
+  const cost =
+    Number.isFinite(Number(rawCost)) && rawCost !== '' ? Number(rawCost).toFixed(2) : rawCost
   const turns = (readFileSync(join(run, 'transcript.md'), 'utf8').match(/^## Turn \d+\s*$/gm) ?? [])
     .length
   const flagged = [
@@ -147,6 +163,8 @@ export const commentCommand = (args: string[]): number => {
       return EXIT.data
     }
   }
+  for (const unread of unreadableQuotes(readFileSync(join(run, 'judge-report.txt'), 'utf8')))
+    console.error(unread)
   const out = join(run, 'comment.md')
   writeFileSync(out, buildComment(run, previous))
   console.log(out)

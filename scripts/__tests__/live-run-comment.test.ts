@@ -29,7 +29,7 @@ describe('the live-run comment builder', () => {
     expect(out.status).toBe(0)
     expect(out.stdout.trim()).toBe(join(run, 'comment.md'))
     const text = readFileSync(join(run, 'comment.md'), 'utf8')
-    expect(text).toContain('`9d686bb`, 9 turns, `$1.4213`')
+    expect(text).toContain('`9d686bb`, 9 turns, `$1.42`')
     expect(text).toContain('**Failed, line 26:**\n\n```\nT15, T16, T17\nT15 "The user said')
     expect(text).toContain('T59 "Title: Senior Transport Planner"')
     expect(text).toContain('profile/voice.md:2 "She opens with the point."')
@@ -124,6 +124,73 @@ describe('the live-run comment builder, further cases', () => {
     rmSync(join(run, 'raw'), { recursive: true })
     build()
     expect(readFileSync(join(run, 'comment.md'), 'utf8')).toContain('The scorer marked no line.')
+  })
+})
+
+describe('the live-run comment builder on a judge report that varies its quote lines', () => {
+  const report = [
+    'line 4 FAIL T59',
+    'line 18 FAIL profile/voice.md:17',
+    'line 30 FAIL T72',
+    'line 11 PASS',
+    '',
+    'Quotes',
+    'line 4 T59 "plain quote"',
+    'line 30 T72 FAIL "a verdict word before the quote"',
+    'line 18 T61 profile/voice.md:17 "a file and line before the quote"',
+    'line 18 T62 coach "has a "quoted" word inside"',
+    'line 4 T60 "quote" -> master.json:71 "end": "2011"',
+    '   (a note about line 4 that is not a quote line)',
+    'Nothing else holds a "quote" without a line number.',
+  ].join('\n')
+
+  it('finds each quote under its checklist line, whatever sits before it', () => {
+    writeFileSync(join(run, 'judge-report.txt'), report)
+    const out = build()
+    expect(out.status).toBe(0)
+    expect(out.stderr).toBe('')
+    const text = readFileSync(join(run, 'comment.md'), 'utf8')
+    expect(text).toContain(
+      '**Failed, line 4:**\n\n```\nT59\nT59 "plain quote"\nT60 "quote" -> master.json:71 "end": "2011"\n```',
+    )
+    expect(text).toContain(
+      '**Failed, line 18:**\n\n```\nprofile/voice.md:17\nT61 profile/voice.md:17 "a file and line before the quote"\nT62 coach "has a "quoted" word inside"\n```',
+    )
+    expect(text).toContain(
+      '**Failed, line 30:**\n\n```\nT72\nT72 FAIL "a verdict word before the quote"\n```',
+    )
+  })
+
+  it('names a quote line it cannot read on stderr and still writes the comment', () => {
+    writeFileSync(
+      join(run, 'judge-report.txt'),
+      'line 4 FAIL T59\nline 4: "colon after the number"\nline 4 T59 "fine"\n',
+    )
+    const out = build()
+    expect(out.status).toBe(0)
+    expect(out.stderr.trim().split('\n')).toEqual([
+      'judge-report.txt:2: not read as a quote: line 4: "colon after the number"',
+    ])
+    expect(readFileSync(join(run, 'comment.md'), 'utf8')).toContain('T59 "fine"')
+  })
+
+  it('prints the cost to two decimals', () => {
+    writeFileSync(join(run, 'cost.txt'), 'total_usd 1.2699870999999996\n')
+    build(previous)
+    expect(readFileSync(join(run, 'comment.md'), 'utf8')).toContain('`$1.27`')
+  })
+
+  it('reads a comment built before this change as a previous verdict', () => {
+    const old = join(run, 'old-comment.md')
+    writeFileSync(
+      old,
+      'Live run at commit `abc`, 3 turns, `$1.2699870999999996`, judged.\n\n**Failed, line 4:**\n\n```\nT59\nT59 "x"\n```\n\n**Verdicts:**\n\n```text\nline 4 FAIL T59\n```\n',
+    )
+    writeFileSync(join(run, 'judge-report.txt'), 'line 4 PASS\n')
+    build(old)
+    expect(readFileSync(join(run, 'comment.md'), 'utf8')).toContain(
+      'Fixed since the previous run: line 4.',
+    )
   })
 })
 
