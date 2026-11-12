@@ -192,6 +192,8 @@ describe('the words the scorer marks as a note to itself', () => {
     for (const reply of [
       'Now load the skill.',
       'Now run the skill.',
+      'Loading the update skill.',
+      'Now running the right skill.',
       'It loads the skill.',
       'It runs the skill.',
       'Load the skills now.',
@@ -232,6 +234,7 @@ describe('the words the scorer marks as a note to itself', () => {
       'Do you run any skills in Python?',
       'I ran a skill-building workshop.',
       'Loading skills onto the team was my job.',
+      'Which of the skills you listed should run any skills check?',
       'Is the user-facing app yours?',
       'These are the onboarding skills you listed.',
     ]) {

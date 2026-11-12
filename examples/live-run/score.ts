@@ -109,13 +109,13 @@ const WORKING_WORD = /\b(drafts?|files?)\b|\b[\w-]+\.(?:ya?ml|md|json|ts|txt)\b|
 // The coach speaks to the person, so a sentence that calls them "the user" is a note to itself.
 // "user name", "username" and "user-facing" are not a name for the person.
 const NOTE_TO_SELF = /\bthe user\b(?!\s*-?\s*name\b|-facing)/i
-// "skill" is the coach's working word only when a determiner joins it to load or run, or when a
-// skill's name comes before it; the person's own skills ("your skills", "run any skills") stay
-// unmarked, so no free word may sit between the verb and "skill".
+// "skill" is the coach's working word only when a determiner joins it to load or run, with at
+// most one word before a singular "skill" ("the update skill"), or when a skill's name comes
+// before it; the person's own skills ("your skills", "run any skills") stay unmarked.
 const SKILL_NAMES =
   'application-writer|company-research|correspondence|cv-for-role|cv-tailor|experience-mining|interview-debrief|interview-practice|interview-prep|job-intake|offer-review|onboarding|pipeline-board|pipeline-update|role-triage|take-home|update-coach'
 const SKILL_WORD = new RegExp(
-  `\\b(?:load|loads|loaded|loading|run|runs|running|ran)\\s+(?:the|a|an|this|that|its|each)\\s+skills?(?![\\w-])|\\b(?:${SKILL_NAMES})\\s+skill(?![\\w-])`,
+  `\\b(?:load|loads|loaded|loading|run|runs|running|ran)\\s+(?:the|a|an|this|that|its|each)\\s+(?:skills(?![\\w-])|(?:[\\w-]+\\s+)?skill(?![\\w-]))|\\b(?:${SKILL_NAMES})\\s+skill(?![\\w-])`,
   'i',
 )
 const workingNote = (s: string) => NOTE_TO_SELF.test(s) || SKILL_WORD.test(s)
