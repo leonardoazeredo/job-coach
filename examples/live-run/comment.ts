@@ -7,8 +7,9 @@
 // is the one `gh issue comment --body-file`.
 // The judge's report starts with a verdict line per checklist line (`line 26 FAIL T15, T16`),
 // then holds the quotes (`line 26 T15 "..."`, and with a verdict word or a file and line before
-// the quote: `line 30 T72 FAIL "..."`, `line 18 T61 profile/voice.md:17 "..."`). The scorer's output is not read from a file:
-// scoreRun is called, so its findings are the ones the judge was given.
+// the quote: `line 30 T72 FAIL "..."`, `line 18 T61 profile/voice.md:17 "..."`). The scorer's
+// output is not read from a file: scoreRun is called, so its findings are the ones the judge was
+// given.
 // The previous verdicts are read from a comment saved to a file (the one posted for the run
 // before, kept because run folders do not outlast a run) or from a judge report.
 // Exit codes: 64 usage, 66 when the run folder lacks something the comment is built from, 65 when
@@ -27,9 +28,8 @@ const VERDICT = /^line (\d+) (PASS|FAIL|BORDERLINE|SKIPPED)\b[ \t]*(.*)$/
 // the judge wrote it, so a judge that adds another word loses no quote.
 const QUOTE = /^line (\d+) ([^"]*".*)$/
 
-// The first verdict line of a checklist line is its verdict. A later line of the same number that
-// starts with a verdict word yet holds a quote is one of the judge's quote lines (`line 26
-// BORDERLINE config/x.yaml:1 "..."`), not a second verdict.
+// A later verdict-worded line that holds a quote and repeats a number is one of that number's
+// quotes (`line 26 BORDERLINE config/x.yaml:1 "..."`), not a second verdict.
 type Read = { verdicts: (Verdict & { raw: string })[]; quotes: { line: number; text: string }[] }
 const read = (report: string): Read => {
   const out: Read = { verdicts: [], quotes: [] }
