@@ -36,7 +36,7 @@ describe('the budget', () => {
     expect(() => sampleSpend(log, 2, 0.8)).toThrow(/below/)
   })
 
-  it('hands turn.sh the run total before the turn plus what is left of the replay', () => {
+  it('hands turn.sh the run total before the turn plus the replay budget', () => {
     expect(turnBudget(0.75, 2)).toBe(2.75)
     expect(turnBudget(0, 5)).toBe(5)
     expect(sampleSpend('turn 1 0.3\n', 1, 0)).toBeCloseTo(0.3)

@@ -26,7 +26,7 @@ import { EXIT } from '../../scripts/lib/problem.ts'
 import { repoRoot } from '../../scripts/lib/workspace.ts'
 import { failRates, formatRates } from './rates.ts'
 import { scoreRun } from './score.ts'
-import { resultSessionId } from './stream.ts'
+import { cacheSummary, resultSessionId } from './stream.ts'
 import { describeSwap, swapSkillsInSample } from './swap.ts'
 
 const USAGE = 'usage: node examples/live-run/replay.ts <run-dir> <turn> [n]'
@@ -86,8 +86,12 @@ export const sampleSpend = (costlog: string, turn: number, base: number): number
 }
 
 // turn.sh stops when the log's total reaches its budget. The sample's log starts at the run's
-// total before the turn, so the replay's budget is added to it: it is the budget for the replay.
-export const turnBudget = (base: number, remaining: number): number => base + remaining
+// total before the turn, so the replay's budget is added to it. Every sample gets the same value:
+// the claude command writes the budget into the last message of the turn, where the cache mark
+// sits, so a budget that shrinks from sample to sample makes every sample miss the cache the
+// first one wrote. The stop between samples (replaySamples) is what keeps the replay within its
+// budget.
+export const turnBudget = (base: number, budget: number): number => base + budget
 
 type Sample = { sample: string; spend: number }
 
@@ -218,10 +222,10 @@ type SampleJob = {
   turn: number
   sample: string
   hasPackages: boolean
-  remaining: number
+  budget: number
 }
 
-const runSample = ({ run, turn, sample, hasPackages, remaining }: SampleJob): number => {
+const runSample = ({ run, turn, sample, hasPackages, budget }: SampleJob): number => {
   const container = `coach-live-run-${basename(sample)}`
   const up = spawnSync(join(HERE, 'up.sh'), [sample], { stdio: ['ignore', 'ignore', 'inherit'] })
   if (up.status !== 0) throw new Error('the sample container did not start')
@@ -234,7 +238,7 @@ const runSample = ({ run, turn, sample, hasPackages, remaining }: SampleJob): nu
     const base = turn > 1 ? costAfter(run, turn - 1) : 0
     const t = spawnSync(join(HERE, 'turn.sh'), [sample, String(turn), join(sample, 'reply.txt')], {
       stdio: ['ignore', 'ignore', 'inherit'],
-      env: { ...process.env, LIVE_RUN_BUDGET_USD: String(turnBudget(base, remaining)) },
+      env: { ...process.env, LIVE_RUN_BUDGET_USD: String(turnBudget(base, budget)) },
     })
     if (t.status !== 0) throw new Error(`turn.sh failed (exit ${t.status}); see ${sample}/raw`)
     return sampleSpend(readFileSync(join(sample, 'costlog.txt'), 'utf8'), turn, base)
@@ -276,8 +280,9 @@ const checkInputs = (args: string[]): (ReplayArgs & { budget: number }) | number
 
 const printResults = (turn: number, done: string[], spent: number) => {
   const scored = done.map((s) => scoreRun(s))
+  const cache = done.map((s) => readFileSync(join(s, 'raw', `turn${turn}.jsonl`), 'utf8'))
   console.log(
-    `\nFail rate at turn ${turn} over ${done.length} replies (spend ${spent.toFixed(3)} USD):`,
+    `\nFail rate at turn ${turn} over ${done.length} replies (spend ${spent.toFixed(3)} USD, ${cacheSummary(cache)}):`,
   )
   console.log(formatRates(failRates(turn, scored)) || 'no line was marked')
   done.forEach((s, i) => {
@@ -315,14 +320,14 @@ export const replayCommand = (args: string[]): number => {
   const { done, spent, stop, error } = replaySamples({
     n,
     budget,
-    runOne: (i, remaining) => {
+    runOne: (i) => {
       const sample = sampleFolder(out, i)
       console.log(
         `${stamp()} sample ${i} of ${n} (expected 1-3 min); folder ${sample}, tail -f ${sample}/raw/turn${turn}.jsonl`,
       )
       const swapped = prepareSample(run, turn, sample, root)
       console.log(`${stamp()} sample ${i}: ${describeSwap(swapped)}`)
-      return { sample, spend: runSample({ run, turn, sample, hasPackages, remaining }) }
+      return { sample, spend: runSample({ run, turn, sample, hasPackages, budget }) }
     },
   })
   if (stop) console.log(stop)
