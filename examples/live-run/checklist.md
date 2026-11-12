@@ -37,7 +37,7 @@ When a run finds a new fault in the conversation, add a line here and fix the sk
 
 21. Each achievement got one question covering both the wording and the overclaim.
 22. A reply answering only part got the other part asked alone in the next reply, with no part lost.
-23. A metric was written word for word, qualifiers included. An outcome the person gave was recorded.
+23. A figure was written word for word as the user approved it, qualifiers included. An outcome the person gave was recorded.
 24. An achievement with nothing to change spent no further turn beyond its summary.
 25. `status: approved` was set only on the yes to that summary.
 

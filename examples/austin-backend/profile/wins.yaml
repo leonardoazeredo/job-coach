@@ -76,7 +76,7 @@ wins:
     status: approved
     themes: [leadership]
     metric: "Not specified"
-    action: Set up the summer internship for the backend team, wrote the starter projects, and mentored each intern through twice-weekly pairing and their code reviews.
+    action: Set up the summer internship for the backend team, wrote the starter projects, and mentored each intern through twice-weekly pairing and code reviews.
     competencies: [mentoring]
 
   - slug: ind-clinic-booking

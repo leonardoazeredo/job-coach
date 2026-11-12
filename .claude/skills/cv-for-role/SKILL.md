@@ -105,9 +105,10 @@ Shape: 2 to 5 bullets for each recent job (the newest `recent_jobs` in `config/c
 ## Phase 5: check and export
 
 1. `node scripts/cv-lint.ts <slug> --warnings`. Fix every error; read every warning (omitted jobs, tech outside the stack, bullet counts) and decide.
-2. `node scripts/cv-export.ts <slug>`. It lints again, writes `cv/cv.json` and `cv/keywords.txt`, and prints the PDF with the in-repo exporter, whose verifier also checks that the ad's keywords survive extraction. It needs Chrome (set `CHROME_PATH` if it is not in a standard place or on Windows) and poppler. If either is missing here, run `node scripts/cv-build.ts <slug>` and give the user the export command to run on a machine that has them.
-3. Reply with: the PDF path, which requirements the CV covers and with which win or answer, the gaps left out, and any warning the user should decide on.
-4. When the user says the CV was sent, hand over to pipeline-update.
+2. Read the built text (`node scripts/cv-build.ts <slug>`) as a recruiter would see it, before exporting: a figure that reads badly, such as one with a pronoun or a note in brackets, is fixed by rewording the achievement through a draft and the user's yes, never in the bullet, because every CV quoting that number would carry it again.
+3. `node scripts/cv-export.ts <slug>`. It lints again, writes `cv/cv.json` and `cv/keywords.txt`, and prints the PDF with the in-repo exporter, whose verifier also checks that the ad's keywords survive extraction. It needs Chrome (set `CHROME_PATH` if it is not in a standard place or on Windows) and poppler. If either is missing here, run `node scripts/cv-build.ts <slug>` and give the user the export command to run on a machine that has them.
+4. Reply with: the PDF path, which requirements the CV covers and with which win or answer, the gaps left out, and any warning the user should decide on.
+5. When the user says the CV was sent, hand over to pipeline-update.
 
 ## Rules
 - Never edit `cv/master.json` or `profile/` without the user's yes. Ask it over the summary that `node scripts/profile.ts draft` prints (CLAUDE.md, Showing a change).

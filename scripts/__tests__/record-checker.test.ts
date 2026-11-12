@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { check } from '../check.ts'
 import { record } from './fixtures.ts'
 import { type Row, type TempRepo, tempRepo } from './temp-repo.ts'
 
@@ -159,5 +160,50 @@ describe('fit verdicts', () => {
     repo.addRole('acme-other')
     repo.addRole('acme-third')
     expect(errors()).toEqual(['config/rules.yaml: fit.untiered "Unfit" is not in fit.statuses'])
+  })
+})
+
+describe('a figure on file that would not read on a CV', () => {
+  it('warns per achievement and still passes', async () => {
+    repo.editYaml<{ wins: { slug: string; metric: string }[] }>('profile/wins.yaml', (file) => {
+      for (const win of file.wins) {
+        if (win.slug === 'bw-aws-cost') win.metric = 'down 20% (his estimate)'
+        if (win.slug === 'bw-test-suite') win.metric = 'down by my team to 11 minutes (todo)'
+      }
+    })
+    expect(
+      problems()
+        .filter((p) => p.slug === 'profile/wins.yaml')
+        .map((p) => `${p.level}: ${p.message}`),
+    ).toEqual([
+      expect.stringMatching(/^warning: win:bw-aws-cost: .*"\(his estimate\)"/),
+      expect.stringMatching(/^warning: win:bw-test-suite: .*"\(todo\)", "my"/),
+    ])
+    expect((await repo.run(check)).code).toBe(0)
+  })
+})
+
+describe('a figure on file naming a pronoun', () => {
+  const figureWarnings = (metric: string) => {
+    repo.editYaml<{ wins: { slug: string; metric: string }[] }>('profile/wins.yaml', (file) => {
+      for (const win of file.wins) if (win.slug === 'bw-aws-cost') win.metric = metric
+    })
+    return problems().filter((p) => p.slug === 'profile/wins.yaml')
+  }
+
+  it('gives no warning for a name such as Her Campus', () => {
+    expect(figureWarnings('down 20% for Her Campus')).toEqual([])
+  })
+
+  it('warns for a pronoun after a semicolon', () => {
+    expect(figureWarnings('down 20%; His estimate puts it at 30%')).toEqual([
+      expect.objectContaining({ level: 'warning', message: expect.stringContaining('"His"') }),
+    ])
+  })
+
+  it('warns for a bracketed note that starts with a pronoun', () => {
+    expect(figureWarnings('down 20% (My guess)')).toEqual([
+      expect.objectContaining({ level: 'warning', message: expect.stringContaining('(My guess)') }),
+    ])
   })
 })

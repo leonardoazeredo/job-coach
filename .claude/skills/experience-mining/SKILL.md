@@ -21,10 +21,10 @@ Two phases: a question set the user records answers to, then ingestion of those 
 
 ## Phase 2: ingest answers
 
-1. For each answer, keep the transcript in its original language, then add a 2 to 4 line English summary underneath. Never alter the original.
+1. For each answer, keep the transcript in its original language, then add a 2 to 4 line English summary underneath, in the third person. The summary is not copied into a bullet as written. Never alter the original.
 2. Mark facts that conflict with `history.yaml` or `wins.yaml` and ask which is right.
-3. Propose wins: each with a slug, theme tags, the action, and a metric quoted from the user's own words. Use `status: proposed`. Where the user gave no number, write `metric: "Not specified"` rather than estimating.
-4. Draft the proposed wins and changed facts with `node scripts/profile.ts draft profile/wins.yaml`, JSON on stdin: each win by `slug`, with `role`, `action`, `metric` in the user's words, `status: proposed`, `themes`, `competencies` and any `never_say`. Relay the printed summary as it is, with at most one framing sentence. On the user's yes, run `node scripts/profile.ts write profile/wins.yaml`. The experience-bank notes of phase 2 are written directly, and the turn ends with `node scripts/save.ts`.
+3. Propose wins: each with a slug, theme tags, the action, and a metric as the user approved it. Use `status: proposed`. The figure is written word for word as the user approved it; when what they said holds a first-person word or a note in brackets, put a CV-ready wording to them and let their yes make it the figure, its numbers and qualifiers never changing in that step. Where the user gave no number, write `metric: "Not specified"` rather than estimating.
+4. Draft the proposed wins and changed facts with `node scripts/profile.ts draft profile/wins.yaml`, JSON on stdin: each win by `slug`, with `role`, `action`, `metric` as the user approved it, `status: proposed`, `themes`, `competencies` and any `never_say`. Relay the printed summary as it is, with at most one framing sentence. On the user's yes, run `node scripts/profile.ts write profile/wins.yaml`. The experience-bank notes of phase 2 are written directly, and the turn ends with `node scripts/save.ts`.
 
 ## Targeted follow-up (from cv-for-role)
 

@@ -11,12 +11,14 @@ import {
   type CvData,
   CvDataSchema,
   HistoryFileSchema,
+  type Win,
   WinsFileSchema,
 } from './cv-schema.ts'
+import { type VoiceLists, voiceErrors } from './cv-voice.ts'
 import { type Identity, LEGACY_PACK } from './identity.ts'
-import type { Problem } from './problem.ts'
+import { type Problem, warning } from './problem.ts'
 import { fileProblem, readDir, readFile, yaml } from './read-file.ts'
-import { buildSources, type Sources } from './sources.ts'
+import { buildSources, type Sources, winRef } from './sources.ts'
 import { StackFileSchema } from './stack.ts'
 
 export type Profile = {
@@ -25,6 +27,21 @@ export type Profile = {
   config: CvConfig
   master: CvData
 }
+
+// A figure is quoted whole on every CV using its number, so one already on file with a pronoun
+// or a note fails each of those CVs; the warning points at the cause before a CV is built.
+const figureProblems = (wins: Win[], lists: VoiceLists): Problem[] =>
+  wins.flatMap((win) => {
+    const phrases = voiceErrors(win.metric, lists)
+    if (phrases.length === 0) return []
+    const held = phrases.map((p) => `"${p}"`).join(', ')
+    return [
+      warning(
+        'profile/wins.yaml',
+        `${winRef(win.slug)}: the figure holds ${held}; reword it as it should read on a CV`,
+      ),
+    ]
+  })
 
 // The identity is read once by the workspace, which also needs its name and timezone, so
 // its problems arrive here rather than being found twice. The competency pack it names
@@ -77,6 +94,6 @@ export const loadProfile = (
     // Bank tags may be competency ids or the win themes the competency pack (config/competencies/<pack>.yaml) lists.
     tags: [...c.competencies.map((x) => x.id), ...c.themes],
   })
-  problems.push(...found)
+  problems.push(...found, ...figureProblems(w.wins, cfg))
   return { profile: { sources, competencies: c, config: cfg, master: m }, problems }
 }
