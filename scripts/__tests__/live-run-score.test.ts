@@ -108,6 +108,18 @@ const makeRun = (setup: (dir: string) => void) => {
   return dir
 }
 
+const updateRun = (reply: string) =>
+  makeRun((d) => {
+    mkdirSync(join(d, 'written'))
+    writeFileSync(join(d, 'written/log.txt'), 'abc Updated the coach\n')
+    writeFileSync(join(d, 'transcript.md'), turn(1, reply))
+  })
+
+const line26 = (dir: string) => scoreRun(dir).filter((l) => l.startsWith('line 26'))
+
+const onboardingRun = (reply: string) =>
+  makeRun((d) => writeFileSync(join(d, 'transcript.md'), turn(1, reply)))
+
 describe('what the scorer will not call a pass or a fault', () => {
   it('leaves a shipped pack copy alone and still reads a changed one', () => {
     const shipped = readFileSync(join(repoRoot(), 'config/competencies/frontend.yaml'), 'utf8')
@@ -164,18 +176,34 @@ describe('what the scorer will not call a pass or a fault', () => {
     expect(bad.some((l) => l.startsWith('line 36'))).toBe(false)
     expect(scoreRun(update('The coach is updated.'))).toEqual(['line 13 PASS'])
   })
+})
 
-  it("marks the same note to itself on an update run, and leaves the person's own words alone", () => {
-    const update = (reply: string) =>
-      makeRun((d) => {
-        mkdirSync(join(d, 'written'))
-        writeFileSync(join(d, 'written/log.txt'), 'abc Updated the coach\n')
-        writeFileSync(join(d, 'transcript.md'), turn(1, reply))
-      })
-    expect(scoreRun(update('the user already asked to update, so load the skill.'))[0]).toMatch(
-      /^line 13 FAIL T1 /,
-    )
-    expect(scoreRun(update('Running the update-coach skill now.'))[0]).toMatch(/^line 13 FAIL/)
+describe('the words the scorer marks as a note to itself', () => {
+  it('marks "the user" alone and "load the skill" alone, on both run kinds', () => {
+    for (const reply of ['The user wants this one.', 'THE USER wants this one.']) {
+      expect(scoreRun(updateRun(reply))[0], reply).toMatch(/^line 13 FAIL T1 /)
+      expect(line26(onboardingRun(reply))[0], reply).toMatch(/^line 26 FAIL T1 /)
+    }
+    for (const reply of [
+      'Now load the skill.',
+      'She loaded the skill.',
+      'I loaded the skill.',
+      'Running the skill next.',
+      'I ran the skill.',
+      'Loading a skill now.',
+    ]) {
+      expect(scoreRun(updateRun(reply))[0], reply).toMatch(/^line 13 FAIL T1 /)
+      expect(line26(onboardingRun(reply))[0], reply).toMatch(/^line 26 FAIL T1 /)
+    }
+  })
+
+  it('marks a skill by its name, on both run kinds', () => {
+    const reply = 'We are in the onboarding skill.'
+    expect(scoreRun(updateRun(reply))[0]).toMatch(/^line 13 FAIL T1 /)
+    expect(line26(onboardingRun(reply))[0]).toMatch(/^line 26 FAIL T1 /)
+  })
+
+  it("leaves the person's own words alone, each as its own sentence, on both run kinds", () => {
     for (const fair of [
       'You said yes.',
       'You asked to update.',
@@ -183,16 +211,28 @@ describe('what the scorer will not call a pass or a fault', () => {
       'These are the skills you listed.',
       'Is your user name still the same?',
       'Your username is saved.',
+      'Do you run any skills in Python?',
+      'I ran a skill-building workshop.',
+      'Loading skills onto the team was my job.',
+      'Is the user-facing app yours?',
     ]) {
-      expect(scoreRun(update(fair)), fair).toEqual(['line 13 PASS'])
+      expect(scoreRun(updateRun(fair)), fair).toEqual(['line 13 PASS'])
+      const out = scoreRun(onboardingRun(fair)).filter((l) => l.startsWith('line 26'))
+      expect(out, fair).toEqual(['line 26 PASS'])
     }
   })
 
-  it('leaves the same fair words alone on an onboarding run', () => {
+  it('does not mark "the user" in a line relayed whole from a summary', () => {
     const dir = makeRun((d) => {
-      const fair =
-        'You said yes. You asked for more. Which of your skills lead? These are the skills you listed. Is your user name right?'
-      writeFileSync(join(d, 'transcript.md'), turn(1, fair))
+      mkdirSync(join(d, 'raw'))
+      writeFileSync(
+        join(d, 'transcript.md'),
+        turn(1, 'Here it is.\n\nNotes: the user prefers mornings'),
+      )
+      writeFileSync(
+        join(d, 'raw/turn1.jsonl'),
+        `${draftRaw('a', 'profile/coach.md', 'Notes: the user prefers mornings')}\n`,
+      )
     })
     expect(scoreRun(dir).filter((l) => l.startsWith('line 26'))).toEqual(['line 26 PASS'])
     rmSync(dir, { recursive: true })
