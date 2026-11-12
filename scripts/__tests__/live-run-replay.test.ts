@@ -95,7 +95,19 @@ describe('the fail rate', () => {
 const tmp = mkdtempSync(join(tmpdir(), 'replay-test-'))
 afterAll(() => rmSync(tmp, { recursive: true, force: true }))
 
-const makeRunFolder = (name: string, opts: { turn1?: boolean } = {}) => {
+const X_OLD = 'x old body\n'
+const loadX = (body: string) =>
+  JSON.stringify({
+    type: 'user',
+    isMeta: true,
+    message: {
+      content: [
+        { type: 'text', text: `Base directory for this skill: /w/.claude/skills/x\n\n${body}` },
+      ],
+    },
+  })
+
+const makeRunFolder = (name: string, opts: { turn1?: boolean; loadedSkill?: boolean } = {}) => {
   const run = join(tmp, name)
   const stage = join(tmp, `${name}-stage`)
   mkdirSync(join(stage, 'copy', '.claude', 'skills', 'old'), { recursive: true })
@@ -103,6 +115,12 @@ const makeRunFolder = (name: string, opts: { turn1?: boolean } = {}) => {
   writeFileSync(join(stage, 'copy', 'CLAUDE.md'), 'old rules\n')
   writeFileSync(join(stage, 'copy', '.claude', 'skills', 'old', 'SKILL.md'), 'old skill\n')
   writeFileSync(join(stage, 'claudehome', 'projects', 's.jsonl'), '{}\n')
+  if (opts.loadedSkill) {
+    mkdirSync(join(stage, 'copy', '.claude', 'skills', 'x'), { recursive: true })
+    writeFileSync(join(stage, 'copy', '.claude', 'skills', 'x', 'SKILL.md'), X_OLD)
+    mkdirSync(join(stage, 'claudehome', 'projects', '-w'), { recursive: true })
+    writeFileSync(join(stage, 'claudehome', 'projects', '-w', 's.jsonl'), `${loadX(X_OLD)}\n`)
+  }
   gitIn(join(stage, 'copy'), 'init', '-q', '-b', 'main')
   gitIn(join(stage, 'copy'), 'add', '-A')
   gitIn(join(stage, 'copy'), 'commit', '-q', '-m', 'first')
@@ -192,6 +210,20 @@ describe('preparing a sample', () => {
     expect(() => prepareSample(bare, 3, join(tmp, 'sample-no-result'), join(tmp, 'tree'))).toThrow(
       'raw/turn2.jsonl holds no result with a session id',
     )
+  })
+
+  it('swaps a loaded skill in the sample\u2019s session only, before the tree\u2019s skills go in', () => {
+    const swapRun = makeRunFolder('swap-run', { loadedSkill: true })
+    const swapRoot = join(tmp, 'swap-tree')
+    mkdirSync(join(swapRoot, '.claude', 'skills', 'x'), { recursive: true })
+    writeFileSync(join(swapRoot, 'CLAUDE.md'), 'new rules\n')
+    writeFileSync(join(swapRoot, '.claude', 'skills', 'x', 'SKILL.md'), 'x new body\n')
+    const untouched = fingerprint(swapRun)
+    const swapSample = join(tmp, 'swap-sample')
+    expect(prepareSample(swapRun, 3, swapSample, swapRoot)).toEqual(['x'])
+    const session = join(swapSample, 'claudehome', 'projects', '-w', 's.jsonl')
+    expect(readFileSync(session, 'utf8')).toBe(`${loadX('x new body\n')}\n`)
+    expect(fingerprint(swapRun)).toEqual(untouched)
   })
 
   it('names what a run lacks for a replay', () => {
