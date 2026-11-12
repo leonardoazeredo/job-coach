@@ -14,9 +14,8 @@ export const resultSessionId = (stream: string): string | undefined => {
   return undefined
 }
 
-// The tokens a turn read from and wrote to the prompt cache, from the usage on the result line of
-// its raw stream, which held the sum over the turn's model calls in the runs measured. A stream with no usable
-// result line counts as none.
+// One number per turn is read from the first result line, not summed over the call lines. A
+// stream with no result line, or a usage field that is missing or not a number, counts as 0.
 export const cacheTokens = (stream: string): { read: number; written: number } => {
   for (const line of stream.split('\n')) {
     let event: { type?: unknown; usage?: Record<string, unknown> }
