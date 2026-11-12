@@ -27,18 +27,31 @@ const VERDICT = /^line (\d+) (PASS|FAIL|BORDERLINE|SKIPPED)\b[ \t]*(.*)$/
 // the judge wrote it, so a judge that adds another word loses no quote.
 const QUOTE = /^line (\d+) ([^"]*".*)$/
 
-const verdicts = (report: string): Verdict[] =>
-  report.split('\n').flatMap((l) => {
-    const m = VERDICT.exec(l.trim())
-    return m ? [{ line: Number(m[1]), status: m[2] ?? '', where: (m[3] ?? '').trim() }] : []
-  })
+// The first verdict line of a checklist line is its verdict. A later line of the same number that
+// starts with a verdict word yet holds a quote is one of the judge's quote lines (`line 26
+// BORDERLINE config/x.yaml:1 "..."`), not a second verdict.
+type Read = { verdicts: (Verdict & { raw: string })[]; quotes: { line: number; text: string }[] }
+const read = (report: string): Read => {
+  const out: Read = { verdicts: [], quotes: [] }
+  for (const l of report.split('\n').map((x) => x.trim())) {
+    const v = VERDICT.exec(l)
+    const n = Number(v?.[1] ?? Number.NaN)
+    if (v && !(l.includes('"') && out.verdicts.some((p) => p.line === n))) {
+      out.verdicts.push({ line: n, status: v[2] ?? '', where: (v[3] ?? '').trim(), raw: l })
+      continue
+    }
+    const q = QUOTE.exec(l)
+    if (q) out.quotes.push({ line: Number(q[1]), text: q[2] ?? '' })
+  }
+  return out
+}
+
+const verdicts = (report: string): Verdict[] => read(report).verdicts
 
 const quotesFor = (report: string, line: number): string[] =>
-  report.split('\n').flatMap((l) => {
-    // A verdict line that holds a quote is shown through its own text, not a second time here.
-    const m = VERDICT.test(l.trim()) ? null : QUOTE.exec(l.trim())
-    return m && Number(m[1]) === line ? [m[2] ?? ''] : []
-  })
+  read(report)
+    .quotes.filter((q) => q.line === line)
+    .map((q) => q.text)
 
 // Quotes and the judge's own words go into a code fence, so GitHub neither styles them nor turns
 // `#123` into a link or `@name` into a notification; the fence outgrows any backticks inside.
@@ -76,10 +89,7 @@ const verdictBlock = (report: string) => [
   '**Verdicts:**',
   '',
   ...fenced(
-    report
-      .split('\n')
-      .filter((l) => VERDICT.test(l.trim()))
-      .map((l) => l.trim()),
+    read(report).verdicts.map((v) => v.raw),
     'text',
   ),
   '',

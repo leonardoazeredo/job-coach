@@ -196,6 +196,27 @@ describe('the live-run comment builder, cost and round trips', () => {
     expect(text.match(/config\/x\.yaml:1 "# hi"/g)).toHaveLength(2) // the section and the verdict block
   })
 
+  it('reads a later verdict-worded line holding a quote as a quote of the first verdict', () => {
+    writeFileSync(
+      join(run, 'judge-report.txt'),
+      'line 26 FAIL T1\nline 26 T1 "first"\nline 26 BORDERLINE config/x.yaml:1 "# a comment"\n',
+    )
+    build()
+    const text = readFileSync(join(run, 'comment.md'), 'utf8')
+    expect(text).toContain(
+      '**Failed, line 26:**\n\n```\nT1\nT1 "first"\nBORDERLINE config/x.yaml:1 "# a comment"\n```',
+    )
+    expect(text).not.toContain('Borderline, line 26')
+    expect(text).toContain('**Verdicts:**\n\n```text\nline 26 FAIL T1\n```')
+    const saved = join(run, 'saved.md')
+    cpSync(join(run, 'comment.md'), saved)
+    writeFileSync(join(run, 'judge-report.txt'), 'line 26 PASS\n')
+    build(saved)
+    expect(readFileSync(join(run, 'comment.md'), 'utf8')).toContain(
+      'Fixed since the previous run: line 26.',
+    )
+  })
+
   it('prints a cost that is not a number as read', () => {
     writeFileSync(join(run, 'cost.txt'), 'total_usd n/a\n')
     build()
