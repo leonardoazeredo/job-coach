@@ -1,8 +1,9 @@
 // Replays one turn of a saved live run several times, to test a wording change aimed at that turn
 // without a whole run. Each sample starts from the run's state before the turn (the snapshot
 // turn.sh took: the copy and the coach's session), with this checkout's CLAUDE.md and skills put
-// in, sends the persona's original message for that turn, and is marked by scoreRun. The run
-// folder is only read; samples live in a new folder under the system's temporary folder.
+// in (the skills the coach had loaded are swapped in its saved session too), sends the persona's
+// original message for that turn, and is marked by scoreRun. The run folder is only read; samples
+// live in a new folder under the system's temporary folder.
 // Usage: node examples/live-run/replay.ts <run-dir> <turn> [n]
 // Needs Docker and CLAUDE_CODE_OAUTH_TOKEN in the environment: the token goes to each sample's
 // container through up.sh and is never printed. The stop (LIVE_RUN_BUDGET_USD, default 5) applies
@@ -23,11 +24,15 @@ import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { EXIT } from '../../scripts/lib/problem.ts'
 import { repoRoot } from '../../scripts/lib/workspace.ts'
+import { failRates, formatRates } from './rates.ts'
 import { scoreRun } from './score.ts'
 import { resultSessionId } from './stream.ts'
+import { describeSwap, swapSkillsInSample } from './swap.ts'
 
 const USAGE = 'usage: node examples/live-run/replay.ts <run-dir> <turn> [n]'
 const HERE = import.meta.dirname
+
+export { failRates, formatRates } from './rates.ts'
 
 export type ReplayArgs = { run: string; turn: number; n: number }
 
@@ -48,48 +53,6 @@ export const missingForReplay = (run: string, turn: number): string[] =>
   [`snap/before${turn}.tgz`, `raw/reply${turn}.txt`, `raw/turn${turn}.jsonl`, 'costlog.txt']
     .concat(turn > 1 ? [`raw/turn${turn - 1}.jsonl`] : [])
     .filter((f) => !existsSync(join(run, f)))
-
-// The line a scorer finding is about, its verdict, and the turn it names (none for a finding about
-// a written file or the turn count).
-const VERDICT = /^line (\d+) (FAIL|PASS|SKIPPED|INFO)(?: T(\d+))?/
-
-// The scorer reads the whole run, so a sample's output also holds findings from the turns before
-// the replayed one, which every sample shares. A line gets a row when a sample passed it or failed
-// it at any turn, so a line the scorer checks never goes missing; only a failure at the replayed
-// turn counts toward its fail rate. A failure about a written file carries no turn, so it neither
-// adds a row nor counts as a fail; such a line that passes still gets a row, always at 0. The turn
-// count gets no row.
-export const failRates = (
-  turn: number,
-  scored: string[][],
-): { line: number; fails: number; samples: number }[] => {
-  const marked = new Set<number>()
-  const failed = scored.map(() => new Set<number>())
-  scored.forEach((out, i) => {
-    for (const l of out) {
-      const m = VERDICT.exec(l)
-      if (!m) continue
-      const line = Number(m[1])
-      if (m[2] === 'PASS' || (m[2] === 'FAIL' && m[3] !== undefined)) marked.add(line)
-      if (m[2] === 'FAIL' && Number(m[3]) === turn) failed[i]?.add(line)
-    }
-  })
-  return [...marked]
-    .sort((a, b) => a - b)
-    .map((line) => ({
-      line,
-      fails: failed.filter((f) => f.has(line)).length,
-      samples: scored.length,
-    }))
-}
-
-export const formatRates = (rates: ReturnType<typeof failRates>): string =>
-  rates
-    .map(
-      (r) =>
-        `line ${r.line}: ${r.fails} of ${r.samples} replies failed (${Math.round((100 * r.fails) / r.samples)}%)`,
-    )
-    .join('\n')
 
 // A hook that runs this (pre-push) sets GIT_DIR and friends, which would send a git call here to
 // the hook's repository instead of the sample's.
@@ -215,7 +178,12 @@ export const applyTree = (copy: string, root: string) => {
 // A sample folder has a run folder's shape, so turn.sh and scoreRun work on it unchanged. It
 // holds the run's transcript and raw streams up to the turn, which is how the scorer knows what
 // came earlier. Reads the run folder and root; writes only the sample.
-export const prepareSample = (run: string, turn: number, sample: string, root: string) => {
+export const prepareSample = (
+  run: string,
+  turn: number,
+  sample: string,
+  root: string,
+): string[] => {
   mkdirSync(sample, { recursive: true })
   const tar = sh('tar', ['-xzf', join(run, 'snap', `before${turn}.tgz`), '-C', sample])
   if (tar.status !== 0) throw new Error(`could not unpack the snapshot: ${tar.stderr}`)
@@ -237,8 +205,10 @@ export const prepareSample = (run: string, turn: number, sample: string, root: s
     writeFileSync(join(sample, 'session.id'), sessionAfter(run, turn - 1))
     writeFileSync(join(sample, 'costlog.txt'), `turn ${turn - 1} ${costAfter(run, turn - 1)}\n`)
   }
+  const swapped = swapSkillsInSample(sample, root)
   applyTree(join(sample, 'copy'), root)
   sh('chmod', ['-R', 'a+rwX', sample])
+  return swapped
 }
 
 const stamp = () => `[${new Date().toTimeString().slice(0, 8)}]`
@@ -350,7 +320,8 @@ export const replayCommand = (args: string[]): number => {
       console.log(
         `${stamp()} sample ${i} of ${n} (expected 1-3 min); folder ${sample}, tail -f ${sample}/raw/turn${turn}.jsonl`,
       )
-      prepareSample(run, turn, sample, root)
+      const swapped = prepareSample(run, turn, sample, root)
+      console.log(`${stamp()} sample ${i}: ${describeSwap(swapped)}`)
       return { sample, spend: runSample({ run, turn, sample, hasPackages, remaining }) }
     },
   })
