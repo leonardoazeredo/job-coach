@@ -118,9 +118,16 @@ const makeRunFolder = (name: string, opts: { turn1?: boolean } = {}) => {
     'copy',
     'claudehome',
   ])
-  const result = (sid: string) => `{"type":"result","session_id":"${sid}","total_cost_usd":1}\n`
+  // A real stream: an init line that already holds a session id, a line that is not JSON, and a
+  // result line that starts with another key and carries `type` further along.
+  const stream = (sid: string) =>
+    [
+      `{"type":"system","subtype":"init","session_id":"init-${sid}"}`,
+      'not json at all',
+      `{"duration_api_ms":9,"stop_reason":"end_turn","session_id":"${sid}","total_cost_usd":1,"type":"result"}`,
+    ].join('\n')
   for (const n of [1, 2, 3]) {
-    writeFileSync(join(run, 'raw', `turn${n}.jsonl`), result(`sid-${n}`))
+    writeFileSync(join(run, 'raw', `turn${n}.jsonl`), `${stream(`sid-${n}`)}\n`)
     writeFileSync(join(run, 'raw', `reply${n}.txt`), `message ${n}\n`)
   }
   writeFileSync(
@@ -177,6 +184,14 @@ describe('preparing a sample', () => {
     expect(transcript).toContain('## Turn 2')
     expect(transcript).not.toContain('## Turn 3')
     expect(readFileSync(join(sample, 'engine', 'HEAD'), 'utf8')).toBe('ref\n')
+  })
+
+  it('refuses a stream with no result line in one plain line', () => {
+    const bare = makeRunFolder('no-result')
+    writeFileSync(join(bare, 'raw', 'turn2.jsonl'), '{"type":"system","session_id":"x"}\n')
+    expect(() => prepareSample(bare, 3, join(tmp, 'sample-no-result'), join(tmp, 'tree'))).toThrow(
+      'raw/turn2.jsonl holds no result with a session id',
+    )
   })
 
   it('names what a run lacks for a replay', () => {

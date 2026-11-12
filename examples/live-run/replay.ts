@@ -24,6 +24,7 @@ import { basename, join } from 'node:path'
 import { EXIT } from '../../scripts/lib/problem.ts'
 import { repoRoot } from '../../scripts/lib/workspace.ts'
 import { scoreRun } from './score.ts'
+import { resultSessionId } from './stream.ts'
 
 const USAGE = 'usage: node examples/live-run/replay.ts <run-dir> <turn> [n]'
 const HERE = import.meta.dirname
@@ -100,12 +101,9 @@ const sh = (cmd: string, args: string[], cwd?: string) =>
 
 // The session id a turn ended with is in the result line of its raw stream.
 const sessionAfter = (run: string, turn: number): string => {
-  for (const line of readFileSync(join(run, 'raw', `turn${turn}.jsonl`), 'utf8').split('\n')) {
-    if (!line.startsWith('{"type":"result"')) continue
-    const id = JSON.parse(line).session_id
-    if (typeof id === 'string' && id !== '') return id
-  }
-  throw new Error(`raw/turn${turn}.jsonl holds no result with a session id`)
+  const id = resultSessionId(readFileSync(join(run, 'raw', `turn${turn}.jsonl`), 'utf8'))
+  if (id === undefined) throw new Error(`raw/turn${turn}.jsonl holds no result with a session id`)
+  return id
 }
 
 // The cost line a turn left in costlog.txt is the session's running total; undefined when the
