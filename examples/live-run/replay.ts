@@ -86,13 +86,12 @@ export const sampleSpend = (costlog: string, turn: number, base: number): number
 }
 
 // turn.sh stops when the log's total reaches its budget. The sample's log starts at the run's
-// total before the turn, so the replay's budget is added to it. Every sample gets the same value:
-// the claude command writes the budget into the last message of the turn, where the cache mark
-// sits, so a budget that shrinks from sample to sample makes every sample miss the cache the
-// first one wrote. The value depends only on the run's total before the turn and the replay's
-// budget, so a later invocation with the same setting sends the same text too. The stop between
-// samples (replaySamples) ends the replay once the budget is reached; one sample may itself spend
-// up to the whole budget, so a replay can end one budget over.
+// total before the turn, so the replay's budget is added to it. Every sample gets the same value,
+// made only of the run's total before the turn and the replay's budget, so a later invocation with
+// the same setting gets it too. Measured: a budget that differed between samples made each sample
+// re-write the prompt cache; see the cost note in README.md. The stop between samples
+// (replaySamples) ends the replay once the budget is reached; one sample may itself spend up to
+// the whole budget, so a replay can end one budget over.
 export const turnBudget = (base: number, budget: number): number => base + budget
 
 type Sample = { sample: string; spend: number }

@@ -15,7 +15,7 @@ export const resultSessionId = (stream: string): string | undefined => {
 }
 
 // The tokens a turn read from and wrote to the prompt cache, from the usage on the result line of
-// its raw stream (the claude command sums the turn's model calls there). A stream with no usable
+// its raw stream, which held the sum over the turn's model calls in the runs measured. A stream with no usable
 // result line counts as none.
 export const cacheTokens = (stream: string): { read: number; written: number } => {
   for (const line of stream.split('\n')) {
