@@ -21,7 +21,7 @@ const skills = (name: string, files: Record<string, string>) => {
 }
 
 // Lines as the coach stores them: one JSON object per line.
-const sessionLines = (body: string) => [
+const sessionLines = (body: string): [string, string, string] => [
   JSON.stringify({ type: 'user', message: { content: 'hello' }, note: 'keep é \\ "' }),
   JSON.stringify({
     type: 'user',
@@ -54,6 +54,19 @@ describe('swapping loaded skills in a saved conversation', () => {
     // The assistant line quotes the same text; only the skill's own message is a swap target.
     const expected = [lines[0], sessionLines(NEW)[1], lines[2]]
     expect(readFileSync(file, 'utf8')).toBe(`${expected.join('\n')}\n`)
+  })
+
+  it('swaps every line that loads the skill and names it once', () => {
+    const [first, load, last] = sessionLines(OLD)
+    const file = session('twice.jsonl', [first, load, load, last])
+    const swapped = swapLoadedSkills(
+      file,
+      skills('twice-old', { voice: FRONT + OLD }),
+      skills('twice-new', { voice: FRONT + NEW }),
+    )
+    expect(swapped).toEqual(['voice'])
+    const loaded = sessionLines(NEW)[1]
+    expect(readFileSync(file, 'utf8')).toBe(`${[first, loaded, loaded, last].join('\n')}\n`)
   })
 
   it('leaves the file untouched when the working tree text equals the run’s', () => {
