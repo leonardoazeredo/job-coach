@@ -29,7 +29,7 @@ describe('the live-run comment builder', () => {
     expect(out.status).toBe(0)
     expect(out.stdout.trim()).toBe(join(run, 'comment.md'))
     const text = readFileSync(join(run, 'comment.md'), 'utf8')
-    expect(text).toContain('`9d686bb`, 8 turns, `$1.4213`')
+    expect(text).toContain('`9d686bb`, 9 turns, `$1.4213`')
     expect(text).toContain('**Failed, line 26:**\n\n```\nT15, T16, T17\nT15 "The user said')
     expect(text).toContain('T59 "Title: Senior Transport Planner"')
     expect(text).toContain('profile/voice.md:2 "She opens with the point."')

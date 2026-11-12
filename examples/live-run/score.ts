@@ -106,7 +106,19 @@ const ORDINAL =
   /\b(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|last) (?:one|achievement)\b/i
 const PRONOUN = /\b(he|she|him|his|her|hers|himself|herself|they|them|their|theirs|themselves)\b/i
 const WORKING_WORD = /\b(drafts?|files?)\b|\b[\w-]+\.(?:ya?ml|md|json|ts|txt)\b|the draft says/i
-const NOTE_TO_SELF = /\bThe user said\b/
+// The coach speaks to the person, so a sentence that calls them "the user" is a note to itself.
+// "user name", "username" and "user-facing" are not a name for the person.
+const NOTE_TO_SELF = /\bthe user\b(?!\s*-?\s*name\b|-facing)/i
+// "skill" is the coach's working word only when a determiner joins it to load or run, with at
+// most one word before a singular "skill" ("the update skill"), or when a skill's name comes
+// before it; the person's own skills ("your skills", "run any skills") stay unmarked.
+const SKILL_NAMES =
+  'application-writer|company-research|correspondence|cv-for-role|cv-tailor|experience-mining|interview-debrief|interview-practice|interview-prep|job-intake|offer-review|onboarding|pipeline-board|pipeline-update|role-triage|take-home|update-coach'
+const SKILL_WORD = new RegExp(
+  `\\b(?:load|loads|loaded|loading|run|runs|running|ran)\\s+(?:the|a|an|this|that|its|each)\\s+(?:skills(?![\\w-])|(?:[\\w-]+\\s+)?skill(?![\\w-]))|\\b(?:${SKILL_NAMES})\\s+skill(?![\\w-])`,
+  'i',
+)
+const workingNote = (s: string) => NOTE_TO_SELF.test(s) || SKILL_WORD.test(s)
 const UPDATE_STEP =
   /\bI'll (?:load|run|use|read|check|start)\b|\bthe update steps\b|\bKeep both:|\bupstream\b/i
 
@@ -130,8 +142,7 @@ const scoreTurn = (t: Turn, firstWins: number | undefined): Finding[] => {
   }
   const ordinalsApply = firstWins !== undefined && t.n >= firstWins
   for (const s of sentences(outside)) {
-    if (WORKING_WORD.test(s) || NOTE_TO_SELF.test(s))
-      found.push({ line: 26, turn: t.n, text: plain(s) })
+    if (WORKING_WORD.test(s) || workingNote(s)) found.push({ line: 26, turn: t.n, text: plain(s) })
     if (ordinalsApply && ORDINAL.test(s)) found.push({ line: 28, turn: t.n, text: plain(s) })
   }
   return found
@@ -168,8 +179,7 @@ const scoreUpdate = (turns: Turn[]): Finding[] => {
   const found: Finding[] = []
   for (const t of turns) {
     for (const s of sentences(t.reply.replace(/\n/g, ' '))) {
-      if (UPDATE_STEP.test(s) || NOTE_TO_SELF.test(s))
-        found.push({ line: 13, turn: t.n, text: plain(s) })
+      if (UPDATE_STEP.test(s) || workingNote(s)) found.push({ line: 13, turn: t.n, text: plain(s) })
     }
   }
   return found
