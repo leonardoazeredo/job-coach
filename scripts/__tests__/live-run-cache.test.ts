@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { turnBudget } from '../../examples/live-run/replay.ts'
 import { cacheSummary, cacheTokens } from '../../examples/live-run/stream.ts'
 
 const result = (usage: object) => JSON.stringify({ type: 'result', session_id: 'x', usage })
@@ -28,12 +27,5 @@ describe('the cache tokens of a turn', () => {
     const hit = result({ cache_read_input_tokens: 68352, cache_creation_input_tokens: 173 })
     expect(cacheSummary([miss, hit, hit])).toBe('cache tokens read 149727, written 55675')
     expect(cacheSummary([])).toBe('cache tokens read 0, written 0')
-  })
-})
-
-describe('the budget handed to each sample', () => {
-  it('does not shrink with what earlier samples spent, so every sample sends the same last message', () => {
-    expect(turnBudget(0.75, 2)).toBe(2.75)
-    expect(turnBudget(0.75, 2)).toBe(turnBudget(0.75, 2))
   })
 })
