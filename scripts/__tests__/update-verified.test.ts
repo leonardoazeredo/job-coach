@@ -1,7 +1,10 @@
+import { rmSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { gitIn } from '../lib/history.ts'
 import { updateFromArchive } from '../lib/update.ts'
 import { engineChanges, finishUpdate, mergeEngine } from '../lib/update-git.ts'
+import type { Run } from '../lib/verified-update.ts'
 import {
   cloned,
   DATA,
@@ -23,21 +26,42 @@ const NEW_PROMPT = 'new prompt\n'
 const zipFailsAfter = (call: number) => call === 2
 const mergeFailsAfter = (call: number) => call === 1
 
+// What the update checked, in order, across its steps.
+const CHECK = 'node scripts/check.ts'
+
+// A failed restore: the zip backup is gone, and git's reset refuses to overwrite a changed file.
 const scenarios = {
-  'a folder with no history (zip)': async () => {
+  'a folder with no history (zip)': async (undoBreaks: boolean) => {
     put(work(), { ...DATA, ...OLD_ENGINE })
     put(upstream(), { ...OLD_ENGINE, 'CLAUDE.md': NEW_PROMPT })
-    const { run } = runner(zipFailsAfter)
-    return updateFromArchive(work(), { now, source: source(), run })
+    const { run, calls } = runner(zipFailsAfter)
+    const breaking: Run = (cmd, args) => {
+      const ran = run(cmd, args)
+      if (undoBreaks && calls.length === 2)
+        rmSync(join(work(), '.coach/backups'), { recursive: true })
+      return ran
+    }
+    return {
+      result: await updateFromArchive(work(), { now, source: source(), run: breaking }),
+      calls,
+    }
   },
-  'a folder with history (merge)': async () => {
+  'a folder with history (merge)': async (undoBreaks: boolean) => {
     cloned()
     engineCommit({ 'CLAUDE.md': NEW_PROMPT }, 'Sharper prompt')
     const git = gitIn(work())
     if (!git) throw new Error('no git')
     engineChanges(git, { url: upstream() })
-    mergeEngine(work(), git, { url: upstream(), run: runner().run })
-    return finishUpdate(work(), git, { run: runner(mergeFailsAfter).run })
+    const merge = runner()
+    mergeEngine(work(), git, { url: upstream(), run: merge.run })
+    const finish = runner(mergeFailsAfter)
+    const breaking: Run = (cmd, args) => {
+      const ran = finish.run(cmd, args)
+      if (undoBreaks) writeFileSync(join(work(), 'CLAUDE.md'), 'edited meanwhile\n')
+      return ran
+    }
+    const result = finishUpdate(work(), git, { run: breaking })
+    return { result, calls: [...merge.calls, ...finish.calls] }
   },
 }
 
@@ -45,12 +69,24 @@ describe('a verified update', () => {
   it.each(Object.entries(scenarios))(
     'is undone when the check fails after it, for %s',
     async (_name, scenario) => {
-      const result = await scenario()
+      const { result, calls } = await scenario(false)
       expect(result).toMatchObject({
         kind: 'undone',
         output: 'pipeline/acme: status is not a known status',
       })
       expect(read('CLAUDE.md')).toBe('old prompt\n')
+      expect(calls).toEqual([CHECK, CHECK])
+    },
+  )
+
+  it.each(Object.entries(scenarios))(
+    'is reported not undone when the old version cannot be put back, for %s',
+    async (_name, scenario) => {
+      const { result } = await scenario(true)
+      expect(result.kind).toBe('not-undone')
+      if (!('output' in result)) throw new Error(result.kind)
+      expect(result.output).toContain('pipeline/acme: status is not a known status')
+      expect(read('CLAUDE.md')).not.toBe('old prompt\n')
     },
   )
 })

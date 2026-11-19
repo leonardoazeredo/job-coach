@@ -295,6 +295,35 @@ describe('mergeEngine and finishUpdate', () => {
     error.mockRestore()
   })
 
+  // The records are checked only when a merge is about to start, so these answers stay as they are
+  // even when the records are broken.
+  it('leaves the check out of a merge that has nothing fetched', () => {
+    const none = runner(() => true)
+    templated()
+    expect(mergeEngine(work(), gitOf(), { url: upstream(), run: none.run })).toEqual({
+      kind: 'not-fetched',
+    })
+    expect(none.calls).toEqual([])
+  })
+
+  it('leaves the check out of a merge that has nothing to merge or is already open', () => {
+    const none = runner(() => true)
+    const broken = { url: upstream(), run: none.run }
+    cloned()
+    const git = gitOf()
+    expect(mergeEngine(work(), git, broken)).toEqual({ kind: 'latest' })
+
+    userCommit({ 'config/rules.yaml': 'stale_after_days: 30\n' }, 'Saved: settings')
+    engineCommit({ 'config/rules.yaml': 'stale_after_days: 21\n' }, 'New default')
+    engineChanges(git, opts())
+    expect(mergeEngine(work(), git, mergeOpts())).toMatchObject({ kind: 'clashes' })
+    expect(mergeEngine(work(), git, broken)).toMatchObject({
+      kind: 'clashes',
+      files: ['config/rules.yaml'],
+    })
+    expect(none.calls).toEqual([])
+  })
+
   it('refuses to take a side of a file that does not clash', () => {
     cloned()
     userCommit({ 'config/rules.yaml': 'stale_after_days: 30\n' }, 'Saved: settings')

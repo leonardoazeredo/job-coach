@@ -95,7 +95,22 @@ describe('updateFromArchive', () => {
     })
     if (result.kind !== 'not-undone') throw new Error(result.kind)
     expect(result.output).toContain('pipeline/acme: status is not a known status')
+    expect(result.output).toMatch(/ENOENT/)
     expect(read('CLAUDE.md')).toBe('new prompt\n')
+  })
+
+  it('still reinstalls once, from whatever lock file is in place, when the restore fails', async () => {
+    put(upstream(), { 'package-lock.json': '{"v":2}\n' })
+    const calls: string[] = []
+    const run: Run = (cmd, args) => {
+      calls.push([cmd, ...args].join(' '))
+      if (calls.length < 3) return { ok: true, output: '' }
+      if (calls.length === 3) rmSync(join(work(), '.coach/backups'), { recursive: true })
+      return { ok: calls.length !== 3, output: 'check failed' }
+    }
+    const result = await updateFromArchive(work(), { now, source: source(), run })
+    expect(result.kind).toBe('not-undone')
+    expect(calls).toEqual(['node scripts/check.ts', 'npm ci', 'node scripts/check.ts', 'npm ci'])
   })
 
   it('reinstalls the old dependencies when it undoes a lockfile change', async () => {

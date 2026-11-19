@@ -46,7 +46,7 @@ export const keepOrUndo = (root: string, run: Run, update: Update): Verified => 
   const after = install.ok ? recordCheck(root, run) : install
   if (after.ok) return { kind: 'updated' }
   const failure = update.undo()
-  // The old lock file is back by now, so the old dependencies are installed again.
+  // Installs whatever lock file is in place: the old one, unless the undo failed.
   if (update.lockChanged) run('npm', ['ci'])
   if (failure !== undefined) return { kind: 'not-undone', output: `${after.output}\n${failure}` }
   return { kind: 'undone', output: after.output }
