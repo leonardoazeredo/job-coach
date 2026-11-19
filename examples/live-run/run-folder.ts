@@ -145,11 +145,15 @@ export const readSession = (run: string): string => readIf(join(run, 'session.id
 
 // ---- the transcript ----
 
-// Each line of a text gets the "> " prefix.
-const quoted = (text: string): string => {
-  const rows = text === '' ? [] : text.replace(/\n$/, '').split('\n')
-  return rows.map((l) => `> ${l}\n`).join('')
-}
+// Each line of a text gets the "> " prefix, and the text keeps its own ending: a trailing newline
+// stays one and a missing one stays missing, as with `sed 's/^/> /'`.
+const quoted = (text: string): string =>
+  text === ''
+    ? ''
+    : text
+        .split('\n')
+        .map((l, i, all) => (i === all.length - 1 && l === '' ? '' : `> ${l}`))
+        .join('\n')
 
 export const transcriptBlock = (turn: number, persona: string, coach: string): string =>
   `## Turn ${turn}\n\n**Persona:**\n\n${quoted(persona)}\n**Coach:**\n\n${quoted(coach)}\n`

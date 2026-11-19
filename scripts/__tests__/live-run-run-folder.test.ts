@@ -96,7 +96,7 @@ describe('the transcript', () => {
   it('quotes each line of both sides, and reads the coach’s reply back without the quotes', () => {
     const block = transcriptBlock(2, 'ask\nmore\n', 'one\n\ntwo')
     expect(block).toBe(
-      '## Turn 2\n\n**Persona:**\n\n> ask\n> more\n\n**Coach:**\n\n> one\n> \n> two\n\n',
+      '## Turn 2\n\n**Persona:**\n\n> ask\n> more\n\n**Coach:**\n\n> one\n> \n> two\n',
     )
     const run = newRun()
     writeFileSync(join(run, 'transcript.md'), block + transcriptBlock(3, 'q', 'a'))
@@ -105,6 +105,22 @@ describe('the transcript', () => {
       { n: 3, reply: 'a' },
     ])
     expect(turnCount(run)).toBe(2)
+  })
+
+  it('matches byte for byte what the old sed and printf block wrote, with and without a trailing newline', () => {
+    // Taken from running that block with /usr/bin/sed on each pair of files.
+    const cases: [string, string, string][] = [
+      [
+        'ask\n',
+        'one\n\ntwo',
+        '## Turn 2\n\n**Persona:**\n\n> ask\n\n**Coach:**\n\n> one\n> \n> two\n',
+      ],
+      ['ask', 'one\n', '## Turn 2\n\n**Persona:**\n\n> ask\n**Coach:**\n\n> one\n\n'],
+      ['ask\nmore\n', 'one', '## Turn 2\n\n**Persona:**\n\n> ask\n> more\n\n**Coach:**\n\n> one\n'],
+      ['', '', '## Turn 2\n\n**Persona:**\n\n\n**Coach:**\n\n\n'],
+    ]
+    for (const [persona, coach, expected] of cases)
+      expect(transcriptBlock(2, persona, coach), JSON.stringify([persona, coach])).toBe(expected)
   })
 
   it('gives the blocks before a turn as written, whatever follows the heading', () => {
