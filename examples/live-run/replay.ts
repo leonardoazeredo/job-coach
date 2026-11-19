@@ -8,7 +8,8 @@
 // Needs Docker and CLAUDE_CODE_OAUTH_TOKEN in the environment: the token goes to each sample's
 // container through up.sh and is never printed. The stop (LIVE_RUN_BUDGET_USD, default 5) applies
 // to the sum of the samples' spend.
-// Exit codes: 64 usage, 66 the run folder lacks what a replay of that turn needs.
+// Exit codes: 64 usage, 66 the run folder lacks what a replay of that turn needs, 1 the image did not
+// build or a sample failed (the samples done before it are still printed).
 import { spawnSync } from 'node:child_process'
 import {
   cpSync,
@@ -85,36 +86,56 @@ export const sampleSpend = (costlog: string, turn: number, base: number): number
   return total - base
 }
 
-// turn.sh stops when the log's total reaches its budget. The sample's log starts at the run's
-// total before the turn, so the replay's budget is added to it. Every sample gets the same value,
-// made only of the run's total before the turn and the replay's budget, so a later invocation with
-// the same setting gets it too. Measured: a budget that differed between samples made each sample
-// re-write the prompt cache; see the cost note in README.md. The stop between samples
-// (replaySamples) ends the replay once the budget is reached; one sample may itself spend up to
-// the whole budget, so a replay can end one budget over.
-export const turnBudget = (base: number, budget: number): number => base + budget
+// What a sample came to: what it spent (counted even when it failed, because it was paid for) and,
+// when it did not finish, why.
+export type SampleOutcome = { spend: number; failure?: string }
 
-type Sample = { sample: string; spend: number }
+// The seam between the replay and what runs a sample. The real adapter is docker, up.sh and
+// turn.sh (dockerAdapter); a test gives a fake one. The replay hands over its budget once, and what
+// each sample may spend is the adapter's to work out; the replay sees only what a sample spent.
+export type ReplayAdapter = {
+  // undefined when the image is ready, else why it is not.
+  build: () => string | undefined
+  runSample: (sample: string) => SampleOutcome
+}
+export type AdapterJob = {
+  run: string
+  turn: number
+  hasPackages: boolean
+  budget: number
+  root: string
+}
+export type MakeAdapter = (job: AdapterJob) => ReplayAdapter
+
+type Sample = SampleOutcome & { sample: string }
 
 // Runs samples one after another until n are done, the budget is reached or one fails; what was
-// done is kept in every case, because it was paid for.
-export const replaySamples = (opts: {
+// done is kept in every case, and what a sample that failed after spending spent counts, because it
+// was paid for (a sample that throws before it runs spent nothing). The
+// stop is checked between samples only: one sample may itself spend up to the whole budget, so a
+// replay can end one budget over.
+const replaySamples = (opts: {
   n: number
   budget: number
-  runOne: (i: number, remaining: number) => Sample
+  runOne: (i: number) => Sample
 }): { done: string[]; spent: number; stop?: string; error?: string } => {
   const done: string[] = []
   let spent = 0
   for (let i = 1; i <= opts.n; i++) {
-    if (shouldStop(spent, opts.budget))
+    if (spent >= opts.budget)
       return { done, spent, stop: stopMessage(spent, opts.budget, i, opts.n) }
+    let r: Sample
     try {
-      const r = opts.runOne(i, opts.budget - spent)
-      spent += r.spend
-      done.push(r.sample)
+      r = opts.runOne(i)
     } catch (e) {
       return { done, spent, error: `sample ${i} failed: ${e instanceof Error ? e.message : e}` }
     }
+    spent += r.spend
+    if (r.failure !== undefined) {
+      const paid = r.spend > 0 ? ` (${r.spend.toFixed(3)} USD already spent)` : ''
+      return { done, spent, error: `sample ${i} failed: ${r.failure}${paid}` }
+    }
+    done.push(r.sample)
   }
   return { done, spent }
 }
@@ -128,12 +149,10 @@ export const parseBudget = (raw: string | undefined): number | string => {
     : `LIVE_RUN_BUDGET_USD must be a number above 0: "${raw}"`
 }
 
-export const shouldStop = (spent: number, budget: number): boolean => spent >= budget
-
-export const stopMessage = (spent: number, budget: number, i: number, n: number): string =>
+const stopMessage = (spent: number, budget: number, i: number, n: number): string =>
   `STOP: ${spent.toFixed(3)} spent, the stop is ${budget}. ${n - i + 1} samples were not run.`
 
-export const sampleFolder = (out: string, i: number): string => join(out, `${basename(out)}-s${i}`)
+const sampleFolder = (out: string, i: number): string => join(out, `${basename(out)}-s${i}`)
 
 const costAfter = (run: string, turn: number): number =>
   totalAfter(readFileSync(join(run, 'costlog.txt'), 'utf8'), turn) ?? 0
@@ -218,34 +237,71 @@ export const prepareSample = (
 
 const stamp = () => `[${new Date().toTimeString().slice(0, 8)}]`
 
-type SampleJob = {
-  run: string
-  turn: number
-  sample: string
-  hasPackages: boolean
-  budget: number
-}
-
-const runSample = ({ run, turn, sample, hasPackages, budget }: SampleJob): number => {
-  const container = `coach-live-run-${basename(sample)}`
-  const up = spawnSync(join(HERE, 'up.sh'), [sample], { stdio: ['ignore', 'ignore', 'inherit'] })
-  if (up.status !== 0) throw new Error('the sample container did not start')
-  try {
-    if (hasPackages) {
-      console.log(`${stamp()} installing the coach's packages (about 20 s)`)
-      const ci = sh('docker', ['exec', container, 'npm', 'ci', '--silent'])
-      if (ci.status !== 0) throw new Error("the coach's packages did not install")
-    }
-    const base = turn > 1 ? costAfter(run, turn - 1) : 0
-    const t = spawnSync(join(HERE, 'turn.sh'), [sample, String(turn), join(sample, 'reply.txt')], {
-      stdio: ['ignore', 'ignore', 'inherit'],
-      env: { ...process.env, LIVE_RUN_BUDGET_USD: String(turnBudget(base, budget)) },
-    })
-    if (t.status !== 0) throw new Error(`turn.sh failed (exit ${t.status}); see ${sample}/raw`)
-    return sampleSpend(readFileSync(join(sample, 'costlog.txt'), 'utf8'), turn, base)
-  } finally {
-    sh('docker', ['rm', '-f', container])
+// Every sample gets the same turn.sh budget: the run's total before the turn plus the replay's
+// budget, made of nothing else, so a later invocation with the same setting gets it too. Measured: a
+// budget that differed between samples made each sample re-write the prompt cache; see the cost
+// note in README.md. The sample's cost log starts at that total, so turn.sh's own stop cannot fire
+// here and claude's --max-budget-usd is the only cap a sample has.
+export const dockerAdapter: MakeAdapter = ({ run, turn, hasPackages, budget, root }) => {
+  const base = turn > 1 ? costAfter(run, turn - 1) : 0
+  const turnBudget = base + budget
+  // What a sample has spent so far, from the cost line turn.sh left for the turn; 0 when it left none.
+  const paid = (sample: string): number => {
+    const log = join(sample, 'costlog.txt')
+    const total = totalAfter(existsSync(log) ? readFileSync(log, 'utf8') : '', turn)
+    return total === undefined ? 0 : Math.max(total - base, 0)
   }
+  const lastLine = (text: string | null | undefined) => (text ?? '').trim().split('\n').pop() ?? ''
+
+  const build = (): string | undefined => {
+    const nvmrc = readFileSync(join(root, '.nvmrc'), 'utf8').trim()
+    const built = sh('docker', [
+      'build',
+      '-q',
+      '--build-arg',
+      `NODE_VERSION=${nvmrc}`,
+      '-t',
+      'coach-live-run',
+      HERE,
+    ])
+    return built.status === 0 ? undefined : lastLine(built.stderr) || 'docker build failed'
+  }
+
+  // undefined when turn.sh succeeded; else why not, with what the sample spent before it failed.
+  const runTurn = (sample: string): SampleOutcome | undefined => {
+    const t = spawnSync(join(HERE, 'turn.sh'), [sample, String(turn), join(sample, 'reply.txt')], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'inherit'],
+      env: { ...process.env, LIVE_RUN_BUDGET_USD: String(turnBudget) },
+    })
+    if (t.status === 0) return undefined
+    const why = lastLine(t.stdout)
+    return {
+      spend: paid(sample),
+      failure: `turn.sh failed (exit ${t.status})${why ? `: ${why}` : ''}; see ${sample}/raw/turn${turn}.err`,
+    }
+  }
+
+  const runSample = (sample: string): SampleOutcome => {
+    const container = `coach-live-run-${basename(sample)}`
+    const up = spawnSync(join(HERE, 'up.sh'), [sample], { stdio: ['ignore', 'ignore', 'inherit'] })
+    if (up.status !== 0) return { spend: 0, failure: 'the sample container did not start' }
+    try {
+      if (hasPackages) {
+        console.log(`${stamp()} installing the coach's packages (about 20 s)`)
+        const ci = sh('docker', ['exec', container, 'npm', 'ci', '--silent'])
+        if (ci.status !== 0) return { spend: 0, failure: "the coach's packages did not install" }
+      }
+      const failed = runTurn(sample)
+      if (failed !== undefined) return failed
+      return { spend: sampleSpend(readFileSync(join(sample, 'costlog.txt'), 'utf8'), turn, base) }
+    } catch (e) {
+      return { spend: paid(sample), failure: e instanceof Error ? e.message : String(e) }
+    } finally {
+      sh('docker', ['rm', '-f', container])
+    }
+  }
+  return { build, runSample }
 }
 
 // The arguments and the environment, checked before any Docker call; a number is the exit code.
@@ -294,27 +350,19 @@ const printResults = (turn: number, done: string[], spent: number) => {
   })
 }
 
-export const replayCommand = (args: string[]): number => {
+export const replayCommand = (args: string[], makeAdapter: MakeAdapter = dockerAdapter): number => {
   const checked = checkInputs(args)
   if (typeof checked === 'number') return checked
   const { run, turn, n, budget } = checked
   const root = repoRoot()
   const out = mkdtempSync(join(tmpdir(), `replay-${basename(run)}-t${turn}-`))
   const hasPackages = existsSync(join(run, 'snap', `before${turn}.packages`))
+  const adapter = makeAdapter({ run, turn, hasPackages, budget, root })
 
   console.log(`${stamp()} building the image (a few minutes the first time)`)
-  const nvmrc = readFileSync(join(root, '.nvmrc'), 'utf8').trim()
-  const built = sh('docker', [
-    'build',
-    '-q',
-    '--build-arg',
-    `NODE_VERSION=${nvmrc}`,
-    '-t',
-    'coach-live-run',
-    HERE,
-  ])
-  if (built.status !== 0) {
-    console.error('the image did not build; is Docker running?')
+  const notBuilt = adapter.build()
+  if (notBuilt !== undefined) {
+    console.error(`the image did not build; is Docker running? ${notBuilt}`)
     return EXIT.problems
   }
 
@@ -328,16 +376,14 @@ export const replayCommand = (args: string[]): number => {
       )
       const swapped = prepareSample(run, turn, sample, root)
       console.log(`${stamp()} sample ${i}: ${describeSwap(swapped)}`)
-      return { sample, spend: runSample({ run, turn, sample, hasPackages, budget }) }
+      return { sample, ...adapter.runSample(sample) }
     },
   })
   if (stop) console.log(stop)
   if (error) console.error(error)
-  if (done.length === 0) return EXIT.problems
-
-  printResults(turn, done, spent)
+  if (done.length > 0) printResults(turn, done, spent)
   console.log(`\nSamples are in ${out}`)
-  return 0
+  return error ? EXIT.problems : 0
 }
 
 if (import.meta.main) process.exitCode = replayCommand(process.argv.slice(2))
