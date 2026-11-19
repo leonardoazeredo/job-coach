@@ -11,7 +11,9 @@ import { type Command, openWorkspace, repoRoot } from './lib/workspace.ts'
 export const check: Command = async (args, workspace) => {
   const { roles, ...found } = workspace.check()
   const problems: Problem[] = [...found.problems]
-  if ((await workspace.visibility()) === 'public')
+  // The engine is public without GitHub being asked, so it warns even offline.
+  const copy = await workspace.onlineCopy()
+  if (copy === 'public' || copy === 'engine')
     problems.push({
       slug: 'profile',
       level: 'warning',
@@ -34,13 +36,13 @@ const main = async (args: string[]): Promise<number> => {
     console.error('usage: node scripts/check.ts [--warnings] [--root <dir>]')
     return EXIT.usage
   }
-  // --root skips the visibility probe. A root inside this checkout, such as
-  // examples/austin-backend, has no remote of its own, so the probe would report this
+  // --root skips the online-copy lookup. A root inside this checkout, such as
+  // examples/austin-backend, has no remote of its own, so the lookup would report this
   // checkout's origin, the public template. A root outside this checkout loses the
   // public-repo warning too.
   return check(
     args,
-    openWorkspace(resolve(repoRoot(), dir), async () => undefined),
+    openWorkspace(resolve(repoRoot(), dir), async () => 'none'),
   )
 }
 

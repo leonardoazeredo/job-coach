@@ -5,14 +5,14 @@ import { describe, expect, it, vi } from 'vitest'
 import { gitHubRepo } from '../lib/history.ts'
 import { save } from '../lib/save.ts'
 import { saveCommand } from '../save.ts'
-import { checkout, commits, dir, git, neverPublic, work, write } from './save-helpers.ts'
+import { checkout, commits, dir, git, privateCopy, work, write } from './save-helpers.ts'
 
 describe('save', () => {
   it('commits the data folders with the message, and leaves engine edits alone', async () => {
     checkout()
     write('pipeline/acme/record.yaml', 'status: Applied\n')
     write('README.md', 'edited engine\n')
-    const result = await save(work(), { message: 'Recorded: applied to Acme', probe: neverPublic })
+    const result = await save(work(), { message: 'Recorded: applied to Acme', lookup: privateCopy })
     expect(result).toEqual({ kind: 'saved', online: 'no-copy' })
     expect(commits()).toBe(2)
     expect(git('log', '-1', '--format=%s')).toBe('Recorded: applied to Acme')
@@ -22,7 +22,7 @@ describe('save', () => {
   it('saves engine edits too with everything', async () => {
     checkout()
     write('README.md', 'edited engine\n')
-    await save(work(), { message: 'Saved before updating', everything: true, probe: neverPublic })
+    await save(work(), { message: 'Saved before updating', everything: true, lookup: privateCopy })
     expect(git('status', '--porcelain')).toBe('')
   })
 
@@ -30,7 +30,7 @@ describe('save', () => {
     checkout()
     mkdirSync(join(work(), 'cv'))
     write('pipeline/acme/record.yaml', 'status: Applied\n')
-    const result = await save(work(), { message: 'x', probe: neverPublic })
+    const result = await save(work(), { message: 'x', lookup: privateCopy })
     expect(result).toEqual({ kind: 'saved', online: 'no-copy' })
     expect(commits()).toBe(2)
   })
@@ -41,14 +41,14 @@ describe('save', () => {
     git('add', '.')
     git('commit', '-q', '-m', 'acme')
     git('mv', 'pipeline/acme', 'pipeline/acme-corp')
-    await save(work(), { message: 'x', probe: neverPublic })
+    await save(work(), { message: 'x', lookup: privateCopy })
     expect(git('status', '--porcelain')).toBe('')
     expect(commits()).toBe(3)
   })
 
   it('makes no commit when nothing changed', async () => {
     checkout()
-    expect(await save(work(), { message: 'x', probe: neverPublic })).toEqual({ kind: 'nothing' })
+    expect(await save(work(), { message: 'x', lookup: privateCopy })).toEqual({ kind: 'nothing' })
     expect(commits()).toBe(1)
   })
 })
@@ -80,7 +80,7 @@ describe('save outside its own checkout', () => {
     git('config', '--unset', 'user.email')
     git('config', '--unset', 'user.name')
     write('profile/coach.md', 'hello\n')
-    expect((await save(work(), { message: 'x', probe: neverPublic })).kind).toBe('saved')
+    expect((await save(work(), { message: 'x', lookup: privateCopy })).kind).toBe('saved')
     expect(git('log', '-1', '--format=%ae')).toBe('job-coach@localhost')
   })
 
@@ -90,7 +90,7 @@ describe('save outside its own checkout', () => {
     writeFileSync(hook, '#!/bin/sh\necho "record.yaml: status is not a known status" >&2\nexit 1\n')
     chmodSync(hook, 0o755)
     write('pipeline/acme/record.yaml', 'status: Nope\n')
-    const result = await save(work(), { message: 'x', probe: neverPublic })
+    const result = await save(work(), { message: 'x', lookup: privateCopy })
     expect(result).toEqual({ kind: 'refused', output: 'record.yaml: status is not a known status' })
     expect(commits()).toBe(1)
   })
@@ -106,7 +106,7 @@ describe('save online copy', () => {
   it('pushes to a private online copy', async () => {
     execFileSync('git', ['init', '-q', '--bare', join(dir, 'online.git')])
     withOrigin(join(dir, 'online.git'))
-    const result = await save(work(), { message: 'x', probe: neverPublic })
+    const result = await save(work(), { message: 'x', lookup: privateCopy })
     expect(result).toEqual({ kind: 'saved', online: 'pushed' })
     expect(
       execFileSync('git', ['-C', join(dir, 'online.git'), 'log', '-1', '--format=%s', 'main'], {
@@ -115,36 +115,29 @@ describe('save online copy', () => {
     ).toBe('x')
   })
 
-  it('never pushes to a copy GitHub reports as public', async () => {
-    withOrigin('git@github.com:someone/my-copy.git')
-    const asked: string[] = []
-    const probe = async (repo: string) => {
-      asked.push(repo)
-      return true
-    }
-    expect(await save(work(), { message: 'x', probe })).toEqual({
+  // The origin's address is read by the online-copy lookup; Save only turns its answer into push or hold.
+  it.each([
+    ['a copy GitHub reports as public', 'public'],
+    ['the engine itself', 'engine'],
+  ] as const)('never pushes to %s', async (_what, copy) => {
+    execFileSync('git', ['init', '-q', '--bare', join(dir, 'online.git')])
+    withOrigin(join(dir, 'online.git'))
+    expect(await save(work(), { message: 'x', lookup: async () => copy })).toEqual({
       kind: 'saved',
       online: 'public',
     })
-    expect(asked).toEqual(['someone/my-copy'])
-  })
-
-  it('never pushes to the engine, without asking GitHub', async () => {
-    withOrigin('https://github.com/leonardoazeredo/job-coach.git')
-    const probe = async () => {
-      throw new Error('not asked')
-    }
-    expect(await save(work(), { message: 'x', probe })).toEqual({
-      kind: 'saved',
-      online: 'public',
-    })
+    expect(
+      execFileSync('git', ['-C', join(dir, 'online.git'), 'rev-list', '--all'], {
+        encoding: 'utf8',
+      }),
+    ).toBe('')
   })
 
   it('holds the push when GitHub cannot say whether the copy is public', async () => {
     execFileSync('git', ['init', '-q', '--bare', join(dir, 'online.git')])
     withOrigin('git@github.com:someone/my-copy.git')
     git('remote', 'set-url', '--push', 'origin', join(dir, 'online.git'))
-    const result = await save(work(), { message: 'x', probe: async () => undefined })
+    const result = await save(work(), { message: 'x', lookup: async () => 'unknown' })
     expect(result).toEqual({ kind: 'saved', online: 'unchecked' })
     expect(
       execFileSync('git', ['-C', join(dir, 'online.git'), 'rev-list', '--all'], {
@@ -153,20 +146,27 @@ describe('save online copy', () => {
     ).toBe('')
   })
 
-  it('never pushes to a GitHub address it cannot read', async () => {
-    withOrigin('https://github.com/someone')
-    const probe = async () => {
-      throw new Error('not asked')
-    }
-    expect(await save(work(), { message: 'x', probe })).toEqual({
+  it('pushes to a copy that is private or elsewhere, and holds when there is none', async () => {
+    execFileSync('git', ['init', '-q', '--bare', join(dir, 'online.git')])
+    withOrigin(join(dir, 'online.git'))
+    expect(await save(work(), { message: 'x', lookup: async () => 'elsewhere' })).toEqual({
       kind: 'saved',
-      online: 'unchecked',
+      online: 'pushed',
+    })
+  })
+
+  it('reports no online copy when the lookup finds none', async () => {
+    checkout()
+    write('pipeline/acme/record.yaml', 'status: Applied\n')
+    expect(await save(work(), { message: 'x', lookup: async () => 'none' })).toEqual({
+      kind: 'saved',
+      online: 'no-copy',
     })
   })
 
   it('reports a failed push with its output, keeping the local save', async () => {
     withOrigin(join(dir, 'missing.git'))
-    const result = await save(work(), { message: 'x', probe: neverPublic })
+    const result = await save(work(), { message: 'x', lookup: privateCopy })
     expect(result).toMatchObject({ kind: 'saved', online: 'failed' })
     expect(commits()).toBe(2)
   })
@@ -198,14 +198,14 @@ describe('save command first line', () => {
     checkout()
     onGitHub()
     write('pipeline/acme/record.yaml', 'status: Applied\n')
-    expect(await firstLine({ probe: neverPublic })).toBe('saved; the online copy is up to date')
+    expect(await firstLine({ lookup: privateCopy })).toBe('saved; the online copy is up to date')
   })
 
   it('says the online copy waits until it is confirmed private', async () => {
     checkout()
     onGitHub()
     write('pipeline/acme/record.yaml', 'status: Applied\n')
-    expect(await firstLine({ probe: async () => undefined })).toBe(
+    expect(await firstLine({ lookup: async () => 'unknown' })).toBe(
       'saved on this computer; the online copy waits until it is confirmed private',
     )
   })
@@ -214,7 +214,7 @@ describe('save command first line', () => {
     checkout()
     git('remote', 'add', 'origin', join(dir, 'missing.git'))
     write('pipeline/acme/record.yaml', 'status: Applied\n')
-    expect(await firstLine({ probe: neverPublic })).toBe(
+    expect(await firstLine({ lookup: privateCopy })).toBe(
       'saved on this computer; updating the online copy failed',
     )
   })

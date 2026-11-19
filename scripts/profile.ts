@@ -27,8 +27,8 @@ const readStdin = async (): Promise<string> => {
   return Buffer.concat(chunks).toString('utf8')
 }
 
-// The visibility probe is for check.ts's own warning; the record check needs none.
-const openQuiet: Open = (root) => openWorkspace(root, async () => undefined)
+// The online-copy lookup is for check.ts's own warning; the record check needs none.
+const openQuiet: Open = (root) => openWorkspace(root, async () => 'none')
 
 const UNITS: [string, number][] = [
   ['day', 24 * 60],

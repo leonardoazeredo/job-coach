@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach } from 'vitest'
+import type { OnlineCopy } from '../lib/online-copy.ts'
 
 // The hooks register in whichever test file imports this module, so every file gets a fresh
 // temp directory and a git environment cut off from the machine's own.
@@ -42,4 +43,13 @@ export const checkout = () => {
   git('commit', '-q', '-m', 'engine')
 }
 
-export const neverPublic = async () => false
+// The online copy as the test set it up: a private one when the folder has an origin, so a save
+// pushes to it, and none otherwise. Nothing asks GitHub.
+export const privateCopy = async (root: string): Promise<OnlineCopy> => {
+  try {
+    execFileSync('git', ['-C', root, 'remote', 'get-url', 'origin'], { stdio: 'ignore' })
+    return 'private'
+  } catch {
+    return 'none'
+  }
+}

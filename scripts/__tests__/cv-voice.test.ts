@@ -270,7 +270,7 @@ describe('a copy whose cv.yaml lacks the word lists', () => {
 describe('the example persona', () => {
   it('holds no voice finding in its built CVs', async () => {
     const root = resolve(import.meta.dirname, '../../examples/austin-backend')
-    const ws = openWorkspace(root, async () => undefined)
+    const ws = openWorkspace(root, async () => 'none')
     const found = [...ws.check().problems, ...ws.lintCvs().problems].filter((p) =>
       /pronoun|bracketed note|the figure holds/.test(p.message),
     )
