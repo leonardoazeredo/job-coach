@@ -160,6 +160,19 @@ describe('save online copy', () => {
     ).toBe('x')
   })
 
+  // No lookup is passed, so this runs the real one: an engine origin is known without asking GitHub.
+  it('never pushes to the engine when Save uses its own lookup', async () => {
+    execFileSync('git', ['init', '-q', '--bare', join(dir, 'online.git')])
+    withOrigin('https://github.com/leonardoazeredo/job-coach.git')
+    git('remote', 'set-url', '--push', 'origin', join(dir, 'online.git'))
+    expect(await save(work(), { message: 'x' })).toEqual({ kind: 'saved', online: 'public' })
+    expect(
+      execFileSync('git', ['-C', join(dir, 'online.git'), 'rev-list', '--all'], {
+        encoding: 'utf8',
+      }),
+    ).toBe('')
+  })
+
   it('reports no online copy when the lookup finds none', async () => {
     checkout()
     write('pipeline/acme/record.yaml', 'status: Applied\n')
