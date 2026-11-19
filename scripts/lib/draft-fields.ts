@@ -178,6 +178,11 @@ export const stepInto = (at: unknown, step: string | number): unknown => {
   return isObj(at) ? at[String(step)] : undefined
 }
 
+// A value's place in words, which the merge's problems and labelAt both use: where is "id in List"
+// for a value inside an item, empty for one at the top.
+export const named = (where: string, label: string) =>
+  where ? `"${label}" (${where})` : `"${label}"`
+
 // A key path in words, named the way the merge names a value.
 export const labelAt = (root: GroupField, path: (string | number)[], data: unknown): string => {
   let field: Field = root
@@ -193,5 +198,5 @@ export const labelAt = (root: GroupField, path: (string | number)[], data: unkno
     } else break
     if (field.t !== 'group') label = field.label
   }
-  return where ? `"${label}" (${where})` : `"${label}"`
+  return named(where, label)
 }
