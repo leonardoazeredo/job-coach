@@ -161,7 +161,13 @@ describe('the real sample runner', () => {
     rmSync(folder, { recursive: true, force: true })
     const r = spawnSync(join(import.meta.dirname, '../../examples/live-run', script), [folder], {
       encoding: 'utf8',
-      env: { ...process.env, ...env(), CLAUDE_CODE_OAUTH_TOKEN: 'not-a-real-token' },
+      // The scripts commit in a throwaway copy; the developer's signing settings must not matter.
+      env: {
+        ...process.env,
+        ...env(),
+        CLAUDE_CODE_OAUTH_TOKEN: 'not-a-real-token',
+        GIT_CONFIG_GLOBAL: '/dev/null',
+      },
     })
     expect(r.status, r.stderr).toBe(0)
     expect(readFileSync(join(folder, 'kind'), 'utf8')).toBe(`${kind}\n`)
