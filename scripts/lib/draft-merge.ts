@@ -12,6 +12,7 @@ import {
   idOf,
   isObj,
   type ListField,
+  named,
   type Obj,
   type ValueField,
 } from './draft-fields.ts'
@@ -31,7 +32,6 @@ type Ctx = {
 // What one key holds now, what the input gives for it, and the template's value there.
 type At = { base: unknown; given: unknown; tpl: unknown }
 
-const named = (where: string, label: string) => (where ? `"${label}" (${where})` : `"${label}"`)
 const labelOf = (field: Field, key: string): string => (field.t === 'group' ? key : field.label)
 const scalar = (v: unknown) => ['string', 'number', 'boolean'].includes(typeof v)
 const valueHoldsPlaceholder = (v: unknown) => holdsPlaceholder(JSON.stringify(v ?? null))

@@ -8,6 +8,7 @@ import {
   items,
   labelAt,
   list,
+  named,
   value,
 } from '../lib/draft-fields.ts'
 
@@ -95,5 +96,22 @@ describe('labelAt', () => {
 
   it('names a key the table does not name by the key as words', () => {
     expect(labelAt(root, ['right_to_work'], data)).toBe('"right to work"')
+  })
+})
+
+// The merge's problems and labelAt both word a value's place with this one source.
+describe('named', () => {
+  it('quotes the label alone when the value sits at the top', () => {
+    expect(named('', 'Name')).toBe('"Name"')
+  })
+
+  it('adds where the value sits, in brackets', () => {
+    expect(named('acme in Jobs', 'Title')).toBe('"Title" (acme in Jobs)')
+  })
+
+  it('is the wording labelAt gives for the same place', () => {
+    const data = { jobs: [{ id: 'acme', title: 'Engineer' }] }
+    expect(labelAt(root, ['jobs', 0, 'title'], data)).toBe(named('acme in Jobs', 'Title'))
+    expect(labelAt(root, ['name'], data)).toBe(named('', 'Name'))
   })
 })
