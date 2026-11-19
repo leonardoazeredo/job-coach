@@ -11,7 +11,7 @@ import { keepDraft, type Open, readIfThere } from './draft-store.ts'
 import { dataSummary, type Render, textSummary } from './draft-summary.ts'
 import { TABLES } from './draft-table.ts'
 import { yamlText } from './draft-yaml.ts'
-import { PLACEHOLDER } from './placeholder.ts'
+import { holdsPlaceholder } from './placeholder.ts'
 import { error, type Problem } from './problem.ts'
 import { describe } from './read-file.ts'
 import { repoRoot, type Workspace } from './workspace.ts'
@@ -202,7 +202,7 @@ export const makeDraft = (
     // it would be shown to them and read at the start of every session.
     const text = withoutComment(input)
     const before = existing === undefined ? undefined : withoutComment(existing)
-    shaped = text.includes(PLACEHOLDER)
+    shaped = holdsPlaceholder(text)
       ? { problems: still(file, ['The text']) }
       : { text, same: text === existing, summary: textSummary(before, text) }
   } else {
