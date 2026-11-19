@@ -17,6 +17,7 @@ import {
   turnCount,
   writeKind,
 } from '../../examples/live-run/run-folder.ts'
+import { EXIT } from '../lib/problem.ts'
 
 const tmp = mkdtempSync(join(tmpdir(), 'run-folder-'))
 afterAll(() => rmSync(tmp, { recursive: true, force: true }))
@@ -239,16 +240,16 @@ describe('the command line', () => {
       out: ['raw/turn2.jsonl: skipped 1 line that is not JSON'],
     })
     expect(capture(['record', run, '3', reply])).toEqual({
-      code: 2,
+      code: EXIT.data,
       out: [`turn 3 left no result; ${run}/raw/turn3.err and ${run}/raw/turn3.jsonl hold why`],
     })
   })
 
   it('refuses a call it does not understand with the usage code', () => {
     const run = newRun()
-    expect(runFolderCommand(['record', run])).toBe(64)
-    expect(runFolderCommand(['nope', run])).toBe(64)
-    expect(runFolderCommand([])).toBe(64)
+    expect(runFolderCommand(['record', run])).toBe(EXIT.usage)
+    expect(runFolderCommand(['nope', run])).toBe(EXIT.usage)
+    expect(runFolderCommand([])).toBe(EXIT.usage)
   })
 })
 

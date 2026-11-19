@@ -5,6 +5,7 @@
 // records or reads here; no other shell script parses these files.
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { EXIT } from '../../scripts/lib/problem.ts'
 
 // ---- the stream ----
 
@@ -246,7 +247,7 @@ export const runFolderCommand = (args: string[]): number => {
   const [verb, run, n, replyFile] = args
   if (run === undefined) {
     console.error(USAGE)
-    return 64
+    return EXIT.usage
   }
   if (verb === 'total') console.log(runningTotal(readCostLog(run)))
   else if (verb === 'session') console.log(readSession(run))
@@ -255,12 +256,12 @@ export const runFolderCommand = (args: string[]): number => {
     const r = recordTurn(run, Number(n), replyFile)
     if ('failure' in r) {
       console.log(r.failure)
-      return 2
+      return EXIT.data
     }
     if (r.note) console.log(r.note)
   } else {
     console.error(USAGE)
-    return 64
+    return EXIT.usage
   }
   return 0
 }
