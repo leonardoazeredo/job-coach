@@ -99,7 +99,7 @@ echo "$*" >> "${log}"
 case "$1" in
   build) [ "$FAKE_BUILD" = fail ] && { echo "Cannot connect to the Docker daemon" >&2; exit 1; }; exit 0 ;;
   run) [ "$FAKE_RUN" = fail ] && exit 125; exit 0 ;;
-  exec) ;;
+  exec) case "$*" in *' npm ci'*) [ "$FAKE_NPM" = fail ] && exit 1; exit 0 ;; esac ;;
   *) exit 0 ;;
 esac
 N=$(( $(cat "${log}.n" 2>/dev/null || echo 0) + 1 ))

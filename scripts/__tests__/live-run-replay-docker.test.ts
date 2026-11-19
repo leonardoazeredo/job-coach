@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
@@ -28,6 +28,12 @@ const dockerLines = (verb: string) =>
         .split('\n')
         .filter((l) => l.startsWith(`${verb} `))
     : []
+const everyStartedIsRemoved = () => {
+  const started = dockerLines('run').map((l) => /--name (\S+)/.exec(l)?.[1])
+  const removed = dockerLines('rm').map((l) => l.replace('rm -f ', ''))
+  expect(started.length).toBeGreaterThan(0)
+  expect(removed).toEqual(started)
+}
 const sampleFolders = (out: string[]) => {
   const line = out.find((l) => l.trim().startsWith('Samples are in ')) ?? ''
   return line.trim().replace('Samples are in ', '')
@@ -81,6 +87,7 @@ describe('the real sample runner', () => {
     )
     expect(failure).not.toMatch(/0\.95/)
     expect(r.err.some((l) => l.includes('(0.200 USD already spent)'))).toBe(true)
+    everyStartedIsRemoved()
     expect(r.out.some((l) => l.includes('over 1 replies (spend 0.300 USD'))).toBe(true)
   })
 
@@ -91,6 +98,7 @@ describe('the real sample runner', () => {
     expect(failure).toMatch(
       /^sample 2 failed: turn\.sh failed \(exit 1\): turn 3 left no result; [^;]*\/raw\/turn3\.err holds why$/,
     )
+    everyStartedIsRemoved()
   })
 
   it('says it could not start when the container does not', () => {
@@ -103,6 +111,25 @@ describe('the real sample runner', () => {
     const r = runReplay([run, '3', '3'], env({ FAKE_BUILD: 'fail' }))
     expect(r.code).toBe(1)
     expect(r.err.join('\n')).toContain('Cannot connect to the Docker daemon')
+  })
+
+  it('installs the packages the coach needs before the turn when the snapshot had them', () => {
+    writeFileSync(join(run, 'snap', 'before3.packages'), '')
+    const r = runReplay([run, '3', '1'], env({ LIVE_RUN_BUDGET_USD: '5' }))
+    expect(r.code).toBe(0)
+    const execs = dockerLines('exec')
+    expect(execs).toHaveLength(2)
+    expect(execs[0]).toMatch(/ npm ci --silent$/)
+    expect(execs[1]).toContain(' claude ')
+  })
+
+  it('says the packages did not install, runs no turn and removes the container', () => {
+    writeFileSync(join(run, 'snap', 'before3.packages'), '')
+    const r = runReplay([run, '3', '1'], env({ LIVE_RUN_BUDGET_USD: '5', FAKE_NPM: 'fail' }))
+    expect(r.code).toBe(1)
+    expect(r.err).toContain("sample 1 failed: the coach's packages did not install")
+    expect(dockerLines('exec')).toHaveLength(1)
+    everyStartedIsRemoved()
   })
 
   it('gives each sample a container name no other replay has', () => {

@@ -64,7 +64,7 @@ describe('the replay loop', () => {
     expect(r.out.some((l) => l.includes('over 1 replies (spend 0.100 USD'))).toBe(true)
   })
 
-  it('counts what a failed sample spent, and stops on it', () => {
+  it('counts what a failed sample spent in the total it prints', () => {
     const adapter = fakeAdapter({ failAt: { sample: 2, spend: 0.2, failure: 'budget' } })
     const r = runReplay([run, '3', '3'], { LIVE_RUN_BUDGET_USD: '5' }, adapter)
     expect(r.code).toBe(1)
@@ -81,14 +81,17 @@ describe('the replay loop', () => {
   })
 
   it('says why the image did not build and runs no sample', () => {
+    let ran = 0
     const adapter = () => ({
       build: () => 'no daemon',
       runSample: () => {
-        throw new Error('must not run')
+        ran++
+        return { spend: 0 }
       },
     })
     const r = runReplay([run, '3', '3'], {}, adapter)
     expect(r.code).toBe(1)
     expect(r.err).toContain('the image did not build; is Docker running? no daemon')
+    expect(ran).toBe(0)
   })
 })
