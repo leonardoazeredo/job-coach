@@ -31,7 +31,8 @@ export const checkBefore = (root: string, run: Run): string | undefined => {
 export type Verified =
   | { kind: 'updated' }
   | { kind: 'undone'; output: string }
-  // The check failed and putting the old version back failed too: the new one is still in place.
+  // The install or the check failed and putting the old version back failed too: the new version
+  // may still be wholly or partly in place.
   | { kind: 'not-undone'; output: string }
 
 export type Update = {

@@ -26,7 +26,7 @@ const NEW_PROMPT = 'new prompt\n'
 const zipFailsAfter = (call: number) => call === 2
 const mergeFailsAfter = (call: number) => call === 1
 
-// What the update checked, in order, across its steps.
+// The record check as the updaters run it; each updater's calls are compared with two of these.
 const CHECK = 'node scripts/check.ts'
 
 // A failed restore: the zip backup is gone, and git's reset refuses to overwrite a changed file.

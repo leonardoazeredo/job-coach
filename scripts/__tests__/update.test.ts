@@ -219,7 +219,7 @@ describe('updateCommand', () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     expect(await updateCommand(['zip'], work(), { now, source: source(), run })).toBe(EXIT.problems)
     expect(log.mock.calls[0]?.[0]).toBe(
-      'not undone: the record check failed after the update, and the files could not be put back; the old ones are in .coach/backups/2026-10-29T09-00-00-000Z',
+      'not undone: the install or the record check failed after the update, and the files could not be put back; the old ones are in .coach/backups/2026-10-29T09-00-00-000Z',
     )
     expect(String(error.mock.calls[0]?.[0])).toMatch(/^check failed\n/)
     log.mockRestore()

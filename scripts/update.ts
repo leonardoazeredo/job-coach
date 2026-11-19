@@ -27,7 +27,7 @@
 //            that putting back failed too.
 //   cancel   abandons a merge in progress; nothing changes.
 // Exit 64 on a usage error, zip in a folder that keeps history, or a history step in one without.
-// Exit 1 when an update did not start, was undone, could not fetch the new version or has clashes
+// Exit 1 when an update did not start, was undone or not undone, could not fetch the new version or has clashes
 // left, with the reason on stderr. Otherwise 0, including a check that got no answer.
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
@@ -191,7 +191,7 @@ const finishStep: Step = (git, root, _args, deps) => {
     case 'not-undone':
       return say(
         EXIT.problems,
-        'not undone: the record check failed after the update, and the folder could not be put back',
+        'not undone: the install or the record check failed after the update, and the folder could not be put back',
         result.output,
       )
   }
@@ -253,7 +253,7 @@ const printZip = (result: ZipResult): number => {
     case 'not-undone':
       return say(
         EXIT.problems,
-        `not undone: the record check failed after the update, and the files could not be put back; the old ones are in ${result.backup}`,
+        `not undone: the install or the record check failed after the update, and the files could not be put back; the old ones are in ${result.backup}`,
         result.output,
       )
   }

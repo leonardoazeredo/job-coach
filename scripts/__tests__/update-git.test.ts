@@ -311,7 +311,7 @@ describe('mergeEngine and finishUpdate', () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     expect(await updateCommand(['finish'], work(), { run })).toBe(EXIT.problems)
     expect(log.mock.calls[0]?.[0]).toBe(
-      'not undone: the record check failed after the update, and the folder could not be put back',
+      'not undone: the install or the record check failed after the update, and the folder could not be put back',
     )
     expect(String(error.mock.calls[0]?.[0])).toContain(
       'pipeline/acme: status is not a known status',
