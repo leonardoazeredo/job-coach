@@ -15,7 +15,7 @@ import {
   type Obj,
   type ValueField,
 } from './draft-fields.ts'
-import { PLACEHOLDER } from './placeholder.ts'
+import { holdsPlaceholder } from './placeholder.ts'
 
 export type Merged = { data: Obj; problems: string[]; remaining: string[] }
 
@@ -34,7 +34,7 @@ type At = { base: unknown; given: unknown; tpl: unknown }
 const named = (where: string, label: string) => (where ? `"${label}" (${where})` : `"${label}"`)
 const labelOf = (field: Field, key: string): string => (field.t === 'group' ? key : field.label)
 const scalar = (v: unknown) => ['string', 'number', 'boolean'].includes(typeof v)
-const holdsPlaceholder = (v: unknown) => JSON.stringify(v ?? null).includes(PLACEHOLDER)
+const valueHoldsPlaceholder = (v: unknown) => holdsPlaceholder(JSON.stringify(v ?? null))
 
 // A year-month or a day that the calendar does not have. Other texts (a year, "present") are not
 // dates the summary rewords, so they stay as written.
@@ -181,11 +181,11 @@ type Spot = { where: string; label: string }
 // A value, or a key the user chose, still holding the template's marker was never answered,
 // whatever its kind.
 const markers = (field: Field, v: unknown, spot: Spot, out: Set<string>) => {
-  if (!holdsPlaceholder(v)) return
+  if (!valueHoldsPlaceholder(v)) return
   if (field.t === 'items' && Array.isArray(v)) {
-    for (const item of v.filter(holdsPlaceholder)) {
+    for (const item of v.filter(valueHoldsPlaceholder)) {
       const id = String(idOf(field, item) ?? '')
-      const whole = typeof item === 'string' || id.includes(PLACEHOLDER)
+      const whole = typeof item === 'string' || holdsPlaceholder(id)
       if (whole) out.add(named(spot.where, spot.label))
       else markers(groupOf(field), item, { where: `${id} in ${field.label}`, label: '' }, out)
     }

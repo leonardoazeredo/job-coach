@@ -31,14 +31,14 @@ import {
   same,
   stepInto,
 } from './draft-fields.ts'
-import { PLACEHOLDER } from './placeholder.ts'
+import { holdsPlaceholder } from './placeholder.ts'
 
 type Commented = { comment?: string | null; commentBefore?: string | null }
 type Path = (string | number)[]
 type Change = { before: unknown; after: unknown }
 
 const keyOf = (pair: Pair): string => String(isScalar(pair.key) ? pair.key.value : pair.key)
-const isMark = (c: string | null | undefined) => c?.includes(PLACEHOLDER) === true
+const isMark = (c: string | null | undefined) => c != null && holdsPlaceholder(c)
 
 const childField = (field: Field | undefined, key: string): Field | undefined => {
   if (field?.t === 'group') return fieldIn(field.fields, key)

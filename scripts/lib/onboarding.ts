@@ -5,7 +5,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parse } from 'yaml'
-import { PLACEHOLDER } from './placeholder.ts'
+import { holdsPlaceholder, PLACEHOLDER } from './placeholder.ts'
 
 // Shown in place of a file when the identity names no pack, so the board says what to set.
 const NO_PACK = 'competency_pack in profile/identity.yaml'
@@ -85,7 +85,7 @@ const hasProposedWin = (path: string): boolean => {
 
 const hasPlaceholder = (path: string): boolean => {
   try {
-    return readFileSync(path, 'utf8').includes(PLACEHOLDER)
+    return holdsPlaceholder(readFileSync(path, 'utf8'))
   } catch {
     return false
   }
