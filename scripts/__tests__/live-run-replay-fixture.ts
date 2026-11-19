@@ -65,7 +65,8 @@ export const fakeAdapter =
 
 // Calls replayCommand with `env` set for the call, and says what it returned and printed.
 export const runReplay = (args: string[], env: Record<string, string>, adapter?: MakeAdapter) => {
-  const base = { CLAUDE_CODE_OAUTH_TOKEN: 'not-a-real-token', ...env }
+  // A budget from the developer's shell must not decide whether these runs pass.
+  const base = { CLAUDE_CODE_OAUTH_TOKEN: 'not-a-real-token', LIVE_RUN_BUDGET_USD: '5', ...env }
   const old = Object.fromEntries(Object.keys(base).map((k) => [k, process.env[k]]))
   Object.assign(process.env, base)
   const out = vi.spyOn(console, 'log').mockImplementation(() => undefined)
