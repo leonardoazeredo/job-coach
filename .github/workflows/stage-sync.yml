@@ -4,7 +4,7 @@ name: Stage follows issue state
 # workflows do not touch: they only move the per-project Status field.
 on:
   issues:
-    types: [closed, reopened]
+    types: [opened, closed, reopened]
 
 permissions:
   issues: write
@@ -16,12 +16,21 @@ jobs:
       - name: Set Stage
         env:
           GH_TOKEN: ${{ github.token }}
+          ACTION: ${{ github.event.action }}
           ISSUE_ID: ${{ github.event.issue.node_id }}
           OWNER: ${{ github.repository_owner }}
           REPO: ${{ github.event.repository.name }}
-          # Any close, completed or not planned, goes to Done; a reopen goes back to Todo.
+          # Any close, completed or not planned, goes to Done; a new or reopened issue goes to Todo.
           STAGE: ${{ github.event.action == 'closed' && 'Done' || 'Todo' }}
         run: |
+          if [ "$ACTION" = opened ]; then
+            # An issue opened with a Stage already chosen keeps it.
+            current=$(gh api graphql -f issue="$ISSUE_ID" -f query='
+              query($issue: ID!) {
+                node(id: $issue) { ... on Issue { issueFieldValues(first: 20) { nodes { ... on IssueFieldSingleSelectValue { field { ... on IssueFieldSingleSelect { name } } } } } } }
+              }' --jq '[.data.node.issueFieldValues.nodes[] | select(.field.name == "Stage")] | length')
+            [ "$current" = 0 ] || exit 0
+          fi
           option=$(gh api graphql -f owner="$OWNER" -f repo="$REPO" -f query='
             query($owner: String!, $repo: String!) {
               repository(owner: $owner, name: $repo) {
