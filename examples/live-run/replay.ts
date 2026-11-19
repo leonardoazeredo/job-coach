@@ -26,8 +26,17 @@ import { basename, join } from 'node:path'
 import { EXIT } from '../../scripts/lib/problem.ts'
 import { repoRoot } from '../../scripts/lib/workspace.ts'
 import { failRates, formatRates } from './rates.ts'
+import {
+  cacheSummary,
+  costLine,
+  readCostLog,
+  readStream,
+  runKind,
+  totalAfter,
+  transcriptBefore,
+  writeKind,
+} from './run-folder.ts'
 import { scoreRun } from './score.ts'
-import { cacheSummary, resultSessionId } from './stream.ts'
 import { describeSwap, swapSkillsInSample } from './swap.ts'
 
 const USAGE = 'usage: node examples/live-run/replay.ts <run-dir> <turn> [n]'
@@ -63,19 +72,11 @@ export const withoutGitVariables = (env: NodeJS.ProcessEnv): NodeJS.ProcessEnv =
 const sh = (cmd: string, args: string[], cwd?: string) =>
   spawnSync(cmd, args, { cwd, encoding: 'utf8', env: withoutGitVariables(process.env) })
 
-// The session id a turn ended with is in the result line of its raw stream.
+// The session id a turn ended with is in the result of its raw stream.
 const sessionAfter = (run: string, turn: number): string => {
-  const id = resultSessionId(readFileSync(join(run, 'raw', `turn${turn}.jsonl`), 'utf8'))
+  const id = readStream(readFileSync(join(run, 'raw', `turn${turn}.jsonl`), 'utf8')).sessionId
   if (id === undefined) throw new Error(`raw/turn${turn}.jsonl holds no result with a session id`)
   return id
-}
-
-// The cost line a turn left in costlog.txt is the session's running total; undefined when the
-// log has no line for the turn.
-export const totalAfter = (costlog: string, turn: number): number | undefined => {
-  const line = costlog.split('\n').find((l) => l.startsWith(`turn ${turn} `))
-  const total = line === undefined ? Number.NaN : Number(line.split(' ')[2])
-  return Number.isFinite(total) ? total : undefined
 }
 
 // What one sample spent: its running total at the turn less the run's total before the turn.
@@ -154,8 +155,7 @@ const stopMessage = (spent: number, budget: number, i: number, n: number): strin
 
 const sampleFolder = (out: string, i: number): string => join(out, `${basename(out)}-s${i}`)
 
-const costAfter = (run: string, turn: number): number =>
-  totalAfter(readFileSync(join(run, 'costlog.txt'), 'utf8'), turn) ?? 0
+const costAfter = (run: string, turn: number): number => totalAfter(readCostLog(run), turn) ?? 0
 
 // This checkout's CLAUDE.md and skills go into the sample's copy. They are committed there, as
 // start.sh's copy of a commit has them, dated like the copy's last commit so the order of a
@@ -215,22 +215,17 @@ export const prepareSample = (
   const tar = sh('tar', ['-xzf', join(run, 'snap', `before${turn}.tgz`), '-C', sample])
   if (tar.status !== 0) throw new Error(`could not unpack the snapshot: ${tar.stderr}`)
   for (const d of ['raw', 'cachehome', 'tmpd']) mkdirSync(join(sample, d), { recursive: true })
-  if (existsSync(join(run, 'engine'))) {
+  if (existsSync(join(run, 'engine')))
     cpSync(join(run, 'engine'), join(sample, 'engine'), { recursive: true })
-    // The scorer reads a run with a log as an update run.
-    mkdirSync(join(sample, 'written'))
-    writeFileSync(join(sample, 'written', 'log.txt'), '')
-  }
-  const blocks = readFileSync(join(run, 'transcript.md'), 'utf8').split(/(?=^## Turn \d+$)/m)
-  const before = (b: string) => Number(/^## Turn (\d+)$/m.exec(b)?.[1] ?? 0) < turn
-  writeFileSync(join(sample, 'transcript.md'), blocks.filter(before).join(''))
+  writeKind(sample, runKind(run))
+  writeFileSync(join(sample, 'transcript.md'), transcriptBefore(run, turn))
   for (let k = 1; k < turn; k++)
     if (existsSync(join(run, 'raw', `turn${k}.jsonl`)))
       cpSync(join(run, 'raw', `turn${k}.jsonl`), join(sample, 'raw', `turn${k}.jsonl`))
   cpSync(join(run, 'raw', `reply${turn}.txt`), join(sample, 'reply.txt'))
   if (turn > 1) {
     writeFileSync(join(sample, 'session.id'), sessionAfter(run, turn - 1))
-    writeFileSync(join(sample, 'costlog.txt'), `turn ${turn - 1} ${costAfter(run, turn - 1)}\n`)
+    writeFileSync(join(sample, 'costlog.txt'), costLine(turn - 1, costAfter(run, turn - 1)))
   }
   const swapped = swapSkillsInSample(sample, root)
   applyTree(join(sample, 'copy'), root)

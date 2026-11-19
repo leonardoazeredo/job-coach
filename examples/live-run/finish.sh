@@ -7,6 +7,7 @@ mkdir -p "$RUN/written/config"
 cp -R "$RUN/copy/profile" "$RUN/copy/cv" "$RUN/written/"
 cp -R "$RUN/copy/config/competencies" "$RUN/written/config/"
 [ -d "$RUN/copy/experience-bank" ] && cp -R "$RUN/copy/experience-bank" "$RUN/written/"
-tail -1 "$RUN/costlog.txt" | awk '{print "total_usd " $3}' | tee "$RUN/cost.txt"
-echo "turns $(grep -c '^## Turn' "$RUN/transcript.md")"
+HERE=$(cd "$(dirname "$0")" && pwd)
+echo "total_usd $(node "$HERE/run-folder.ts" total "$RUN")" | tee "$RUN/cost.txt"
+echo "turns $(node "$HERE/run-folder.ts" turns "$RUN")"
 find "$RUN/written" -type f

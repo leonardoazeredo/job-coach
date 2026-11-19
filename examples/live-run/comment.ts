@@ -17,6 +17,7 @@
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { EXIT } from '../../scripts/lib/problem.ts'
+import { turnCount } from './run-folder.ts'
 import { scoreRun } from './score.ts'
 
 const USAGE = 'usage: node examples/live-run/comment.ts <run-dir> [<previous-comment-or-report>]'
@@ -125,8 +126,7 @@ export const buildComment = (run: string, previousPath?: string): string => {
   // The file holds a float sum (1.2699870999999996); a value that is not a number is shown as is.
   const cost =
     Number.isFinite(Number(rawCost)) && rawCost !== '' ? `$${Number(rawCost).toFixed(2)}` : rawCost
-  const turns = (readFileSync(join(run, 'transcript.md'), 'utf8').match(/^## Turn \d+\s*$/gm) ?? [])
-    .length
+  const turns = turnCount(run)
   const flagged = [
     ...new Set(
       scoreRun(run).flatMap((l) => {

@@ -22,6 +22,7 @@ git -C "$C" diff "$BEFORE" -- config/rules.yaml >"$OUT/rules.diff" || true
 git -C "$C" diff --stat "$BEFORE" -- profile cv experience-bank pipeline >"$OUT/records.diff" || true
 git -C "$C" diff --stat "$BEFORE" >"$OUT/all.diff" || true
 
-tail -1 "$RUN/costlog.txt" | awk '{print "total_usd " $3}' | tee "$RUN/cost.txt"
-echo "turns $(grep -c '^## Turn' "$RUN/transcript.md")"
+HERE=$(cd "$(dirname "$0")" && pwd)
+echo "total_usd $(node "$HERE/run-folder.ts" total "$RUN")" | tee "$RUN/cost.txt"
+echo "turns $(node "$HERE/run-folder.ts" turns "$RUN")"
 find "$OUT" -type f

@@ -24,5 +24,6 @@ git -C "$RUN/copy" -c user.name=Persona -c user.email=persona@example.com \
   commit -q --no-verify -m "Initial copy"
 chmod -R a+rwX "$RUN"
 git -C "$ROOT" rev-parse --short HEAD >"$RUN/commit.txt"
+echo onboarding >"$RUN/kind"
 "$HERE/up.sh" "$RUN"
 echo "[$(date +%T)] ready: commit $(cat "$RUN/commit.txt") in $RUN"

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { parseBudget, sampleSpend, totalAfter } from '../../examples/live-run/replay.ts'
+import { parseBudget, sampleSpend } from '../../examples/live-run/replay.ts'
+import { totalAfter } from '../../examples/live-run/run-folder.ts'
 
 describe('the budget', () => {
   const log = 'turn 1 0.5\nturn 2 0.75\nturn 3 1.5\n'

@@ -37,6 +37,10 @@ It needs Docker and a Claude Code token in `CLAUDE_CODE_OAUTH_TOKEN`. Give the t
 >
 > Every quote must be exact, because it will be spot-checked. Write the full report to `<run-dir>/judge-report.txt`, with a verdict line per checklist line at the top, written `line 26 FAIL T15, T16` (`PASS`, `FAIL`, `BORDERLINE` or `SKIPPED`, then the turns or the file and line), followed by the quotes, one per line, written `line 26 T15 "exact quote"`. Send back the path and those verdict lines.
 
+## The run folder
+
+One module, `run-folder.ts`, owns the files a run keeps, so the scorer, the replay and the comment read what `turn.sh` wrote through the same code. `turn.sh` records each turn with `node run-folder.ts record <run-dir> <n> <reply-file>` and the finish scripts read the total and the turn count the same way. A run's start writes `kind` (`onboarding` or `update`); a run made before that is told by what it holds (an `engine/` folder, or `written/log.txt` or `written/rules.yaml`). A stream's last result is the turn's outcome. A line of it that is not JSON is skipped and the terminal says so in one line; a stream with no result records nothing and `turn.sh` names `raw/turn<n>.err` and `raw/turn<n>.jsonl`. A result with no `total_cost_usd` records the previous total and says so.
+
 ## Replaying one turn
 
 A wording change aimed at one turn of a saved run (an opening that narrates its steps, a summary that is not relayed whole) is cheaper to test by replaying that turn than by running everything again. In the runs measured, the first sample wrote the saved conversation to the prompt cache and the others read it: the first reply cost more the longer the conversation was (about $0.15 at turn 25, about $0.25 at turn 62) and a later reply, with the cache still warm, cost under a cent at turn 25 and about four cents at turn 62. The summary line says how many cache tokens the samples read and wrote.

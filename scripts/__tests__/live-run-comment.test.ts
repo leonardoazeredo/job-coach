@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { commentCommand } from '../../examples/live-run/comment.ts'
+import { transcriptBlock } from '../../examples/live-run/run-folder.ts'
 import { EXIT } from '../lib/problem.ts'
 import { repoRoot } from '../lib/workspace.ts'
 
@@ -116,10 +117,7 @@ describe('the live-run comment builder, further cases', () => {
 
   it('says the scorer marked no line when it finds none', () => {
     writeFileSync(join(run, 'judge-report.txt'), 'line 11 PASS\n')
-    writeFileSync(
-      join(run, 'transcript.md'),
-      '## Turn 1\n\n**Persona:**\n\n> Hi.\n\n**Coach:**\n\n> Hello.\n',
-    )
+    writeFileSync(join(run, 'transcript.md'), transcriptBlock(1, 'Hi.', 'Hello.'))
     rmSync(join(run, 'written'), { recursive: true })
     rmSync(join(run, 'raw'), { recursive: true })
     build()
