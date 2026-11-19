@@ -89,7 +89,7 @@ describe('the real sample runner', () => {
     expect(r.code).toBe(1)
     const failure = r.err.find((l) => l.startsWith('sample 2 failed')) ?? ''
     expect(failure).toMatch(
-      /turn\.sh failed \(exit 1\): turn 3 left no result; .*\/raw\/turn3\.err holds why/,
+      /^sample 2 failed: turn\.sh failed \(exit 1\): turn 3 left no result; [^;]*\/raw\/turn3\.err holds why$/,
     )
   })
 
