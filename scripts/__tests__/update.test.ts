@@ -3,7 +3,8 @@ import { existsSync, mkdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { EXIT } from '../lib/problem.ts'
-import { isEngineFile, type Run, updateFromArchive } from '../lib/update.ts'
+import { isEngineFile, updateFromArchive } from '../lib/update.ts'
+import type { Run } from '../lib/verified-update.ts'
 import { updateCommand } from '../update.ts'
 import {
   DATA,
@@ -76,6 +77,25 @@ describe('updateFromArchive', () => {
     for (const [rel, text] of Object.entries({ ...DATA, ...OLD_ENGINE }))
       expect(read(rel)).toBe(text)
     expect(existsSync(join(work(), '.claude/skills/update-coach/SKILL.md'))).toBe(false)
+  })
+
+  it('says so when the files cannot be put back, and names the backup to restore by hand', async () => {
+    // The check after the update deletes the backup, so the restore has nothing to copy from.
+    const calls: string[] = []
+    const run: Run = () => {
+      calls.push('check')
+      if (calls.length < 2) return { ok: true, output: '' }
+      rmSync(join(work(), '.coach/backups'), { recursive: true })
+      return { ok: false, output: 'pipeline/acme: status is not a known status' }
+    }
+    const result = await updateFromArchive(work(), { now, source: source(), run })
+    expect(result).toMatchObject({
+      kind: 'not-undone',
+      backup: '.coach/backups/2026-10-29T09-00-00-000Z',
+    })
+    if (result.kind !== 'not-undone') throw new Error(result.kind)
+    expect(result.output).toContain('pipeline/acme: status is not a known status')
+    expect(read('CLAUDE.md')).toBe('new prompt\n')
   })
 
   it('reinstalls the old dependencies when it undoes a lockfile change', async () => {
@@ -155,6 +175,27 @@ describe('updateCommand', () => {
       'updated: 2 replaced, 1 added; backup in .coach/backups/2026-10-29T09-00-00-000Z; settings replaced: config/rules.yaml',
     )
     log.mockRestore()
+  })
+
+  it('prints not undone with the backup folder and exits 1 when the files cannot be put back', async () => {
+    put(work(), { ...DATA, ...OLD_ENGINE })
+    put(upstream(), NEW_ENGINE)
+    let calls = 0
+    const run: Run = () => {
+      calls++
+      if (calls < 2) return { ok: true, output: '' }
+      rmSync(join(work(), '.coach/backups'), { recursive: true })
+      return { ok: false, output: 'check failed' }
+    }
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    expect(await updateCommand(['zip'], work(), { now, source: source(), run })).toBe(EXIT.problems)
+    expect(log.mock.calls[0]?.[0]).toBe(
+      'not undone: the record check failed after the update, and the files could not be put back; the old ones are in .coach/backups/2026-10-29T09-00-00-000Z',
+    )
+    expect(String(error.mock.calls[0]?.[0])).toMatch(/^check failed\n/)
+    log.mockRestore()
+    error.mockRestore()
   })
 
   it('refuses an unknown subcommand', async () => {
