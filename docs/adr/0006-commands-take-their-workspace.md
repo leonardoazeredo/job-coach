@@ -16,7 +16,7 @@ A new command picks the form by that test: if it reads records, it takes a `Work
 It is bounded to that one use:
 
 - It is a flag of the script's entry line only. `check` itself still takes `(args, workspace)` and never sees the flag, so a test or another command cannot reach a second repo through it.
-- It skips the visibility probe, because an example folder has no remote of its own and the probe would report the checkout's origin, the public template. A root outside the checkout therefore loses the public-repo warning as well; `--root` is not for checking a user's data.
+- It skips the online-copy lookup, because an example folder has no remote of its own and the lookup would report the checkout's origin, the public template. A root outside the checkout therefore loses the public-repo warning as well; `--root` is not for checking a user's data.
 - No other command takes it. A command that wants to act on another workspace is a new decision, not a copy of this flag.
 
 ## Rejected

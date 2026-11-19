@@ -1,8 +1,8 @@
 // Saves the user's data into this folder's history and backs it up to the online copy.
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { ENGINE, type Git, gitHubRepo, gitIn, output } from './history.ts'
-import { visibilityOfRepo } from './repo-visibility.ts'
+import { type Git, gitIn, output } from './history.ts'
+import { type OnlineCopyLookup, onlineCopy } from './online-copy.ts'
 
 // User data: the folders a save commits. Not the same set as what a Coach update leaves alone
 // (`isEngineFile` in update.ts): that also protects Local work files such as discovery/, which are
@@ -19,21 +19,12 @@ export type SaveResult =
   | { kind: 'refused'; output: string }
   | { kind: 'saved'; online: Online; output?: string }
 
-// True when anyone can read the repository, false when GitHub answers 404 (private or missing),
-// undefined when it cannot answer (offline, rate limited).
-export type PublicProbe = (repo: string) => Promise<boolean | undefined>
-
-export const gitHubPublic: PublicProbe = async (repo) => {
-  const visibility = await visibilityOfRepo(repo)
-  return visibility && visibility === 'public'
-}
-
 export type SaveOptions = {
   message: string
   // Every change in the folder, not only the data folders, for a caller about to merge: git
   // refuses to merge over unsaved changes to files the merge touches.
   everything?: boolean
-  probe?: PublicProbe
+  lookup?: OnlineCopyLookup
   path?: string
 }
 
@@ -52,20 +43,17 @@ const pathsToSave = (root: string, git: Git): string[] =>
 // The engine is never pushed to. Another copy on GitHub is pushed to only when GitHub answers, at
 // every save, that it is not public, so a copy made public after onboarding stops receiving data;
 // without that answer (offline, rate limited, an address it cannot read) the push waits for the
-// next save, which sends them even when it has nothing new to commit. A copy elsewhere cannot be checked, and relies on onboarding's question about whether
-// it is private.
-const pushOnline = async (git: Git, probe: PublicProbe): Promise<SaveResult> => {
-  const origin = git(['remote', 'get-url', 'origin'])
-  if (origin.status !== 0) return { kind: 'saved', online: 'no-copy' }
-  const repo = gitHubRepo(origin.stdout)
-  if (!repo && /(^|[@/.])github\.com/i.test(origin.stdout))
-    return { kind: 'saved', online: 'unchecked' }
-  if (repo?.toLowerCase() === ENGINE.toLowerCase()) return { kind: 'saved', online: 'public' }
-  if (repo) {
-    const isPublic = await probe(repo)
-    if (isPublic === true) return { kind: 'saved', online: 'public' }
-    if (isPublic === undefined) return { kind: 'saved', online: 'unchecked' }
-  }
+// next save, which sends them even when it has nothing new to commit. A copy elsewhere cannot be
+// checked, and relies on onboarding's question about whether it is private.
+const pushOnline = async (
+  root: string,
+  git: Git,
+  lookup: OnlineCopyLookup,
+): Promise<SaveResult> => {
+  const copy = await lookup(root)
+  if (copy === 'none') return { kind: 'saved', online: 'no-copy' }
+  if (copy === 'engine' || copy === 'public') return { kind: 'saved', online: 'public' }
+  if (copy === 'unknown') return { kind: 'saved', online: 'unchecked' }
   const push = git(['push', '-q', 'origin', 'HEAD'], { GIT_TERMINAL_PROMPT: '0' })
   return push.status === 0
     ? { kind: 'saved', online: 'pushed' }
@@ -81,15 +69,19 @@ const unsent = (git: Git): boolean =>
 
 // With nothing to commit, commits left by an earlier held or failed push, or by a merge, still go
 // online under the same rules as a fresh save.
-const nothingToCommit = (git: Git, probe: PublicProbe): Promise<SaveResult> | SaveResult =>
-  unsent(git) ? pushOnline(git, probe) : { kind: 'nothing' }
+const nothingToCommit = (
+  root: string,
+  git: Git,
+  lookup: OnlineCopyLookup,
+): Promise<SaveResult> | SaveResult =>
+  unsent(git) ? pushOnline(root, git, lookup) : { kind: 'nothing' }
 
 export const save = async (root: string, opts: SaveOptions): Promise<SaveResult> => {
   const git = gitIn(root, opts.path)
   if (!git) return { kind: 'no-history' }
-  const probe = opts.probe ?? gitHubPublic
+  const lookup = opts.lookup ?? onlineCopy
   const paths = opts.everything ? ['.'] : pathsToSave(root, git)
-  if (paths.length === 0) return nothingToCommit(git, probe)
+  if (paths.length === 0) return nothingToCommit(root, git, lookup)
   git(['add', '-A', '--', ...paths])
   // Commit the staged paths by name, not the folders: git fails a commit whose folder holds nothing
   // it tracks (empty, or only ignored files). --no-renames keeps a moved file's old path in the
@@ -97,7 +89,7 @@ export const save = async (root: string, opts: SaveOptions): Promise<SaveResult>
   const staged = git(['diff', '--cached', '--no-renames', '--name-only', '-z', '--', ...paths])
     .stdout.split('\0')
     .filter(Boolean)
-  if (staged.length === 0) return nothingToCommit(git, probe)
+  if (staged.length === 0) return nothingToCommit(root, git, lookup)
   const commit = git([
     ...fallbackCommitter(git),
     'commit',
@@ -108,5 +100,5 @@ export const save = async (root: string, opts: SaveOptions): Promise<SaveResult>
     ...staged,
   ])
   if (commit.status !== 0) return { kind: 'refused', output: output(commit) }
-  return pushOnline(git, probe)
+  return pushOnline(root, git, lookup)
 }

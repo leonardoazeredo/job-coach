@@ -20,10 +20,10 @@ import { isLanguageTag, isTimezone, todayIn } from './dates.ts'
 import { type Discovery, discovery as discoveryOver } from './discovery.ts'
 import { type Identity, IdentitySchema, pdfFileName } from './identity.ts'
 import { type OnboardingSection, onboardingStatus } from './onboarding.ts'
+import { type OnlineCopy, type OnlineCopyLookup, onlineCopy } from './online-copy.ts'
 import { error, hasErrors, type Problem } from './problem.ts'
 import { loadProfile, type Profile } from './profile.ts'
 import { fileProblem, readFile, writeProblem, yaml } from './read-file.ts'
-import { type RepoVisibility, repoVisibility, type VisibilityProbe } from './repo-visibility.ts'
 import { roleRequirements } from './requirements.ts'
 import { listSlugs, missing, readCvFile, readRole, rolePaths } from './role-folder.ts'
 import { loadRules } from './rules.ts'
@@ -58,8 +58,8 @@ export type Workspace = {
   // The jobs in profile/history.yaml on their own, so a draft can name a job while other profile files are still to come.
   history: () => { history: HistoryRole[] | undefined; problems: Problem[] }
   rules: () => { rules: Rules | undefined; problems: Problem[] }
-  // Undefined when it cannot be told; see repo-visibility.ts.
-  visibility: () => Promise<RepoVisibility | undefined>
+  // What the online copy is; see online-copy.ts.
+  onlineCopy: () => Promise<OnlineCopy>
   check: () => { problems: Problem[]; roles: number }
   lintCvs: (slug?: string) => { problems: Problem[]; checked: number }
   roleCv: (slug: string) => RoleCv
@@ -261,7 +261,7 @@ const readHistory = (root: string): ReturnType<Workspace['history']> => {
 
 export const openWorkspace = (
   root = repoRoot(),
-  probe: VisibilityProbe = repoVisibility,
+  lookup: OnlineCopyLookup = onlineCopy,
 ): Workspace => {
   const slugs = memo(() => listSlugs(root))
   const roles = memo(() => slugs().map((slug) => readRole(root, slug)))
@@ -270,7 +270,7 @@ export const openWorkspace = (
   const profile = memo(() => loadProfile(root, identity()))
   const cvProfile = () => cvProfileOf(identity().identity, profile)
   const rules = memo(() => loadRules(root))
-  const visibility = memo(() => probe(root))
+  const copy = memo(() => lookup(root))
   // Built once per run, so the board and the record checker share one set of rules.
   const statusRulesOf = memo(() => statusRulesFrom(rules().rules))
   // A named slug must be a role folder: this also refuses paths such as "../profile".
@@ -359,7 +359,7 @@ export const openWorkspace = (
     identity,
     history,
     rules,
-    visibility,
+    onlineCopy: copy,
     check,
     lintCvs,
     roleCv,

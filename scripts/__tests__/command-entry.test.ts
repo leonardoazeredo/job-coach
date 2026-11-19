@@ -44,4 +44,26 @@ describe('command entry lines', () => {
       await exitCode('check.ts', ['--root', join(repoRoot(), 'examples/austin-backend')]),
     ).toBe(0)
   })
+
+  // The example folder has no origin of its own, so a lookup that read this checkout's would find the
+  // engine and warn about a public copy that is not the folder's.
+  it('check.ts --root stays silent about the online copy', async () => {
+    const child = spawn(
+      process.execPath,
+      [
+        join(repoRoot(), 'scripts/check.ts'),
+        '--warnings',
+        '--root',
+        join(repoRoot(), 'examples/austin-backend'),
+      ],
+      { stdio: ['ignore', 'pipe', 'ignore'] },
+    )
+    let out = ''
+    child.stdout.on('data', (chunk) => {
+      out += chunk
+    })
+    await new Promise((resolve) => child.on('close', resolve))
+    expect(out).toContain('check: 3 roles')
+    expect(out).not.toMatch(/online copy/)
+  }, 30_000)
 })
