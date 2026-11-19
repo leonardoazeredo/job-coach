@@ -10,6 +10,7 @@ import {
   mergeEngine,
   takeSide,
 } from '../lib/update-git.ts'
+import type { Run } from '../lib/verified-update.ts'
 import { updateCommand } from '../update.ts'
 import {
   cloned,
@@ -291,6 +292,30 @@ describe('mergeEngine and finishUpdate', () => {
     expect(log.mock.calls[0]?.[0]).toBe('not started: the record check fails before the update')
     expect(error.mock.calls[0]?.[0]).toBe('pipeline/acme: status is not a known status')
     expect(merging()).toBe(false)
+    log.mockRestore()
+    error.mockRestore()
+  })
+
+  it('prints not undone and exits 1 when finish cannot put the folder back', async () => {
+    cloned()
+    engineCommit({ 'CLAUDE.md': 'new prompt\n' }, 'Sharper prompt')
+    engineChanges(gitOf(), opts())
+    mergeEngine(work(), gitOf(), mergeOpts())
+    const check = runner((call) => call === 1)
+    // The check leaves a changed file behind, which stops git putting the old version back.
+    const run: Run = (cmd, args) => {
+      writeFileSync(join(work(), 'CLAUDE.md'), 'edited meanwhile\n')
+      return check.run(cmd, args)
+    }
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    expect(await updateCommand(['finish'], work(), { run })).toBe(EXIT.problems)
+    expect(log.mock.calls[0]?.[0]).toBe(
+      'not undone: the record check failed after the update, and the folder could not be put back',
+    )
+    expect(String(error.mock.calls[0]?.[0])).toContain(
+      'pipeline/acme: status is not a known status',
+    )
     log.mockRestore()
     error.mockRestore()
   })

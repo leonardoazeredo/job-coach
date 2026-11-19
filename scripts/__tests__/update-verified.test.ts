@@ -81,12 +81,13 @@ describe('a verified update', () => {
 
   it.each(Object.entries(scenarios))(
     'is reported not undone when the old version cannot be put back, for %s',
-    async (_name, scenario) => {
+    async (name, scenario) => {
       const { result } = await scenario(true)
       expect(result.kind).toBe('not-undone')
       if (!('output' in result)) throw new Error(result.kind)
+      // The check's own output, then the reason the old version could not be put back.
       expect(result.output).toContain('pipeline/acme: status is not a known status')
-      expect(read('CLAUDE.md')).not.toBe('old prompt\n')
+      expect(result.output).toMatch(name.includes('zip') ? /ENOENT/ : /CLAUDE\.md/)
     },
   )
 })

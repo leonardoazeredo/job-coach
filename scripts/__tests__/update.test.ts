@@ -99,6 +99,19 @@ describe('updateFromArchive', () => {
     expect(read('CLAUDE.md')).toBe('new prompt\n')
   })
 
+  it('undoes the update, without a check, when the install itself fails', async () => {
+    put(upstream(), { 'package-lock.json': '{"v":2}\n' })
+    const calls: string[] = []
+    const run: Run = (cmd, args) => {
+      calls.push([cmd, ...args].join(' '))
+      return calls.length === 2 ? { ok: false, output: 'npm failed' } : { ok: true, output: '' }
+    }
+    const result = await updateFromArchive(work(), { now, source: source(), run })
+    expect(result).toMatchObject({ kind: 'undone', output: 'npm failed' })
+    expect(calls).toEqual(['node scripts/check.ts', 'npm ci', 'npm ci'])
+    expect(read('package-lock.json')).toBe('{"v":1}\n')
+  })
+
   it('still reinstalls once, from whatever lock file is in place, when the restore fails', async () => {
     put(upstream(), { 'package-lock.json': '{"v":2}\n' })
     const calls: string[] = []
