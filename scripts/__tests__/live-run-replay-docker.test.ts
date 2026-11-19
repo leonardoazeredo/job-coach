@@ -44,6 +44,8 @@ describe('the real sample runner', () => {
       expect(r.code).toBe(0)
       const flags = dockerLines('exec').map((l) => /--max-budget-usd (\S+)/.exec(l)?.[1])
       expect(flags).toEqual([flag, flag, flag])
+      // Every sample resumes the run's own session, not a fresh one.
+      for (const l of dockerLines('exec')) expect(l).toContain('--resume sid-2')
     },
   )
 
@@ -63,6 +65,11 @@ describe('the real sample runner', () => {
     const r = runReplay([run, '3', '5'], env({ LIVE_RUN_BUDGET_USD: '0.25' }))
     expect(r.out).toContain('STOP: 0.300 spent, the stop is 0.25. 2 samples were not run.')
     expect(dockerLines('exec')).toHaveLength(3)
+    // Each container holds the token until it is removed, so every one started is removed.
+    const started = dockerLines('run').map((l) => /--name (\S+)/.exec(l)?.[1])
+    const removed = dockerLines('rm').map((l) => l.replace('rm -f ', ''))
+    expect(started).toHaveLength(3)
+    expect(removed).toEqual(started)
   })
 
   it('counts a sample that claude ended on its budget, and does not call it done', () => {

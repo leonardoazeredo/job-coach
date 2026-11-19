@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
+import type { MakeAdapter } from '../../examples/live-run/replay.ts'
 import { fakeAdapter, makeRun, runReplay } from './live-run-replay-fixture.ts'
 
 // The replay's own rules, with the fake adapter standing in for docker, up.sh and turn.sh.
@@ -18,15 +19,41 @@ describe('the replay loop', () => {
     const r = runReplay([run, '3', '5'], { LIVE_RUN_BUDGET_USD: '0.25' }, fakeAdapter())
     expect(r.code).toBe(0)
     expect(r.out).toContain('STOP: 0.300 spent, the stop is 0.25. 2 samples were not run.')
-    expect(r.out.some((l) => l.includes('over 3 replies (spend 0.300 USD'))).toBe(true)
+    expect(
+      r.out.some((l) =>
+        l.includes('over 3 replies (spend 0.300 USD, cache tokens read 15, written 21'),
+      ),
+    ).toBe(true)
   })
 
-  it('does not stop at a spend just under the budget, and does at the budget itself', () => {
-    const under = runReplay([run, '3', '3'], { LIVE_RUN_BUDGET_USD: '0.31' }, fakeAdapter())
+  it('stops when the spend equals the budget, and runs on when it is under it', () => {
+    // 0.1 + 0.1 is exactly 0.2 in floating point, so the second sample ends at the budget itself.
+    const at = runReplay([run, '3', '3'], { LIVE_RUN_BUDGET_USD: '0.2' }, fakeAdapter())
+    expect(at.out).toContain('STOP: 0.200 spent, the stop is 0.2. 1 samples were not run.')
+    const under = runReplay([run, '3', '3'], { LIVE_RUN_BUDGET_USD: '0.21' }, fakeAdapter())
     expect(under.out.some((l) => l.startsWith('STOP:'))).toBe(false)
     expect(under.out.some((l) => l.includes('over 3 replies'))).toBe(true)
-    const at = runReplay([run, '3', '5'], { LIVE_RUN_BUDGET_USD: '0.3' }, fakeAdapter())
-    expect(at.out).toContain('STOP: 0.300 spent, the stop is 0.3. 2 samples were not run.')
+  })
+
+  it('exits with a problem and still prints the samples done when preparing a sample throws', () => {
+    const inner = fakeAdapter()
+    const adapter: MakeAdapter = (job) => {
+      const a = inner(job)
+      return {
+        ...a,
+        runSample: (sample) => {
+          const r = a.runSample(sample)
+          rmSync(join(job.run, 'snap', 'before3.tgz'))
+          return r
+        },
+      }
+    }
+    const r = runReplay([run, '3', '3'], { LIVE_RUN_BUDGET_USD: '5' }, adapter)
+    expect(r.code).toBe(1)
+    expect(r.err.some((l) => l.startsWith('sample 2 failed: could not unpack the snapshot'))).toBe(
+      true,
+    )
+    expect(r.out.some((l) => l.includes('over 1 replies (spend 0.100 USD'))).toBe(true)
   })
 
   it('exits with a problem when a sample fails after others were done, and still prints those', () => {
