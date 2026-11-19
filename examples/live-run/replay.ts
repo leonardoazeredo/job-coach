@@ -245,12 +245,14 @@ const stamp = () => `[${new Date().toTimeString().slice(0, 8)}]`
 export const dockerAdapter: MakeAdapter = ({ run, turn, hasPackages, budget, root }) => {
   const base = turn > 1 ? costAfter(run, turn - 1) : 0
   const turnBudget = base + budget
-  // What a sample has spent so far, from the cost line turn.sh left for the turn; 0 when it left none.
-  const paid = (sample: string): number => {
+  // The running total turn.sh logged for the turn; undefined when it logged none, which is when the
+  // turn left no result.
+  const totalOf = (sample: string): number | undefined => {
     const log = join(sample, 'costlog.txt')
-    const total = totalAfter(existsSync(log) ? readFileSync(log, 'utf8') : '', turn)
-    return total === undefined ? 0 : Math.max(total - base, 0)
+    return totalAfter(existsSync(log) ? readFileSync(log, 'utf8') : '', turn)
   }
+  // What a sample has spent so far; 0 when turn.sh logged no cost.
+  const paid = (sample: string): number => Math.max((totalOf(sample) ?? base) - base, 0)
   const lastLine = (text: string | null | undefined) => (text ?? '').trim().split('\n').pop() ?? ''
 
   const build = (): string | undefined => {
@@ -275,11 +277,13 @@ export const dockerAdapter: MakeAdapter = ({ run, turn, hasPackages, budget, roo
       env: { ...process.env, LIVE_RUN_BUDGET_USD: String(turnBudget) },
     })
     if (t.status === 0) return undefined
-    const why = lastLine(t.stdout)
-    return {
-      spend: paid(sample),
-      failure: `turn.sh failed (exit ${t.status})${why ? `: ${why}` : ''}; see ${sample}/raw/turn${turn}.err`,
-    }
+    // With a cost logged the turn ran and its result holds the cause (an error or claude's budget);
+    // the last line turn.sh printed is then the running total, which explains nothing.
+    const cause =
+      totalOf(sample) === undefined
+        ? `${lastLine(t.stdout)}; ${sample}/raw/turn${turn}.err holds why`
+        : `the turn ended on an error or its budget; see the result in ${sample}/raw/turn${turn}.jsonl`
+    return { spend: paid(sample), failure: `turn.sh failed (exit ${t.status}): ${cause}` }
   }
 
   const runSample = (sample: string): SampleOutcome => {

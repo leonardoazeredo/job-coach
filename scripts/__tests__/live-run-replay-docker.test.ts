@@ -68,7 +68,11 @@ describe('the real sample runner', () => {
   it('counts a sample that claude ended on its budget, and does not call it done', () => {
     const r = runReplay([run, '3', '3'], env({ LIVE_RUN_BUDGET_USD: '5', FAKE_BUDGET_ON: '2' }))
     expect(r.code).toBe(1)
-    expect(r.err.some((l) => l.includes('sample 2 failed: turn.sh failed (exit 1'))).toBe(true)
+    const failure = r.err.find((l) => l.startsWith('sample 2 failed')) ?? ''
+    expect(failure).toMatch(
+      /turn\.sh failed \(exit 1\): the turn ended on an error or its budget; see the result in .*\/raw\/turn3\.jsonl/,
+    )
+    expect(failure).not.toMatch(/0\.95/)
     expect(r.err.some((l) => l.includes('(0.200 USD already spent)'))).toBe(true)
     expect(r.out.some((l) => l.includes('over 1 replies (spend 0.300 USD'))).toBe(true)
   })
@@ -77,8 +81,9 @@ describe('the real sample runner', () => {
     const r = runReplay([run, '3', '3'], env({ LIVE_RUN_BUDGET_USD: '5', FAKE_DIE_ON: '2' }))
     expect(r.code).toBe(1)
     const failure = r.err.find((l) => l.startsWith('sample 2 failed')) ?? ''
-    expect(failure).toMatch(/turn 3 left no result/)
-    expect(failure).toMatch(/raw\/turn3\.err/)
+    expect(failure).toMatch(
+      /turn\.sh failed \(exit 1\): turn 3 left no result; .*\/raw\/turn3\.err holds why/,
+    )
   })
 
   it('says it could not start when the container does not', () => {
