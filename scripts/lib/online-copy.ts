@@ -4,7 +4,7 @@
 // push. Neither needs gh: it is asked first because it can see a private repository, and GitHub's
 // open API answers when it is missing. Each Command turns the answer into its own policy.
 import { spawnSync } from 'node:child_process'
-import { ENGINE, gitHubRepo } from './history.ts'
+import { ENGINE, findGit, gitHubRepo } from './history.ts'
 
 // none: no origin. engine: the origin is the engine, which is public and known without asking.
 // public, private: GitHub's answer for a copy on GitHub. unknown: on GitHub but GitHub did not
@@ -24,8 +24,11 @@ export type Seams = {
 }
 
 const realSeams: Seams = {
+  // Through findGit, as Save's own git is, so the macOS stub that opens an install dialog is never run.
   origin: (root) => {
-    const run = spawnSync('git', ['remote', 'get-url', 'origin'], { cwd: root, encoding: 'utf8' })
+    const git = findGit()
+    if (!git) return
+    const run = spawnSync(git, ['remote', 'get-url', 'origin'], { cwd: root, encoding: 'utf8' })
     return run.status === 0 ? run.stdout.trim() : undefined
   },
   gh: (repo, root) => {

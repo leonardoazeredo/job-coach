@@ -146,13 +146,18 @@ describe('save online copy', () => {
     ).toBe('')
   })
 
-  it('pushes to a copy that is private or elsewhere, and holds when there is none', async () => {
+  it.each(['private', 'elsewhere'] as const)('pushes to a copy that is %s', async (copy) => {
     execFileSync('git', ['init', '-q', '--bare', join(dir, 'online.git')])
     withOrigin(join(dir, 'online.git'))
-    expect(await save(work(), { message: 'x', lookup: async () => 'elsewhere' })).toEqual({
+    expect(await save(work(), { message: 'x', lookup: async () => copy })).toEqual({
       kind: 'saved',
       online: 'pushed',
     })
+    expect(
+      execFileSync('git', ['-C', join(dir, 'online.git'), 'log', '-1', '--format=%s', 'main'], {
+        encoding: 'utf8',
+      }).trim(),
+    ).toBe('x')
   })
 
   it('reports no online copy when the lookup finds none', async () => {
@@ -199,6 +204,15 @@ describe('save command first line', () => {
     onGitHub()
     write('pipeline/acme/record.yaml', 'status: Applied\n')
     expect(await firstLine({ lookup: privateCopy })).toBe('saved; the online copy is up to date')
+  })
+
+  it('says nothing was sent when the online copy is the engine itself', async () => {
+    checkout()
+    onGitHub()
+    write('pipeline/acme/record.yaml', 'status: Applied\n')
+    expect(await firstLine({ lookup: async () => 'engine' })).toBe(
+      'saved on this computer; the online copy is public, so nothing was sent to it',
+    )
   })
 
   it('says the online copy waits until it is confirmed private', async () => {
