@@ -84,6 +84,10 @@ _Avoid_: claimable (that is for stack items), resolvable, valid
 One achievement with its exact metric and the action behind it, belonging to one job. Approved wins are citable; proposed ones wait for the user's yes. A Draft summary and the coach's replies to the user say "achievement" for it, since the person reading may not work in software; the term stays Win in code, files and between skills.
 _Avoid_ (in engine text): achievement, accomplishment, result
 
+**Never-claim pattern**:
+A case-insensitive expression on a do-not-claim item in `profile/stack.yaml` that catches CV text making that claim. One that is not a valid expression is an error, never skipped.
+_Avoid_: never-say phrase (that is listed on a win), banned regex
+
 **Never-say phrase**:
 An inflation of a win seen in a past draft, listed on that win so no outward material repeats it.
 _Avoid_: banned phrase, blocklist
@@ -209,6 +213,10 @@ _Avoid_: triage (the screening that gives each role a verdict), merge, candidate
 A proposed version of one profile file or the master CV, held until the user says yes and then written exactly as its summary showed it. The summary is read from the draft, never written beside it.
 _Avoid_: proposal, preview, pending change, staged file
 
+**Placeholder**:
+The token `CHANGE_ME` that a template puts in each value or comment the user must replace. A file that still holds one anywhere, comments included, is unfinished onboarding; a Draft refuses one left on a value.
+_Avoid_: sample (the template's value that a placeholder marks), marker
+
 **Engine**:
 Everything shipped by `leonardoazeredo/job-coach`: scripts, skills, config defaults, templates, docs and the core prompt. Under `pipeline/` and `experience-bank/`, only the README and `pipeline/_templates/` are engine files.
 _Avoid_: template (the GitHub button that copies it), app
@@ -221,6 +229,10 @@ _Avoid_: workspace (the folders a command reads, which can be the worked example
 Generated files the coach keeps in this folder but neither saves nor replaces on a Coach update, such as saved pulls and shortlists.
 _Avoid_: User data (the four saved folders), cache
 
+**Online copy**:
+The copy of this folder on a hosting site that a Save pushes to, found from the folder's origin. Data goes to a copy on GitHub only when GitHub confirms it is not public; the engine itself never receives data.
+_Avoid_: remote, origin (in anything the user reads)
+
 **History**:
 A git checkout whose top level is the folder itself. A ZIP download, a folder unpacked inside another checkout, or a computer without git keeps none.
 _Avoid_: repo (in anything the user reads)
@@ -230,7 +242,7 @@ A commit of the user data with a plain message, made by `scripts/save.ts` after 
 _Avoid_: commit, backup (a backup is the copy a ZIP update keeps)
 
 **Coach update**:
-Bringing the engine up to the newest upstream version: a merge in a folder with history, or a copy over the engine files with backups in `.coach/backups/` in one without.
+Bringing the engine up to the newest upstream version: a merge in a folder with history, or a copy over the engine files with backups in `.coach/backups/` in one without. An update is kept only when the record check passes before it starts and after it is in place; otherwise it does not start, or is undone.
 _Avoid_: pipeline update (recording a change to a role)
 
 **User copy**:
