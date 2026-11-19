@@ -114,6 +114,22 @@ describe('what the scorer prints', () => {
   })
 })
 
+describe('the order of the rows', () => {
+  it('is by line, then by turn, whatever order the transcript holds its turns in', () => {
+    const run = makeRun((d) =>
+      writeFileSync(
+        join(d, 'transcript.md'),
+        transcriptBlock(5, 'Yes.', 'The user said no.') +
+          transcriptBlock(2, 'Yes.', 'The user said yes.'),
+      ),
+    )
+    expect(scoreRun(run).filter((l) => l.startsWith('line 26'))).toEqual([
+      'line 26 FAIL T2 "The user said yes."',
+      'line 26 FAIL T5 "The user said no."',
+    ])
+  })
+})
+
 describe('the rules', () => {
   it('give every declared line a row on a run with no finding, and no row for an undeclared line', () => {
     const full = makeRun((d) => {

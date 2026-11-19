@@ -2,7 +2,7 @@
 // without a whole run. Each sample starts from the run's state before the turn (the snapshot
 // turn.sh took: the copy and the coach's session), with this checkout's CLAUDE.md and skills put
 // in (the skills the coach had loaded are swapped in its saved session too), sends the persona's
-// original message for that turn, and is marked by scoreRun. The run folder is only read; samples
+// original message for that turn, and is marked by the scorer. The run folder is only read; samples
 // live in a new folder under the system's temporary folder.
 // Usage: node examples/live-run/replay.ts <run-dir> <turn> [n]
 // Needs Docker and CLAUDE_CODE_OAUTH_TOKEN in the environment: the token goes to each sample's
@@ -203,7 +203,7 @@ export const applyTree = (copy: string, root: string) => {
     throw new Error(`could not commit the wording under test: ${commit.stderr}`)
 }
 
-// A sample folder has a run folder's shape, so turn.sh and scoreRun work on it unchanged. It
+// A sample folder has a run folder's shape, so turn.sh and the scorer work on it unchanged. It
 // holds the run's transcript and raw streams up to the turn, which is how the scorer knows what
 // came earlier. Reads the run folder and root; writes only the sample.
 export const prepareSample = (

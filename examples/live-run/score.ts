@@ -190,8 +190,7 @@ export const RULES: Rule[] = [
   },
 ]
 
-// The rows of a run, ordered by line; within a line they keep the order the rule found them in
-// (turn by turn, or file by file for a written file).
+// The rows of a run, ordered by line, then by turn; a row with no turn comes first in its line.
 export const scoreFindings = (run: string, rules: Rule[] = RULES): Row[] => {
   const turns = readTurns(run)
   const kind = runKind(run)
@@ -209,7 +208,7 @@ export const scoreFindings = (run: string, rules: Rule[] = RULES): Row[] => {
           : { line: r.line, status: 'SKIPPED', text: why },
       ]
     })
-  return rows.sort((a, b) => a.line - b.line)
+  return rows.sort((a, b) => a.line - b.line || (a.turn ?? 0) - (b.turn ?? 0))
 }
 
 export const scoreRun = (run: string): string[] => scoreFindings(run).map(formatRow)
