@@ -12,6 +12,7 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it, vi } from 'vitest'
+import type { Row } from '../../examples/live-run/findings.ts'
 import {
   failRates,
   formatRates,
@@ -49,13 +50,19 @@ describe('the replay arguments', () => {
 })
 
 describe('the fail rate', () => {
-  const sample = (...lines: string[]) => lines
-  const scored = [
-    sample('line 13 FAIL T4 "narrates"'),
-    sample('line 13 PASS'),
-    sample('line 13 FAIL T9 "an earlier turn"'),
-    sample('line 13 FAIL T9 "an earlier turn"', 'line 13 FAIL T4 "again"'),
-    sample('line 13 PASS'),
+  const fail = (line: number, turn: number, text = 'x'): Row => ({
+    line,
+    status: 'FAIL',
+    turn,
+    text,
+  })
+  const pass = (line: number): Row => ({ line, status: 'PASS' })
+  const scored: Row[][] = [
+    [fail(13, 4, 'narrates')],
+    [pass(13)],
+    [fail(13, 9, 'an earlier turn')],
+    [fail(13, 9, 'an earlier turn'), fail(13, 4, 'again')],
+    [pass(13)],
   ]
 
   it('counts only the findings at the replayed turn', () => {
@@ -63,27 +70,27 @@ describe('the fail rate', () => {
   })
 
   it('lists every marked line, leaving out lines about files, counts and what was skipped', () => {
-    const out = [
-      sample(
-        'line 4 PASS',
-        'line 5 FAIL T2 "x"',
-        'line 18 FAIL profile/voice.md:3 "his"',
-        'line 28 SKIPPED no raw/ folder',
-        'line 36 INFO 40 turns',
-      ),
-      sample(
-        'line 4 FAIL T2 "y"',
-        'line 5 FAIL T2 "x"',
-        'line 18 PASS',
-        'line 28 SKIPPED no raw/ folder',
-        'line 36 INFO 40 turns',
-      ),
+    const file = (line: number): Row => ({
+      line,
+      status: 'FAIL',
+      where: 'profile/voice.md:3',
+      text: 'his',
+    })
+    const skipped = (line: number): Row => ({ line, status: 'SKIPPED', text: 'no raw/ folder' })
+    const info: Row = { line: 36, status: 'INFO', text: '40 turns' }
+    const out: Row[][] = [
+      [pass(4), fail(5, 2), file(18), skipped(28), info],
+      [fail(4, 2, 'y'), fail(5, 2), pass(18), skipped(28), info],
     ]
     expect(failRates(2, out)).toEqual([
       { line: 4, fails: 1, samples: 2 },
       { line: 5, fails: 2, samples: 2 },
       { line: 18, fails: 0, samples: 2 },
     ])
+  })
+
+  it('does not take turn 1 for turn 10', () => {
+    expect(failRates(1, [[fail(4, 10)], [pass(4)]])).toEqual([{ line: 4, fails: 0, samples: 2 }])
   })
 
   it('prints a percentage per line', () => {

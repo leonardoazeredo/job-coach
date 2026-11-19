@@ -12,12 +12,12 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { EXIT } from '../../scripts/lib/problem.ts'
 import { repoRoot } from '../../scripts/lib/workspace.ts'
-import { draftsIn, readTranscript, runKind } from './run-folder.ts'
+import { formatRow, type Row } from './findings.ts'
+import { draftsIn, type RunKind, readTranscript, runKind } from './run-folder.ts'
 
 const USAGE = 'usage: node examples/live-run/score.ts <run-dir>'
 
 type Turn = { n: number; reply: string; summaries: string[]; winsDrafted: boolean }
-type Finding = { line: number; turn?: number; where?: string; text: string }
 
 // The summary lines are the command's wording, so they are compared as printed apart from
 // spacing, emphasis marks and a list bullet the coach may add or drop.
@@ -79,24 +79,28 @@ const writtenFiles = (dir: string): string[] =>
     return e.isDirectory() ? writtenFiles(p) : [p]
   })
 
-const scoreTurn = (t: Turn, firstWins: number | undefined): Finding[] => {
-  const found: Finding[] = []
-  for (const s of t.summaries) {
-    if (!plain(t.reply).includes(plain(s))) found.push({ line: 4, turn: t.n, text: plain(s) })
-  }
-  const outside = outsideSummary(t).replace(/\n/g, ' ')
-  // The question that asks for the yes is not framing.
-  const framing = sentences(plain(outside)).filter((s) => !s.endsWith('?'))
-  if (t.summaries.length > 0 && framing.length > 1) {
-    for (const s of framing) found.push({ line: 5, turn: t.n, text: s })
-  }
-  const ordinalsApply = firstWins !== undefined && t.n >= firstWins
-  for (const s of sentences(outside)) {
-    if (WORKING_WORD.test(s) || workingNote(s)) found.push({ line: 26, turn: t.n, text: plain(s) })
-    if (ordinalsApply && ORDINAL.test(s)) found.push({ line: 28, turn: t.n, text: plain(s) })
-  }
-  return found
-}
+type Found = { turn?: number; where?: string; text: string }
+type Ctx = { run: string; turns: Turn[]; firstWins: number | undefined }
+
+// One checklist line: the kinds of run it applies to, when its evidence is missing, and what it
+// reports. A line with `find` gets a FAIL row per finding, or one PASS row when it has none, or a
+// SKIPPED row when `skip` says the folder lacks what it reads; a line with `info` is a note, never
+// a verdict. The printed rows follow from this table alone.
+export type Rule = {
+  line: number
+  runs: RunKind[]
+  skip?: (run: string) => string | undefined
+} & ({ find: (c: Ctx) => Found[] } | { info: (c: Ctx) => string })
+
+const perTurn = (c: Ctx, f: (t: Turn, c: Ctx) => Found[]): Found[] =>
+  c.turns.flatMap((t) => f(t, c).map((x) => ({ turn: t.n, ...x })))
+
+const noRaw = (run: string) => (existsSync(join(run, 'raw')) ? undefined : 'no raw/ folder')
+const noWritten = (run: string) =>
+  existsSync(join(run, 'written')) ? undefined : 'no written/ folder'
+
+// What the coach says outside the lines it relays, one sentence at a time.
+const outsideSentences = (t: Turn) => sentences(outsideSummary(t).replace(/\n/g, ' '))
 
 // finish.sh copies every pack, shipped ones included; only a pack the coach wrote or changed counts.
 const isShippedPack = (file: string, name: string) => {
@@ -105,64 +109,109 @@ const isShippedPack = (file: string, name: string) => {
   return existsSync(shipped) && readFileSync(shipped).equals(readFileSync(file))
 }
 
-const scorePronouns = (written: string): Finding[] =>
-  writtenFiles(written).flatMap((file) => {
+const pronounsWritten = (run: string): Found[] => {
+  const written = join(run, 'written')
+  if (!existsSync(written)) return []
+  return writtenFiles(written).flatMap((file) => {
     const name = relative(written, file)
     if (name === 'profile/coach.md' || isShippedPack(file, name)) return []
     return readFileSync(file, 'utf8')
       .split('\n')
       .flatMap((text, i) =>
-        PRONOUN.test(text) ? [{ line: 18, where: `${name}:${i + 1}`, text: text.trim() }] : [],
+        PRONOUN.test(text) ? [{ where: `${name}:${i + 1}`, text: text.trim() }] : [],
       )
   })
-
-const scoreOnboarding = (run: string, turns: Turn[]): Finding[] => {
-  const firstWins = turns.find((t) => t.winsDrafted)?.n
-  const written = join(run, 'written')
-  return [
-    ...turns.flatMap((t) => scoreTurn(t, firstWins)),
-    ...(existsSync(written) ? scorePronouns(written) : []),
-  ]
 }
 
-const scoreUpdate = (turns: Turn[]): Finding[] => {
-  const found: Finding[] = []
-  for (const t of turns) {
-    for (const s of sentences(t.reply.replace(/\n/g, ' '))) {
-      if (UPDATE_STEP.test(s) || workingNote(s)) found.push({ line: 13, turn: t.n, text: plain(s) })
-    }
-  }
-  return found
-}
+export const RULES: Rule[] = [
+  {
+    line: 4,
+    runs: ['onboarding'],
+    skip: noRaw,
+    find: (c) =>
+      perTurn(c, (t) =>
+        t.summaries
+          .filter((s) => !plain(t.reply).includes(plain(s)))
+          .map((s) => ({ text: plain(s) })),
+      ),
+  },
+  {
+    line: 5,
+    runs: ['onboarding'],
+    skip: noRaw,
+    find: (c) =>
+      perTurn(c, (t) => {
+        // The question that asks for the yes is not framing.
+        const framing = sentences(plain(outsideSummary(t).replace(/\n/g, ' '))).filter(
+          (s) => !s.endsWith('?'),
+        )
+        return t.summaries.length > 0 && framing.length > 1 ? framing.map((text) => ({ text })) : []
+      }),
+  },
+  {
+    line: 18,
+    runs: ['onboarding'],
+    skip: noWritten,
+    find: (c) => pronounsWritten(c.run),
+  },
+  {
+    line: 26,
+    runs: ['onboarding'],
+    find: (c) =>
+      perTurn(c, (t) =>
+        outsideSentences(t)
+          .filter((s) => WORKING_WORD.test(s) || workingNote(s))
+          .map((s) => ({ text: plain(s) })),
+      ),
+  },
+  {
+    line: 28,
+    runs: ['onboarding'],
+    skip: noRaw,
+    find: (c) =>
+      perTurn(c, (t) =>
+        c.firstWins !== undefined && t.n >= c.firstWins
+          ? outsideSentences(t)
+              .filter((s) => ORDINAL.test(s))
+              .map((s) => ({ text: plain(s) }))
+          : [],
+      ),
+  },
+  { line: 36, runs: ['onboarding'], info: (c) => `${c.turns.length} turns` },
+  {
+    line: 13,
+    runs: ['update'],
+    find: (c) =>
+      perTurn(c, (t) =>
+        sentences(t.reply.replace(/\n/g, ' '))
+          .filter((s) => UPDATE_STEP.test(s) || workingNote(s))
+          .map((s) => ({ text: plain(s) })),
+      ),
+  },
+]
 
-// A line whose evidence is missing is not a pass.
-const skippedLines = (run: string) => {
-  const skipped = new Map<number, string>()
-  if (!existsSync(join(run, 'raw')))
-    for (const l of [4, 5, 28]) skipped.set(l, 'SKIPPED no raw/ folder')
-  if (!existsSync(join(run, 'written'))) skipped.set(18, 'SKIPPED no written/ folder')
-  return skipped
-}
-
-export const scoreRun = (run: string): string[] => {
+// The rows of a run, ordered by line, then by turn; a row with no turn comes first in its line.
+export const scoreFindings = (run: string, rules: Rule[] = RULES): Row[] => {
   const turns = readTurns(run)
-  const update = runKind(run) === 'update'
-  const found = update ? scoreUpdate(turns) : scoreOnboarding(run, turns)
-  const covered = update ? [13] : [4, 5, 18, 26, 28]
-  const skipped = update ? new Map<number, string>() : skippedLines(run)
-  const lines = [
-    ...found.map((f) => ({
-      line: f.line,
-      turn: f.turn ?? 0,
-      out: `line ${f.line} FAIL ${f.turn === undefined ? f.where : `T${f.turn}`} "${f.text}"`,
-    })),
-    ...covered
-      .filter((l) => !found.some((f) => f.line === l))
-      .map((l) => ({ line: l, turn: 0, out: `line ${l} ${skipped.get(l) ?? 'PASS'}` })),
-  ]
-  if (!update) lines.push({ line: 36, turn: 0, out: `line 36 INFO ${turns.length} turns` })
-  return lines.sort((a, b) => a.line - b.line || a.turn - b.turn).map((l) => l.out)
+  const kind = runKind(run)
+  const ctx: Ctx = { run, turns, firstWins: turns.find((t) => t.winsDrafted)?.n }
+  const rows = rules
+    .filter((r) => r.runs.includes(kind))
+    .flatMap((r): Row[] => {
+      if ('info' in r) return [{ line: r.line, status: 'INFO', text: r.info(ctx) }]
+      const found = r.find(ctx)
+      if (found.length > 0) return found.map((f) => ({ line: r.line, status: 'FAIL', ...f }))
+      const why = r.skip?.(run)
+      return [
+        why === undefined
+          ? { line: r.line, status: 'PASS' }
+          : { line: r.line, status: 'SKIPPED', text: why },
+      ]
+    })
+  return rows.sort((a, b) => a.line - b.line || (a.turn ?? 0) - (b.turn ?? 0))
 }
+
+export const scoreRun = (run: string): string[] => scoreFindings(run).map(formatRow)
 
 export const scoreCommand = (args: string[]): number => {
   const [run, ...extra] = args
