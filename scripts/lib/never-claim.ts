@@ -1,66 +1,49 @@
 // A never-claim pattern in profile/stack.yaml that matches a true line of cv/master.json would
 // fail every CV built for a role (cv-lint checks the built text against the patterns), so the
 // two files must not disagree. Whichever is drafted second is refused. The refusal names the
-// pattern and the line, so the coach narrows the pattern to the claim itself.
-import { existsSync, readFileSync } from 'node:fs'
+// pattern and the line, so the coach narrows the pattern to the claim itself. What a pattern
+// is, whether it is valid and what it catches is the stack module's.
 import { join } from 'node:path'
-import { parse } from 'yaml'
-import { isObj } from './draft-fields.ts'
+import { CvDataSchema } from './cv-schema.ts'
+import { readFile, yaml } from './read-file.ts'
+import { neverClaimsIn, StackFileSchema } from './stack.ts'
 
-type NeverClaim = { item: string; patterns: string[] }
-type Hit = NeverClaim & { pattern: string; line: string }
-
+// Every string in the CV, which is every line a pattern may catch.
 const strings = (value: unknown): string[] => {
   if (typeof value === 'string') return [value]
   if (Array.isArray(value)) return value.flatMap(strings)
-  return isObj(value) ? Object.values(value).flatMap(strings) : []
+  return typeof value === 'object' && value !== null ? Object.values(value).flatMap(strings) : []
 }
 
-const neverClaimsIn = (stack: unknown): NeverClaim[] => {
-  const list = isObj(stack) ? stack.do_not_claim : undefined
-  return (Array.isArray(list) ? list : []).flatMap((entry) =>
-    isObj(entry) && typeof entry.item === 'string' && Array.isArray(entry.patterns)
-      ? [{ item: entry.item, patterns: entry.patterns.filter((p) => typeof p === 'string') }]
-      : [],
-  )
-}
-
-// A pattern that is not a valid expression catches nothing here, so a draft is never refused over it.
-const matches = (pattern: string, line: string) => {
-  try {
-    return new RegExp(pattern, 'i').test(line)
-  } catch {
-    return false
-  }
-}
-
-const hits = (stack: unknown, cv: unknown): Hit[] => {
-  const lines = strings(cv)
-  return neverClaimsIn(stack).flatMap((claim) =>
-    claim.patterns.flatMap((pattern) =>
-      lines.filter((line) => matches(pattern, line)).map((line) => ({ ...claim, pattern, line })),
+// A refused invalid pattern is worded by the stack module and passed on unchanged.
+export const stackRefusals = (now: Record<string, unknown>, root: string): string[] => {
+  const guards = neverClaimsIn(now.do_not_claim)
+  const master = readFile(join(root, 'cv/master.json'), (t) => CvDataSchema.parse(JSON.parse(t)))
+  const lines = master.data ? strings(master.data) : []
+  return [
+    ...guards.invalid,
+    ...lines.flatMap((line) =>
+      guards
+        .catches(line)
+        .map(
+          (c) =>
+            `never-claim pattern "${c.pattern}" (${c.item}) matches the CV's own line "${line}"; narrow it to catch only the claim`,
+        ),
     ),
-  )
+  ]
 }
 
-const readIn = (root: string, rel: string, read: (text: string) => unknown): unknown => {
-  const path = join(root, rel)
-  if (!existsSync(path)) return undefined
-  try {
-    return read(readFileSync(path, 'utf8'))
-  } catch {
-    return undefined
-  }
+// An invalid pattern already on file is the record check's to report, not this file's.
+export const masterRefusals = (cv: Record<string, unknown>, root: string): string[] => {
+  const stack = readFile(join(root, 'profile/stack.yaml'), yaml(StackFileSchema))
+  if (!stack.data) return []
+  const guards = neverClaimsIn(stack.data.do_not_claim)
+  return strings(cv).flatMap((line) =>
+    guards
+      .catches(line)
+      .map(
+        (c) =>
+          `the line "${line}" is caught by never-claim pattern "${c.pattern}" (${c.item}) in profile/stack.yaml; narrow that pattern there, then draft this file again`,
+      ),
+  )
 }
-
-export const stackRefusals = (stack: unknown, root: string): string[] =>
-  hits(stack, readIn(root, 'cv/master.json', JSON.parse)).map(
-    (h) =>
-      `never-claim pattern "${h.pattern}" (${h.item}) matches the CV's own line "${h.line}"; narrow it to catch only the claim`,
-  )
-
-export const masterRefusals = (cv: unknown, root: string): string[] =>
-  hits(readIn(root, 'profile/stack.yaml', parse), cv).map(
-    (h) =>
-      `the line "${h.line}" is caught by never-claim pattern "${h.pattern}" (${h.item}) in profile/stack.yaml; narrow that pattern there, then draft this file again`,
-  )

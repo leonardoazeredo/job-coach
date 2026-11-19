@@ -27,6 +27,8 @@ export type Claim =
   | { ok: false; reason: 'not-in-stack' }
   | { ok: false; reason: 'needs-limit'; claimAs: string }
 
+export type Catch = { item: string; pattern: string }
+
 export type Stack = {
   sectionsOf: (item: string) => Section[]
   claim: (item: string, roleId?: string) => Claim
@@ -119,8 +121,52 @@ const limitBreachesIn = (entries: Entry[], text: string, roleId: string | undefi
       : []
   })
 
+// A pattern that does not compile is reported rather than skipped: a skipped pattern is a
+// guard that is silently off, and the CV it was meant to stop would build without it.
+const guardsOf = (list: StackFile['do_not_claim']) =>
+  list.flatMap(({ item, patterns }) =>
+    patterns.map((pattern) => {
+      try {
+        return { item, pattern, regex: new RegExp(pattern, 'i') }
+      } catch (e) {
+        // The engine's message opens with the pattern itself, which can hold ": ", so the known prefix is cut, not a split.
+        const prefix = `Invalid regular expression: /${pattern}/i: `
+        const message = e instanceof Error ? e.message : String(e)
+        return {
+          item,
+          pattern,
+          invalid: message.startsWith(prefix) ? message.slice(prefix.length) : message,
+        }
+      }
+    }),
+  )
+
+const invalidPatterns = (guards: ReturnType<typeof guardsOf>): string[] =>
+  guards.flatMap((g) =>
+    'invalid' in g
+      ? [`never-claim pattern "${g.pattern}" (${g.item}) is not a valid pattern: ${g.invalid}`]
+      : [],
+  )
+
+const catchesIn = (guards: ReturnType<typeof guardsOf>, text: string): Catch[] =>
+  guards.flatMap((g) =>
+    'regex' in g && g.regex.test(text) ? [{ item: g.item, pattern: g.pattern }] : [],
+  )
+
+// What the Draft asks about a stack it has not yet written: the invalid patterns, and the
+// text a valid one catches. It takes the list alone because the draft's values are not yet
+// checked against the file's schema.
+export const neverClaimsIn = (
+  list: unknown,
+): { invalid: string[]; catches: (text: string) => Catch[] } => {
+  const parsed = StackFileSchema.shape.do_not_claim.safeParse(list)
+  const guards = guardsOf(parsed.success ? parsed.data : [])
+  return { invalid: invalidPatterns(guards), catches: (text) => catchesIn(guards, text) }
+}
+
 export const buildStack = (file: StackFile): Stack => {
   const entries = entriesOf(file)
+  const guards = guardsOf(file.do_not_claim)
   return {
     sectionsOf: (item) =>
       SECTIONS.filter((s) =>
@@ -129,14 +175,10 @@ export const buildStack = (file: StackFile): Stack => {
     claim: (item, roleId) => claimWith(entries, item, roleId),
     covers: (keyword) => entries.some((e) => looselyMatches(keyword, e.tokens)),
     breaches: (text) =>
-      file.do_not_claim.flatMap(({ item, patterns }) =>
-        patterns
-          .filter((pattern) => new RegExp(pattern, 'i').test(text))
-          .map((pattern) => `do_not_claim "${item}" (/${pattern}/)`),
-      ),
+      catchesIn(guards, text).map((c) => `do_not_claim "${c.item}" (/${c.pattern}/)`),
     limitBreaches: (text, roleId) => limitBreachesIn(entries, text, roleId),
-    problems: (historyIds) =>
-      entries.flatMap(({ limit }) =>
+    problems: (historyIds) => [
+      ...entries.flatMap(({ limit }) =>
         (limit?.roles ?? [])
           .filter((role) => !historyIds.includes(role))
           .map(
@@ -144,5 +186,7 @@ export const buildStack = (file: StackFile): Stack => {
               `"${limit?.name}" limit names role "${role}", which is not in profile/history.yaml`,
           ),
       ),
+      ...invalidPatterns(guards),
+    ],
   }
 }
