@@ -16,11 +16,15 @@ const run = (cwd: string, extra: Record<string, string>, args: string[]) => {
     if (!realpathSync(top.stdout.trim()).startsWith(realpathSync(tmpdir()) + sep))
       throw new Error(where)
   }
-  return spawnSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', ...args], {
-    cwd,
-    env,
-    encoding: 'utf8',
-  })
+  return spawnSync(
+    'git',
+    ['-c', 'user.name=T', '-c', 'user.email=t@example.com', '-c', 'commit.gpgsign=false', ...args],
+    {
+      cwd,
+      env,
+      encoding: 'utf8',
+    },
+  )
 }
 
 export const gitIn = (cwd: string, ...args: string[]) => run(cwd, {}, args)

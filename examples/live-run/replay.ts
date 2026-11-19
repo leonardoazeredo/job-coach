@@ -180,6 +180,9 @@ export const applyTree = (copy: string, root: string) => {
       'user.name=Persona',
       '-c',
       'user.email=persona@example.com',
+      // The copy is a throwaway; the user's signing settings must not decide whether it commits.
+      '-c',
+      'commit.gpgsign=false',
       'commit',
       '-q',
       '--no-verify',

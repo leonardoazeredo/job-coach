@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it, vi } from 'vitest'
 import { applyTree } from '../../examples/live-run/replay.ts'
 
 import { gitAt } from './live-run-git.ts'
@@ -79,5 +79,23 @@ describe('applying the wording under test', () => {
     expect(existsSync(join(copy, '.claude', 'skills', 'new', 'SKILL.md'))).toBe(true)
     expect(existsSync(join(copy, '.claude', 'skills', 'old'))).toBe(false)
     expect(state()).toEqual(before)
+  })
+
+  it('commits when the global git settings ask for a signature that cannot be made', () => {
+    const home = join(tmp, 'home-signing')
+    mkdirSync(home, { recursive: true })
+    writeFileSync(
+      join(home, '.gitconfig'),
+      '[commit]\n\tgpgsign = true\n[gpg]\n\tformat = ssh\n[user]\n\tsigningkey = /nonexistent/key.pub\n',
+    )
+    vi.stubEnv('HOME', home)
+    vi.stubEnv('XDG_CONFIG_HOME', join(home, 'xdg'))
+    try {
+      const copy = makeCopy('signing')
+      applyTree(copy, makeTree('t-signing', 'new\n'))
+      expect(count(copy)).toBe('2')
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 })
