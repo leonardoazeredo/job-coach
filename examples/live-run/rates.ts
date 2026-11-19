@@ -1,6 +1,4 @@
-// The line a scorer finding is about, its verdict, and the turn it names (none for a finding about
-// a written file or the turn count).
-const VERDICT = /^line (\d+) (FAIL|PASS|SKIPPED|INFO)(?: T(\d+))?/
+import { failedAt, type Row } from './findings.ts'
 
 // The scorer reads the whole run, so a sample's output also holds findings from the turns before
 // the replayed one, which every sample shares. A line gets a row when a sample passed it or failed
@@ -10,18 +8,14 @@ const VERDICT = /^line (\d+) (FAIL|PASS|SKIPPED|INFO)(?: T(\d+))?/
 // count gets no row.
 export const failRates = (
   turn: number,
-  scored: string[][],
+  scored: Row[][],
 ): { line: number; fails: number; samples: number }[] => {
   const marked = new Set<number>()
   const failed = scored.map(() => new Set<number>())
-  scored.forEach((out, i) => {
-    for (const l of out) {
-      const m = VERDICT.exec(l)
-      if (!m) continue
-      const line = Number(m[1])
-      if (m[2] === 'PASS' || (m[2] === 'FAIL' && m[3] !== undefined)) marked.add(line)
-      if (m[2] === 'FAIL' && Number(m[3]) === turn) failed[i]?.add(line)
-    }
+  scored.forEach((rows, i) => {
+    for (const r of rows)
+      if (r.status === 'PASS' || (r.status === 'FAIL' && r.turn !== undefined)) marked.add(r.line)
+    for (const r of failedAt(rows, turn)) failed[i]?.add(r.line)
   })
   return [...marked]
     .sort((a, b) => a - b)

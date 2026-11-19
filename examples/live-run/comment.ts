@@ -8,7 +8,7 @@
 // The judge's report starts with a verdict line per checklist line (`line 26 FAIL T15, T16`),
 // then holds the quotes (`line 26 T15 "..."`, and with a verdict word or a file and line before
 // the quote: `line 30 T72 FAIL "..."`, `line 18 T61 profile/voice.md:17 "..."`). The scorer's
-// output is not read from a file: scoreRun is called, so its findings are the ones the judge was
+// output is not read from a file: scoreFindings is called, so its findings are the ones the judge was
 // given.
 // The previous verdicts are read from a comment saved to a file (the one posted for the run
 // before, kept because run folders do not outlast a run) or from a judge report.
@@ -17,8 +17,9 @@
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { EXIT } from '../../scripts/lib/problem.ts'
+import { failedLines } from './findings.ts'
 import { turnCount } from './run-folder.ts'
-import { scoreRun } from './score.ts'
+import { scoreFindings } from './score.ts'
 
 const USAGE = 'usage: node examples/live-run/comment.ts <run-dir> [<previous-comment-or-report>]'
 
@@ -127,14 +128,7 @@ export const buildComment = (run: string, previousPath?: string): string => {
   const cost =
     Number.isFinite(Number(rawCost)) && rawCost !== '' ? `$${Number(rawCost).toFixed(2)}` : rawCost
   const turns = turnCount(run)
-  const flagged = [
-    ...new Set(
-      scoreRun(run).flatMap((l) => {
-        const m = /^line (\d+) FAIL/.exec(l)
-        return m ? [Number(m[1])] : []
-      }),
-    ),
-  ]
+  const flagged = failedLines(scoreFindings(run))
   const previous = previousPath === undefined ? undefined : readFileSync(previousPath, 'utf8')
   return `${[
     `Live run at commit \`${commit}\`, ${turns} turns, \`${cost}\`, judged on the checklist. All details are fictional.`,

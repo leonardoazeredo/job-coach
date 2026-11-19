@@ -25,6 +25,7 @@ import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { EXIT } from '../../scripts/lib/problem.ts'
 import { repoRoot } from '../../scripts/lib/workspace.ts'
+import { failedAt, formatRow } from './findings.ts'
 import { failRates, formatRates } from './rates.ts'
 import {
   cacheSummary,
@@ -36,7 +37,7 @@ import {
   transcriptBefore,
   writeKind,
 } from './run-folder.ts'
-import { scoreRun } from './score.ts'
+import { scoreFindings } from './score.ts'
 import { describeSwap, swapSkillsInSample } from './swap.ts'
 
 const USAGE = 'usage: node examples/live-run/replay.ts <run-dir> <turn> [n]'
@@ -338,7 +339,7 @@ const checkInputs = (args: string[]): (ReplayArgs & { budget: number }) | number
 }
 
 const printResults = (turn: number, done: string[], spent: number) => {
-  const scored = done.map((s) => scoreRun(s))
+  const scored = done.map((s) => scoreFindings(s))
   const cache = done.map((s) => readFileSync(join(s, 'raw', `turn${turn}.jsonl`), 'utf8'))
   console.log(
     `\nFail rate at turn ${turn} over ${done.length} replies (spend ${spent.toFixed(3)} USD, ${cacheSummary(cache)}):`,
@@ -346,8 +347,7 @@ const printResults = (turn: number, done: string[], spent: number) => {
   console.log(formatRates(failRates(turn, scored)) || 'no line was marked')
   done.forEach((s, i) => {
     console.log(`\n--- reply ${i + 1}`)
-    for (const l of scored[i] ?? [])
-      if (new RegExp(`^line \\d+ FAIL T${turn}\\b`).test(l)) console.log(l)
+    for (const r of failedAt(scored[i] ?? [], turn)) console.log(formatRow(r))
     console.log(readFileSync(join(s, 'last.txt'), 'utf8'))
   })
 }
