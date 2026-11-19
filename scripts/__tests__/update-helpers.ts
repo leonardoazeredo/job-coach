@@ -1,8 +1,18 @@
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach } from 'vitest'
-import { type EngineSource, type Run, SourceFault } from '../lib/update.ts'
+import { type EngineSource, SourceFault } from '../lib/update.ts'
+import type { Run } from '../lib/verified-update.ts'
 
 // The hooks register in whichever test file imports this module, so every file gets a fresh
 // temp directory and a git environment cut off from the machine's own.
@@ -83,3 +93,50 @@ export const runner = (fails: (call: number) => boolean = () => false) => {
 }
 
 export const now = new Date('2026-10-29T09:00:00Z')
+
+// A folder that keeps history, with the engine as its upstream, for the updates that merge.
+export const g = (cwd: string, ...args: string[]) =>
+  execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
+export const identify = (cwd: string) => {
+  g(cwd, 'config', 'user.email', 'test@example.com')
+  g(cwd, 'config', 'user.name', 'Test')
+}
+export const commitAll = (cwd: string, message: string, env: NodeJS.ProcessEnv = {}) => {
+  g(cwd, 'add', '-A')
+  execFileSync('git', ['commit', '-q', '-m', message], { cwd, env: { ...process.env, ...env } })
+}
+export const engineCommit = (files: Record<string, string>, message: string) => {
+  put(upstream(), files)
+  commitAll(upstream(), message)
+}
+export const userCommit = (files: Record<string, string>, message: string) => {
+  put(work(), files)
+  commitAll(work(), message)
+}
+export const head = () => g(work(), 'rev-parse', 'HEAD')
+export const merging = () => existsSync(join(work(), '.git/MERGE_HEAD'))
+
+export const startEngine = () => {
+  put(upstream(), OLD_ENGINE)
+  g(upstream(), 'init', '-q', '-b', 'main')
+  identify(upstream())
+  // Dated well before any copy, so the copy's own first commit cannot share its second.
+  const past = '2026-01-01T00:00:00Z'
+  commitAll(upstream(), 'Engine', { GIT_AUTHOR_DATE: past, GIT_COMMITTER_DATE: past })
+}
+// A folder that already shares history with the engine, as after its first update.
+export const cloned = (engineFiles: Record<string, string> = {}) => {
+  startEngine()
+  if (Object.keys(engineFiles).length) engineCommit(engineFiles, 'More engine')
+  g(dir, 'clone', '-q', upstream(), work())
+  identify(work())
+  userCommit(DATA, 'Saved: profile')
+}
+// A copy made with "Use this template": the engine's files, but a history of its own.
+export const templated = () => {
+  startEngine()
+  put(work(), { ...OLD_ENGINE, ...DATA })
+  g(work(), 'init', '-q', '-b', 'main')
+  identify(work())
+  commitAll(work(), 'Initial commit')
+}

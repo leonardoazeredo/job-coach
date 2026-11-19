@@ -8,9 +8,9 @@ import { join } from 'node:path'
 import { hasClash, narrow, type SettledLine, settle } from './clash.ts'
 import { ENGINE, ENGINE_URL, type Git, gitHubRepo, output } from './history.ts'
 import { fallbackCommitter } from './save.ts'
-import { type Run, recordCheck, runIn } from './update.ts'
+import { checkBefore, keepOrUndo, type Run, runIn } from './verified-update.ts'
 
-export type GitUpdateOptions = { url?: string | undefined }
+export type GitUpdateOptions = { url?: string | undefined; run?: Run | undefined }
 
 // Each remote's address as configured. `git remote -v` shows it after any insteadOf rewrite,
 // which would hide that a rewritten remote is the engine and add a second one.
@@ -82,6 +82,8 @@ export type MergeResult =
   | { kind: 'latest' }
   | { kind: 'merged'; settled?: Settled[] }
   | { kind: 'clashes'; files: string[]; settled?: Settled[] }
+  // The records already fail the check, so nothing was merged.
+  | { kind: 'not-started'; output: string }
   // Nothing was fetched yet: engineChanges comes first.
   | { kind: 'not-fetched' }
   | { kind: 'not-merged'; output: string }
@@ -173,12 +175,16 @@ const showStart = (git: Git, first: boolean): Settled[] => {
   return settled
 }
 
-export const mergeEngine = (git: Git, opts: GitUpdateOptions = {}): MergeResult => {
+export const mergeEngine = (root: string, git: Git, opts: GitUpdateOptions = {}): MergeResult => {
   if (inMerge(git)) return mergeState(git)
   const remote = engineRemote(git, opts.url ?? ENGINE_URL)
   const ref = `${remote}/main`
   if (!remote || !ok(git, ['rev-parse', '-q', '--verify', ref])) return { kind: 'not-fetched' }
   if (upToDate(git, ref)) return { kind: 'latest' }
+  // Checked here and not in finish: a user whose records were already broken would otherwise settle
+  // clashes and then see the update undone as the new version's fault.
+  const refused = checkBefore(root, opts.run ?? runIn(root))
+  if (refused !== undefined) return { kind: 'not-started', output: refused }
   const first = !sharesHistory(git, ref)
   const merge = git([
     'merge',
@@ -257,15 +263,13 @@ export const finishUpdate = (root: string, git: Git, opts: FinishOptions = {}): 
     git(['merge', '--abort'])
     return { kind: 'not-committed', output: output(commit) }
   }
-  const run = opts.run ?? runIn(root)
-  const lockChanged = !ok(git, ['diff', '--quiet', 'HEAD^1', 'HEAD', '--', 'package-lock.json'])
-  const install = lockChanged ? run('npm', ['ci']) : { ok: true, output: '' }
-  const after = install.ok ? recordCheck(root, run) : install
-  if (after.ok) return { kind: 'updated' }
-  const reset = git(['reset', '-q', '--keep', 'HEAD^1'])
-  if (lockChanged) run('npm', ['ci'])
-  if (reset.status !== 0) return { kind: 'not-undone', output: `${after.output}\n${output(reset)}` }
-  return { kind: 'undone', output: after.output }
+  return keepOrUndo(root, opts.run ?? runIn(root), {
+    lockChanged: !ok(git, ['diff', '--quiet', 'HEAD^1', 'HEAD', '--', 'package-lock.json']),
+    undo: () => {
+      const reset = git(['reset', '-q', '--keep', 'HEAD^1'])
+      return reset.status === 0 ? undefined : output(reset)
+    },
+  })
 }
 
 export type CancelResult = { kind: 'cancelled' } | { kind: 'not-cancelled'; output: string }

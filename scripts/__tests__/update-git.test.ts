@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
@@ -11,56 +10,28 @@ import {
   mergeEngine,
   takeSide,
 } from '../lib/update-git.ts'
+import type { Run } from '../lib/verified-update.ts'
 import { updateCommand } from '../update.ts'
-import { DATA, dir, OLD_ENGINE, put, read, runner, upstream, work } from './update-helpers.ts'
-
-const g = (cwd: string, ...args: string[]) =>
-  execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
-const identify = (cwd: string) => {
-  g(cwd, 'config', 'user.email', 'test@example.com')
-  g(cwd, 'config', 'user.name', 'Test')
-}
-const commitAll = (cwd: string, message: string, env: NodeJS.ProcessEnv = {}) => {
-  g(cwd, 'add', '-A')
-  execFileSync('git', ['commit', '-q', '-m', message], { cwd, env: { ...process.env, ...env } })
-}
-const engineCommit = (files: Record<string, string>, message: string) => {
-  put(upstream(), files)
-  commitAll(upstream(), message)
-}
-const userCommit = (files: Record<string, string>, message: string) => {
-  put(work(), files)
-  commitAll(work(), message)
-}
-const head = () => g(work(), 'rev-parse', 'HEAD')
-const merging = () => existsSync(join(work(), '.git/MERGE_HEAD'))
-
-const startEngine = () => {
-  put(upstream(), OLD_ENGINE)
-  g(upstream(), 'init', '-q', '-b', 'main')
-  identify(upstream())
-  // Dated well before any copy, so the copy's own first commit cannot share its second.
-  const past = '2026-01-01T00:00:00Z'
-  commitAll(upstream(), 'Engine', { GIT_AUTHOR_DATE: past, GIT_COMMITTER_DATE: past })
-}
-// A folder that already shares history with the engine, as after its first update.
-const cloned = (engineFiles: Record<string, string> = {}) => {
-  startEngine()
-  if (Object.keys(engineFiles).length) engineCommit(engineFiles, 'More engine')
-  g(dir, 'clone', '-q', upstream(), work())
-  identify(work())
-  userCommit(DATA, 'Saved: profile')
-}
-// A copy made with "Use this template": the engine's files, but a history of its own.
-const templated = () => {
-  startEngine()
-  put(work(), { ...OLD_ENGINE, ...DATA })
-  g(work(), 'init', '-q', '-b', 'main')
-  identify(work())
-  commitAll(work(), 'Initial commit')
-}
+import {
+  cloned,
+  commitAll,
+  DATA,
+  dir,
+  engineCommit,
+  g,
+  head,
+  merging,
+  read,
+  runner,
+  templated,
+  upstream,
+  userCommit,
+  work,
+} from './update-helpers.ts'
 
 const opts = () => ({ url: upstream() })
+// A merge checks the records first; the stub passes, so no test runs the real check.
+const mergeOpts = () => ({ ...opts(), run: runner().run })
 const gitOf = () => {
   const git = gitIn(work())
   if (!git) throw new Error('no git')
@@ -123,7 +94,7 @@ describe('mergeEngine and finishUpdate', () => {
     const git = gitOf()
     const before = head()
     engineChanges(git, opts())
-    expect(mergeEngine(git, opts())).toEqual({ kind: 'merged' })
+    expect(mergeEngine(work(), git, mergeOpts())).toEqual({ kind: 'merged' })
     const { run, calls } = runner()
     expect(finishUpdate(work(), git, { run })).toEqual({ kind: 'updated' })
     expect(read('CLAUDE.md')).toBe('new prompt\n')
@@ -139,7 +110,7 @@ describe('mergeEngine and finishUpdate', () => {
     engineCommit({ 'config/rules.yaml': 'stale_after_days: 21\n' }, 'New default')
     const git = gitOf()
     engineChanges(git, opts())
-    expect(mergeEngine(git, opts())).toEqual({
+    expect(mergeEngine(work(), git, mergeOpts())).toEqual({
       kind: 'clashes',
       files: ['config/rules.yaml'],
     })
@@ -161,7 +132,7 @@ describe('mergeEngine and finishUpdate', () => {
     engineCommit({ 'config/rules.yaml': 'stale_after_days: 21\n' }, 'New default')
     const git = gitOf()
     engineChanges(git, opts())
-    mergeEngine(git, opts())
+    mergeEngine(work(), git, mergeOpts())
     expect(read('config/rules.yaml')).toBe(
       '<<<<<<< yours\nstale_after_days: 30\n||||||| before\nstale_after_days: 14\n=======\nstale_after_days: 21\n>>>>>>> new version\n',
     )
@@ -173,7 +144,7 @@ describe('mergeEngine and finishUpdate', () => {
     engineCommit({ 'config/rules.yaml': 'stale_after_days: 21\n' }, 'New default')
     const git = gitOf()
     engineChanges(git, opts())
-    mergeEngine(git, opts())
+    mergeEngine(work(), git, mergeOpts())
     expect(read('config/rules.yaml')).toContain('||||||| before\nstale_after_days: 14\n')
   })
 
@@ -185,7 +156,7 @@ describe('mergeEngine and finishUpdate', () => {
     engineCommit({ 'config/two.yaml': 'stale: 21\nfollow: 3\n' }, 'New defaults')
     const git = gitOf()
     engineChanges(git, opts())
-    return { git, merged: mergeEngine(git, opts()) }
+    return { git, merged: mergeEngine(work(), git, mergeOpts()) }
   }
 
   it('narrows a clash to the lines both sides changed, and lists the lines it settled', () => {
@@ -218,7 +189,7 @@ describe('mergeEngine and finishUpdate', () => {
     engineCommit({ 'config/rules.yaml': 'stale_after_days: 21\nnew_key: 1\n' }, 'New key')
     const git = gitOf()
     engineChanges(git, opts())
-    mergeEngine(git, opts())
+    mergeEngine(work(), git, mergeOpts())
     writeFileSync(join(work(), 'config/rules.yaml'), 'stale_after_days: 30\nnew_key: 1\n')
     const { run } = runner()
     expect(finishUpdate(work(), git, { run })).toEqual({ kind: 'updated' })
@@ -232,7 +203,10 @@ describe('mergeEngine and finishUpdate', () => {
     commitAll(upstream(), 'Drop rules')
     const git = gitOf()
     engineChanges(git, opts())
-    expect(mergeEngine(git, opts())).toEqual({ kind: 'clashes', files: ['config/rules.yaml'] })
+    expect(mergeEngine(work(), git, mergeOpts())).toEqual({
+      kind: 'clashes',
+      files: ['config/rules.yaml'],
+    })
     const { run } = runner()
     expect(finishUpdate(work(), git, { run })).toEqual({
       kind: 'clashes',
@@ -250,7 +224,7 @@ describe('mergeEngine and finishUpdate', () => {
     commitAll(upstream(), 'Drop guide')
     const git = gitOf()
     engineChanges(git, opts())
-    mergeEngine(git, opts())
+    mergeEngine(work(), git, mergeOpts())
     expect(takeSide(git, 'theirs', 'docs/guide.md')).toEqual({ kind: 'taken', left: [] })
     expect(existsSync(join(work(), 'docs/guide.md'))).toBe(false)
   })
@@ -261,7 +235,10 @@ describe('mergeEngine and finishUpdate', () => {
     engineCommit({ 'assets/logo.bin': 'a\0new\n' }, 'New logo')
     const git = gitOf()
     engineChanges(git, opts())
-    expect(mergeEngine(git, opts())).toEqual({ kind: 'clashes', files: ['assets/logo.bin'] })
+    expect(mergeEngine(work(), git, mergeOpts())).toEqual({
+      kind: 'clashes',
+      files: ['assets/logo.bin'],
+    })
     const { run } = runner()
     expect(finishUpdate(work(), git, { run })).toEqual({
       kind: 'clashes',
@@ -278,8 +255,98 @@ describe('mergeEngine and finishUpdate', () => {
     engineCommit({ 'docs/guide.md': 'Step: one\nThen: new\n' }, 'Clearer guide')
     const git = gitOf()
     engineChanges(git, opts())
-    expect(mergeEngine(git, opts())).toEqual({ kind: 'clashes', files: ['docs/guide.md'] })
+    expect(mergeEngine(work(), git, mergeOpts())).toEqual({
+      kind: 'clashes',
+      files: ['docs/guide.md'],
+    })
     expect(read('docs/guide.md')).toContain('Step: mine\nThen: two\n||||||| before')
+  })
+
+  it('does not start when the records already fail the check, and changes nothing', () => {
+    cloned()
+    engineCommit({ 'CLAUDE.md': 'new prompt\n' }, 'Sharper prompt')
+    const git = gitOf()
+    const before = head()
+    engineChanges(git, opts())
+    const { run, calls } = runner((call) => call === 1)
+    expect(mergeEngine(work(), git, { ...opts(), run })).toEqual({
+      kind: 'not-started',
+      output: 'pipeline/acme: status is not a known status',
+    })
+    expect(calls).toEqual(['node scripts/check.ts'])
+    expect(merging()).toBe(false)
+    expect(head()).toBe(before)
+    expect(read('CLAUDE.md')).toBe('old prompt\n')
+  })
+
+  it('prints not started and exits 1 when the records already fail the check', async () => {
+    cloned()
+    engineCommit({ 'CLAUDE.md': 'new prompt\n' }, 'Sharper prompt')
+    engineChanges(gitOf(), opts())
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const run = runner((call) => call === 1).run
+    expect(await updateCommand(['merge'], work(), { engineUrl: upstream(), run })).toBe(
+      EXIT.problems,
+    )
+    expect(log.mock.calls[0]?.[0]).toBe('not started: the record check fails before the update')
+    expect(error.mock.calls[0]?.[0]).toBe('pipeline/acme: status is not a known status')
+    expect(merging()).toBe(false)
+    log.mockRestore()
+    error.mockRestore()
+  })
+
+  it('prints not undone and exits 1 when finish cannot put the folder back', async () => {
+    cloned()
+    engineCommit({ 'CLAUDE.md': 'new prompt\n' }, 'Sharper prompt')
+    engineChanges(gitOf(), opts())
+    mergeEngine(work(), gitOf(), mergeOpts())
+    const check = runner((call) => call === 1)
+    // The check leaves a changed file behind, which stops git putting the old version back.
+    const run: Run = (cmd, args) => {
+      writeFileSync(join(work(), 'CLAUDE.md'), 'edited meanwhile\n')
+      return check.run(cmd, args)
+    }
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    expect(await updateCommand(['finish'], work(), { run })).toBe(EXIT.problems)
+    expect(log.mock.calls[0]?.[0]).toBe(
+      'not undone: the install or the record check failed after the update, and the folder could not be put back',
+    )
+    expect(String(error.mock.calls[0]?.[0])).toContain(
+      'pipeline/acme: status is not a known status',
+    )
+    log.mockRestore()
+    error.mockRestore()
+  })
+
+  // The records are checked only when a merge is about to start, so these answers stay as they are
+  // even when the records are broken.
+  it('leaves the check out of a merge that has nothing fetched', () => {
+    const none = runner(() => true)
+    templated()
+    expect(mergeEngine(work(), gitOf(), { url: upstream(), run: none.run })).toEqual({
+      kind: 'not-fetched',
+    })
+    expect(none.calls).toEqual([])
+  })
+
+  it('leaves the check out of a merge that has nothing to merge or is already open', () => {
+    const none = runner(() => true)
+    const broken = { url: upstream(), run: none.run }
+    cloned()
+    const git = gitOf()
+    expect(mergeEngine(work(), git, broken)).toEqual({ kind: 'latest' })
+
+    userCommit({ 'config/rules.yaml': 'stale_after_days: 30\n' }, 'Saved: settings')
+    engineCommit({ 'config/rules.yaml': 'stale_after_days: 21\n' }, 'New default')
+    engineChanges(git, opts())
+    expect(mergeEngine(work(), git, mergeOpts())).toMatchObject({ kind: 'clashes' })
+    expect(mergeEngine(work(), git, broken)).toMatchObject({
+      kind: 'clashes',
+      files: ['config/rules.yaml'],
+    })
+    expect(none.calls).toEqual([])
   })
 
   it('refuses to take a side of a file that does not clash', () => {
@@ -289,7 +356,7 @@ describe('mergeEngine and finishUpdate', () => {
     const git = gitOf()
     expect(takeSide(git, 'theirs', 'config/rules.yaml')).toEqual({ kind: 'no-merge' })
     engineChanges(git, opts())
-    mergeEngine(git, opts())
+    mergeEngine(work(), git, mergeOpts())
     expect(takeSide(git, 'theirs', 'CLAUDE.md')).toEqual({ kind: 'not-clashing' })
   })
 
@@ -299,7 +366,7 @@ describe('mergeEngine and finishUpdate', () => {
     const git = gitOf()
     const before = head()
     engineChanges(git, opts())
-    mergeEngine(git, opts())
+    mergeEngine(work(), git, mergeOpts())
     const { run, calls } = runner((call) => call === 2)
     expect(finishUpdate(work(), git, { run })).toMatchObject({ kind: 'undone' })
     expect(head()).toBe(before)
@@ -317,7 +384,7 @@ describe('mergeEngine and finishUpdate', () => {
     )
     const git = gitOf()
     engineChanges(git, opts())
-    expect(mergeEngine(git, opts())).toEqual({
+    expect(mergeEngine(work(), git, mergeOpts())).toEqual({
       kind: 'clashes',
       files: ['config/rules.yaml'],
     })
@@ -335,14 +402,14 @@ describe('mergeEngine and finishUpdate', () => {
     engineCommit({ 'CLAUDE.md': 'new prompt\n' }, 'Sharper prompt')
     const git = gitOf()
     engineChanges(git, opts())
-    expect(mergeEngine(git, opts())).toEqual({ kind: 'merged' })
+    expect(mergeEngine(work(), git, mergeOpts())).toEqual({ kind: 'merged' })
     expect(read('config/rules.yaml')).toBe('stale_after_days: 30\n')
     expect(read('CLAUDE.md')).toBe('new prompt\n')
   })
 
   it('asks for the changes first when nothing has been fetched', () => {
     templated()
-    expect(mergeEngine(gitOf(), opts())).toEqual({ kind: 'not-fetched' })
+    expect(mergeEngine(work(), gitOf(), mergeOpts())).toEqual({ kind: 'not-fetched' })
   })
 })
 
@@ -354,7 +421,7 @@ describe('cancelUpdate', () => {
     const git = gitOf()
     const before = head()
     engineChanges(git, opts())
-    mergeEngine(git, opts())
+    mergeEngine(work(), git, mergeOpts())
     expect(cancelUpdate(git)).toEqual({ kind: 'cancelled' })
     expect(head()).toBe(before)
     expect(merging()).toBe(false)

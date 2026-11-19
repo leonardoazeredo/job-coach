@@ -11,13 +11,15 @@
 // backing up each file it replaces, and undoes the update if the install or the record check
 // then fails.
 // zip prints one line: latest, updated (counts, backup folder and, when any, the replaced settings
-// under config/), not started, not fetched or undone.
+// under config/), not started, not fetched, undone or not undone (the files could not be put back,
+// and the line names the backup folder that holds the old ones).
 // A folder that keeps history updates in steps instead, because a file both the user and the new
 // version changed needs the user's choice between turns:
 //   changes  connects to the engine, fetches it, and prints latest, or available followed by one
 //            "- " line per change, or not fetched.
-//   merge    merges the new version and prints merged, clashes: <files>, latest, not fetched (run
-//            changes first) or not merged.
+//   merge    checks the records first and prints not started when they already fail; otherwise merges
+//            the new version and prints merged, clashes: <files>, latest, not fetched (run changes
+//            first) or not merged.
 //   take     settles one clashing file with the user's version (ours) or the new one (theirs).
 //   finish   commits, installs, runs the record check and prints updated, or clashes left while a
 //            file holds a clash marker, is binary or one side removed it, or undone when the
@@ -25,7 +27,7 @@
 //            that putting back failed too.
 //   cancel   abandons a merge in progress; nothing changes.
 // Exit 64 on a usage error, zip in a folder that keeps history, or a history step in one without.
-// Exit 1 when an update did not start, was undone, could not fetch the new version or has clashes
+// Exit 1 when an update did not start, was undone or not undone, could not fetch the new version or has clashes
 // left, with the reason on stderr. Otherwise 0, including a check that got no answer.
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
@@ -36,7 +38,6 @@ import {
   checkForUpdate,
   type EngineSource,
   gitHubEngine,
-  type Run,
   type UnknownReason,
   updateFromArchive,
   type ZipResult,
@@ -49,6 +50,7 @@ import {
   type Settled,
   takeSide,
 } from './lib/update-git.ts'
+import type { Run } from './lib/verified-update.ts'
 import { repoRoot } from './lib/workspace.ts'
 
 const USAGE =
@@ -124,8 +126,8 @@ const printSettled = (settled: Settled[] = []): number => {
   return 0
 }
 
-const mergeStep: Step = (git, _root, _args, deps) => {
-  const result = mergeEngine(git, { url: deps.engineUrl })
+const mergeStep: Step = (git, root, _args, deps) => {
+  const result = mergeEngine(root, git, { url: deps.engineUrl, run: deps.run })
   switch (result.kind) {
     case 'latest':
       return say(0, result.kind)
@@ -135,6 +137,12 @@ const mergeStep: Step = (git, _root, _args, deps) => {
     case 'clashes':
       say(0, `clashes: ${result.files.join(', ')}`)
       return printSettled(result.settled)
+    case 'not-started':
+      return say(
+        EXIT.problems,
+        'not started: the record check fails before the update',
+        result.output,
+      )
     case 'not-fetched':
       return say(EXIT.problems, 'not fetched: nothing has been fetched yet; run changes first')
     case 'not-merged':
@@ -183,7 +191,7 @@ const finishStep: Step = (git, root, _args, deps) => {
     case 'not-undone':
       return say(
         EXIT.problems,
-        'not undone: the record check failed after the update, and the folder could not be put back',
+        'not undone: the install or the record check failed after the update, and the folder could not be put back',
         result.output,
       )
   }
@@ -240,6 +248,12 @@ const printZip = (result: ZipResult): number => {
       return say(
         EXIT.problems,
         `undone: the install or the record check failed after the update; backup in ${result.backup}`,
+        result.output,
+      )
+    case 'not-undone':
+      return say(
+        EXIT.problems,
+        `not undone: the install or the record check failed after the update, and the files could not be put back; the old ones are in ${result.backup}`,
         result.output,
       )
   }

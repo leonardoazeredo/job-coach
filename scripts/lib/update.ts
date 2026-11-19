@@ -15,7 +15,9 @@ import {
 import { tmpdir } from 'node:os'
 import { dirname, join, relative } from 'node:path'
 import { z } from 'zod'
-import { ENGINE, type Git, gitIn, output } from './history.ts'
+import { ENGINE, type Git, gitIn } from './history.ts'
+import { describe } from './read-file.ts'
+import { checkBefore, keepOrUndo, type Run, runIn } from './verified-update.ts'
 
 // Ignored by git and Biome: the last check date and the backups of replaced files.
 export const LOCAL_DIR = '.coach'
@@ -231,21 +233,6 @@ const listFiles = (dir: string, base = dir): string[] =>
     return e.isFile() ? [relative(base, path)] : []
   })
 
-export type Run = (cmd: string, args: string[]) => { ok: boolean; output: string }
-
-export const runIn =
-  (root: string): Run =>
-  (cmd, args) => {
-    const run = spawnSync(cmd, args, { cwd: root, encoding: 'utf8', timeout: 600_000 })
-    return { ok: run.status === 0, output: output(run) }
-  }
-
-// The record check once onboarding has made a profile, else the same check on the example.
-export const recordCheck = (root: string, run: Run) =>
-  existsSync(join(root, 'profile/identity.yaml'))
-    ? run('node', ['scripts/check.ts'])
-    : run('node', ['scripts/check.ts', '--root', 'examples/austin-backend'])
-
 export type ZipResult =
   | { kind: 'latest' }
   // The check failed before anything changed, so the update did not start.
@@ -255,6 +242,8 @@ export type ZipResult =
   | { kind: 'not-fetched'; output: string }
   // Every replaced file was put back and every added one removed.
   | { kind: 'undone'; output: string; backup: string }
+  // The files could not be put back; the backup folder holds the old ones for putting back by hand.
+  | { kind: 'not-undone'; output: string; backup: string }
 
 export type ZipOptions = { now: Date; source: EngineSource; run?: Run | undefined }
 
@@ -267,8 +256,8 @@ const restore = (root: string, backup: string, manifest: Manifest) => {
 
 export const updateFromArchive = async (root: string, opts: ZipOptions): Promise<ZipResult> => {
   const run = opts.run ?? runIn(root)
-  const before = recordCheck(root, run)
-  if (!before.ok) return { kind: 'not-started', output: before.output }
+  const refused = checkBefore(root, run)
+  if (refused !== undefined) return { kind: 'not-started', output: refused }
 
   const scratch = mkdtempSync(join(tmpdir(), 'coach-update-'))
   try {
@@ -305,13 +294,20 @@ export const updateFromArchive = async (root: string, opts: ZipOptions): Promise
       copyFileSync(join(engine, rel), join(root, rel))
     }
 
-    const lockChanged = changed.includes('package-lock.json')
-    const install = lockChanged ? run('npm', ['ci']) : { ok: true, output: '' }
-    const after = install.ok ? recordCheck(root, run) : install
-    if (after.ok) return { kind: 'updated', ...manifest, backup }
-    restore(root, backup, manifest)
-    if (lockChanged) run('npm', ['ci'])
-    return { kind: 'undone', output: after.output, backup }
+    const verified = keepOrUndo(root, run, {
+      lockChanged: changed.includes('package-lock.json'),
+      undo: () => {
+        let reason: string | undefined
+        try {
+          restore(root, backup, manifest)
+        } catch (error) {
+          reason = describe(error)
+        }
+        return reason
+      },
+    })
+    if (verified.kind === 'updated') return { kind: 'updated', ...manifest, backup }
+    return { ...verified, backup }
   } finally {
     rmSync(scratch, { recursive: true, force: true })
   }
