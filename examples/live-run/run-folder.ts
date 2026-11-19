@@ -41,7 +41,7 @@ export type TurnStream = {
   sessionId?: string | undefined
   // undefined when that result has no number for its cost.
   cost?: number | undefined
-  // The coach's text of the turn, one entry per message.
+  // The coach's text of the turn, one entry per text block.
   text: string[]
   cache: { read: number; written: number }
   skipped: number
@@ -127,7 +127,7 @@ const totalOfLine = (line: string | undefined): number | undefined => {
 }
 
 // total_cost_usd is a running total for the session, so the last line is the spend: never sum it.
-// A log with no usable line is 0.
+// A log with no lines, or whose last line has no usable total, is 0.
 export const runningTotal = (log: string): number => totalOfLine(lines(log).at(-1)) ?? 0
 
 // The running total a turn left, from the last line for that turn; undefined when there is none.
@@ -145,7 +145,7 @@ export const readSession = (run: string): string => readIf(join(run, 'session.id
 
 // ---- the transcript ----
 
-// A block is the persona's message and the coach's reply, each quoted line by line.
+// Each line of a text gets the "> " prefix.
 const quoted = (text: string): string => {
   const rows = text === '' ? [] : text.replace(/\n$/, '').split('\n')
   return rows.map((l) => `> ${l}\n`).join('')
