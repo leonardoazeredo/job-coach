@@ -8,7 +8,11 @@ BUDGET=${LIVE_RUN_BUDGET_USD:-5}
 
 HERE=$(cd "$(dirname "$0")" && pwd)
 # run-folder.ts owns the files turn.sh and the scripts after it read; the last cost line is the total.
-SPENT=$(node "$HERE/run-folder.ts" total "$RUN")
+# A total that cannot be read must not look like 0: the stop would be skipped and the turn paid for.
+SPENT=$(node "$HERE/run-folder.ts" total "$RUN") || {
+  echo "could not read the running total in $RUN/costlog.txt; no turn was run"
+  exit 1
+}
 if awk -v s="$SPENT" -v b="$BUDGET" 'BEGIN {exit !(s >= b)}'; then
   echo "STOP: $SPENT spent, the stop is $BUDGET. No turn was run."
   exit 3

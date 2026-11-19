@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { withoutGitVariables } from '../../examples/live-run/replay.ts'
+import { transcriptBlock } from '../../examples/live-run/run-folder.ts'
 import { gitIn } from './live-run-git.ts'
 import { dockerStandIn, makeRun, runReplay } from './live-run-replay-fixture.ts'
 
@@ -215,7 +216,33 @@ describe('the real sample runner', () => {
     } else {
       expect(r.status, r.stdout).toBe(0)
       expect(dockerLines('exec')).toHaveLength(1)
+      const read = (f: string) => readFileSync(join(live, f), 'utf8')
+      expect(read('transcript.md')).toBe(transcriptBlock(2, 'hello', 'a reply'))
+      expect(read('raw/reply2.txt')).toBe('hello')
+      expect(read('last.txt')).toBe('a reply')
+      expect(r.stdout.endsWith('a reply\n--- cost so far:\n5.09\n')).toBe(true)
     }
+  })
+
+  it('turn.sh runs no turn when it cannot read the running total', () => {
+    const live = join(tmp, 'live-unreadable')
+    rmSync(live, { recursive: true, force: true })
+    for (const d of ['raw', 'copy', 'claudehome', 'costlog.txt'])
+      mkdirSync(join(live, d), { recursive: true })
+    writeFileSync(join(live, 'r.txt'), 'hello')
+    const r = spawnSync(
+      join(import.meta.dirname, '../../examples/live-run/turn.sh'),
+      [live, '1', join(live, 'r.txt')],
+      {
+        encoding: 'utf8',
+        env: { ...withoutGitVariables(process.env), ...env({ LIVE_RUN_BUDGET_USD: '5' }) },
+      },
+    )
+    expect(r.status).toBe(1)
+    expect(r.stdout).toBe(
+      `could not read the running total in ${live}/costlog.txt; no turn was run\n`,
+    )
+    expect(dockerLines('exec')).toHaveLength(0)
   })
 
   it('finish-update.sh gathers the total and the turn count through the run folder', () => {
