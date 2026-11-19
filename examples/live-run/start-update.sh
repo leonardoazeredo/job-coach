@@ -78,6 +78,7 @@ git -C "$C" config "url./engine.insteadOf" "$ENGINE_URL"
 chmod -R a+rwX "$RUN"
 git -C "$ROOT" rev-parse --short HEAD >"$RUN/commit.txt"
 git -C "$C" rev-parse HEAD >"$RUN/before.txt"
+echo update >"$RUN/kind"
 "$HERE/up.sh" "$RUN"
 
 echo "[$(date +%T)] installing the coach's packages and checking Dana's records (about a minute)"

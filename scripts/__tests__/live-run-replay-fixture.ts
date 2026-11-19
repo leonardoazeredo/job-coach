@@ -11,6 +11,7 @@ import {
   replayCommand,
   type SampleOutcome,
 } from '../../examples/live-run/replay.ts'
+import { costLine, recordTurn, transcriptBlock } from '../../examples/live-run/run-folder.ts'
 
 // A run whose turn 3 can be replayed; its total before turn 3 is 0.75.
 export const makeRun = (tmp: string): string => {
@@ -26,23 +27,21 @@ export const makeRun = (tmp: string): string => {
   writeFileSync(join(run, 'raw', 'turn2.jsonl'), result)
   writeFileSync(join(run, 'raw', 'turn3.jsonl'), result)
   writeFileSync(join(run, 'raw', 'reply3.txt'), 'message 3\n')
-  writeFileSync(join(run, 'transcript.md'), '## Turn 1\n\n**Persona:**\n\n> hi\n\n')
-  writeFileSync(join(run, 'costlog.txt'), 'turn 1 0.5\nturn 2 0.75\nturn 3 1.5\n')
+  writeFileSync(join(run, 'transcript.md'), transcriptBlock(1, 'hi', 'hello'))
+  writeFileSync(join(run, 'costlog.txt'), costLine(1, 0.5) + costLine(2, 0.75) + costLine(3, 1.5))
   return run
 }
 
-// What turn.sh leaves in a sample folder for a turn whose running total is `total`. The one place a
-// fake adapter writes the outputs of turn.sh by hand.
+// What turn.sh leaves in a sample folder for a turn whose running total is `total`: claude's stream
+// recorded through the run-folder module, as turn.sh records it. The one place a fake adapter
+// writes a turn's outputs.
 export const writeTurnOutputs = (sample: string, turn: number, total: number) => {
-  writeFileSync(
-    join(sample, 'costlog.txt'),
-    `turn ${turn - 1} ${total - 0.1}\nturn ${turn} ${total}\n`,
-  )
-  writeFileSync(join(sample, 'last.txt'), 'a reply\n')
-  writeFileSync(
-    join(sample, 'raw', `turn${turn}.jsonl`),
-    '{"type":"result","session_id":"s","usage":{"cache_read_input_tokens":5,"cache_creation_input_tokens":7}}\n',
-  )
+  const stream = [
+    '{"type":"assistant","message":{"content":[{"type":"text","text":"a reply"}]}}',
+    `{"type":"result","session_id":"s","total_cost_usd":${total},"usage":{"cache_read_input_tokens":5,"cache_creation_input_tokens":7}}`,
+  ]
+  writeFileSync(join(sample, 'raw', `turn${turn}.jsonl`), `${stream.join('\n')}\n`)
+  recordTurn(sample, turn, join(sample, 'reply.txt'))
 }
 
 // Spends 0.1 per sample on top of the run's 0.75; `failAt` is the sample that fails, with what it
@@ -90,7 +89,7 @@ export const runReplay = (args: string[], env: Record<string, string>, adapter?:
 // A `docker` that logs each call to `log`. Its `exec` answers like claude does: one reply and a
 // result whose running total is FAKE_COST_BASE plus 0.1. FAKE_DIE_ON=n makes the nth exec exit
 // with nothing; FAKE_BUDGET_ON=n makes it spend 0.2, report an error result and exit 1;
-// FAKE_BUILD=fail and FAKE_RUN=fail fail those commands.
+// FAKE_EXTRA_LINES is printed before the reply, FAKE_BUILD=fail and FAKE_RUN=fail fail those commands.
 export const dockerStandIn = (dir: string): { bin: string; log: string } => {
   const bin = join(dir, 'bin')
   const log = join(dir, 'docker.log')
@@ -109,6 +108,7 @@ echo $N > "${log}.n"
 EXTRA=0.1; ERR=false; CODE=0
 [ "$N" = "$FAKE_BUDGET_ON" ] && { EXTRA=0.2; ERR=true; CODE=1; }
 COST=$(awk -v b="$FAKE_COST_BASE" -v e="$EXTRA" 'BEGIN{printf "%.2f", b+e}')
+[ -n "$FAKE_EXTRA_LINES" ] && printf '%s\n' "$FAKE_EXTRA_LINES"
 echo '{"type":"assistant","message":{"content":[{"type":"text","text":"a reply"}]}}'
 echo '{"type":"result","session_id":"sid-new","is_error":'$ERR',"total_cost_usd":'$COST',"usage":{"cache_read_input_tokens":5,"cache_creation_input_tokens":7}}'
 exit $CODE

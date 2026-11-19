@@ -197,6 +197,28 @@ describe('preparing a sample', () => {
     expect(readFileSync(join(sample, 'costlog.txt'), 'utf8')).toBe('turn 2 0.75\n')
   })
 
+  it('says what kind of run it is, and has no written folder of its own', () => {
+    expect(readFileSync(join(sample, 'kind'), 'utf8')).toBe('update\n')
+    expect(existsSync(join(sample, 'written'))).toBe(false)
+  })
+
+  it('copies the kind a run names, and tells an old run with no kind file by what it holds', () => {
+    const named = makeRunFolder('named-kind')
+    writeFileSync(join(named, 'kind'), 'onboarding\n')
+    prepareSample(named, 3, join(tmp, 'sample-named'), join(tmp, 'tree'))
+    expect(readFileSync(join(tmp, 'sample-named', 'kind'), 'utf8')).toBe('onboarding\n')
+    const plain = makeRunFolder('plain-old')
+    rmSync(join(plain, 'engine'), { recursive: true })
+    prepareSample(plain, 3, join(tmp, 'sample-plain'), join(tmp, 'tree'))
+    expect(readFileSync(join(tmp, 'sample-plain', 'kind'), 'utf8')).toBe('onboarding\n')
+    const finished = makeRunFolder('finished-old')
+    rmSync(join(finished, 'engine'), { recursive: true })
+    mkdirSync(join(finished, 'written'))
+    writeFileSync(join(finished, 'written', 'log.txt'), '')
+    prepareSample(finished, 3, join(tmp, 'sample-finished'), join(tmp, 'tree'))
+    expect(readFileSync(join(tmp, 'sample-finished', 'kind'), 'utf8')).toBe('update\n')
+  })
+
   it('keeps the turns before the replayed one for the scorer, and the engine of an update run', () => {
     const transcript = readFileSync(join(sample, 'transcript.md'), 'utf8')
     expect(transcript).toContain('## Turn 2')

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { cacheSummary, cacheTokens } from '../../examples/live-run/stream.ts'
+import { cacheSummary, readStream } from '../../examples/live-run/run-folder.ts'
+
+const cacheTokens = (stream: string) => readStream(stream).cache
 
 const result = (usage: object) => JSON.stringify({ type: 'result', session_id: 'x', usage })
 const assistant = JSON.stringify({ type: 'assistant', message: { content: [] } })

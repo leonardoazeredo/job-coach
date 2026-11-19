@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSyn
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { transcriptBlock } from '../../examples/live-run/run-folder.ts'
 import { scoreCommand, scoreRun } from '../../examples/live-run/score.ts'
 import { EXIT } from '../lib/problem.ts'
 import { repoRoot } from '../lib/workspace.ts'
@@ -73,11 +74,7 @@ describe('the live-run scorer', () => {
   })
 })
 
-const turn = (n: number, reply: string) =>
-  `## Turn ${n}\n\n**Persona:**\n\n> Yes.\n\n**Coach:**\n\n${reply
-    .split('\n')
-    .map((l) => `> ${l}`)
-    .join('\n')}\n\n`
+const turn = (n: number, reply: string) => transcriptBlock(n, 'Yes.', reply)
 
 const draftRaw = (id: string, file: string, out: string) =>
   [
@@ -175,6 +172,26 @@ describe('what the scorer will not call a pass or a fault', () => {
     expect(bad.some((l) => l.startsWith('line 13 FAIL T2'))).toBe(true)
     expect(bad.some((l) => l.startsWith('line 36'))).toBe(false)
     expect(scoreRun(update('The coach is updated.'))).toEqual(['line 13 PASS'])
+  })
+
+  it('scores a run by the kind it names, before it has anything written', () => {
+    const named = (kind: string, reply: string) =>
+      makeRun((d) => {
+        writeFileSync(join(d, 'kind'), `${kind}\n`)
+        writeFileSync(join(d, 'transcript.md'), turn(1, reply))
+      })
+    expect(scoreRun(named('update', "I'll load the update steps now."))).toEqual([
+      'line 13 FAIL T1 "I\'ll load the update steps now."',
+    ])
+    expect(scoreRun(named('onboarding', 'Hello.'))).toContain('line 36 INFO 1 turns')
+    // A kind file wins over what the folder holds.
+    const both = makeRun((d) => {
+      writeFileSync(join(d, 'kind'), 'onboarding\n')
+      mkdirSync(join(d, 'written'))
+      writeFileSync(join(d, 'written/log.txt'), '')
+      writeFileSync(join(d, 'transcript.md'), turn(1, 'Hello.'))
+    })
+    expect(scoreRun(both)).toContain('line 36 INFO 1 turns')
   })
 })
 

@@ -12,6 +12,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { EXIT } from '../../scripts/lib/problem.ts'
 import { repoRoot } from '../../scripts/lib/workspace.ts'
+import { draftsIn, readTranscript, runKind } from './run-folder.ts'
 
 const USAGE = 'usage: node examples/live-run/score.ts <run-dir>'
 
@@ -33,65 +34,14 @@ const sentences = (text: string) =>
     .map((s) => s.trim())
     .filter(Boolean)
 
-const readTurns = (run: string): Turn[] => {
-  const blocks = readFileSync(join(run, 'transcript.md'), 'utf8').split(/^## Turn (\d+)\s*$/m)
-  const turns: Turn[] = []
-  for (let i = 1; i < blocks.length; i += 2) {
-    const n = Number(blocks[i])
-    const coach = (blocks[i + 1] ?? '').split('**Coach:**')[1] ?? ''
-    const reply = coach
-      .split('\n')
-      .map((l) => l.replace(/^>\s?/, ''))
-      .join('\n')
-      .trim()
-    turns.push({ n, reply, ...readDrafts(run, n) })
-  }
-  return turns
-}
-
-type Block = { type?: string; id?: string; tool_use_id?: string; is_error?: boolean } & Record<
-  string,
-  // biome-ignore lint/suspicious/noExplicitAny: a stream line is read for a few keys only
-  any
->
-
-const blocksOf = (raw: string): Block[] => {
-  try {
-    const content = JSON.parse(raw)?.message?.content
-    return Array.isArray(content) ? content : []
-  } catch {
-    return []
-  }
-}
-
-const textOf = (content: unknown): string =>
-  Array.isArray(content)
-    ? content.map((p: { text?: string }) => p.text ?? '').join('\n')
-    : String(content ?? '')
-
-// A turn's raw stream pairs each tool call with its result; a draft's stdout is the summary.
-const readDrafts = (run: string, n: number) => {
-  const path = join(run, 'raw', `turn${n}.jsonl`)
-  let winsDrafted = false
-  if (!existsSync(path)) return { summaries: [], winsDrafted }
-  const files = new Map<string, string>()
-  // A file drafted again in the same turn replaces its earlier summary: only the last one is shown.
-  const latest = new Map<string, string[]>()
-  for (const block of readFileSync(path, 'utf8').split('\n').flatMap(blocksOf)) {
-    const file = /profile\.ts\s+draft\s+(\S+)/.exec(String(block.input?.command ?? ''))?.[1]
-    if (block.type === 'tool_use' && block.id && file) files.set(block.id, file)
-    const drafted = files.get(block.tool_use_id ?? '')
-    if (block.type !== 'tool_result' || drafted === undefined || block.is_error) continue
-    const out = textOf(block.content).trim()
-    if (out === '' || out === 'No change.') continue
-    latest.set(
-      drafted,
-      out.split('\n').filter((l) => l.trim() !== ''),
-    )
-    winsDrafted ||= /wins\.yaml$/.test(drafted)
-  }
-  return { summaries: [...latest.values()].flat(), winsDrafted }
-}
+const readTurns = (run: string): Turn[] =>
+  readTranscript(run).map(({ n, reply }) => {
+    const path = join(run, 'raw', `turn${n}.jsonl`)
+    const drafts = existsSync(path)
+      ? draftsIn(readFileSync(path, 'utf8'))
+      : { summaries: [], winsDrafted: false }
+    return { n, reply, ...drafts }
+  })
 
 // What a reply says outside the lines it relays from a summary.
 const outsideSummary = (t: Turn) => {
@@ -185,9 +135,6 @@ const scoreUpdate = (turns: Turn[]): Finding[] => {
   return found
 }
 
-const isUpdateRun = (run: string) =>
-  existsSync(join(run, 'written', 'log.txt')) || existsSync(join(run, 'written', 'rules.yaml'))
-
 // A line whose evidence is missing is not a pass.
 const skippedLines = (run: string) => {
   const skipped = new Map<number, string>()
@@ -199,7 +146,7 @@ const skippedLines = (run: string) => {
 
 export const scoreRun = (run: string): string[] => {
   const turns = readTurns(run)
-  const update = isUpdateRun(run)
+  const update = runKind(run) === 'update'
   const found = update ? scoreUpdate(turns) : scoreOnboarding(run, turns)
   const covered = update ? [13] : [4, 5, 18, 26, 28]
   const skipped = update ? new Map<number, string>() : skippedLines(run)
