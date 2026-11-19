@@ -1,5 +1,13 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, rmSync } from 'node:fs'
+import {
+  chmodSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+} from 'node:fs'
 import { join } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { EXIT } from '../lib/problem.ts'
@@ -124,6 +132,49 @@ describe('updateFromArchive', () => {
     const result = await updateFromArchive(work(), { now, source: source(), run })
     expect(result.kind).toBe('not-undone')
     expect(calls).toEqual(['node scripts/check.ts', 'npm ci', 'node scripts/check.ts', 'npm ci'])
+  })
+
+  // The update-coach skill undoes a failed restore by hand from this file, so its name, place and
+  // keys are what that step relies on.
+  it('writes the backup manifest the skill undoes by hand from', async () => {
+    const { run } = runner()
+    const result = await updateFromArchive(work(), { now, source: source(), run })
+    if (result.kind !== 'updated') throw new Error(result.kind)
+    expect(JSON.parse(read(join(result.backup, 'manifest.json')))).toEqual({
+      replaced: ['CLAUDE.md', 'config/rules.yaml'],
+      added: ['.claude/skills/update-coach/SKILL.md'],
+    })
+  })
+
+  it('lets the skill put the old version back by hand from the manifest after a failed restore', async () => {
+    const files = (base: string) =>
+      readdirSync(base, { recursive: true, withFileTypes: true })
+        .filter((e) => e.isFile() && !e.parentPath.includes('.coach'))
+        .map((e) => join(e.parentPath, e.name).slice(base.length))
+        .sort()
+    const before = join(dir, 'before')
+    cpSync(work(), before, { recursive: true })
+    let calls = 0
+    // The restore cannot overwrite a read-only file, so it stops after the first replaced file.
+    const locked = join(work(), 'config/rules.yaml')
+    const run: Run = () => {
+      calls++
+      if (calls < 2) return { ok: true, output: '' }
+      chmodSync(locked, 0o444)
+      return { ok: false, output: 'check failed' }
+    }
+    const result = await updateFromArchive(work(), { now, source: source(), run })
+    if (result.kind !== 'not-undone') throw new Error(result.kind)
+    expect(existsSync(join(work(), '.claude/skills/update-coach/SKILL.md'))).toBe(true)
+
+    // The skill's steps: copy each replaced file back from the backup, delete each added one.
+    chmodSync(locked, 0o644)
+    const manifest = JSON.parse(read(join(result.backup, 'manifest.json')))
+    for (const rel of manifest.replaced) cpSync(join(work(), result.backup, rel), join(work(), rel))
+    for (const rel of manifest.added) rmSync(join(work(), rel), { force: true })
+
+    expect(files(work())).toEqual(files(before))
+    for (const rel of files(before)) expect(read(rel)).toBe(readFileSync(join(before, rel), 'utf8'))
   })
 
   it('reinstalls the old dependencies when it undoes a lockfile change', async () => {
