@@ -41,7 +41,8 @@ export const writeTurnOutputs = (sample: string, turn: number, total: number) =>
     `{"type":"result","session_id":"s","total_cost_usd":${total},"usage":{"cache_read_input_tokens":5,"cache_creation_input_tokens":7}}`,
   ]
   writeFileSync(join(sample, 'raw', `turn${turn}.jsonl`), `${stream.join('\n')}\n`)
-  recordTurn(sample, turn, join(sample, 'reply.txt'))
+  const recorded = recordTurn(sample, turn, join(sample, 'reply.txt'))
+  if ('failure' in recorded) throw new Error(recorded.failure)
 }
 
 // Spends 0.1 per sample on top of the run's 0.75; `failAt` is the sample that fails, with what it

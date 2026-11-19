@@ -3,6 +3,8 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
+import { withoutGitVariables } from '../../examples/live-run/replay.ts'
+import { gitIn } from './live-run-git.ts'
 import { dockerStandIn, makeRun, runReplay } from './live-run-replay-fixture.ts'
 
 // The real adapter: replay.ts, up.sh and turn.sh run for real; only the docker command is a
@@ -163,7 +165,7 @@ describe('the real sample runner', () => {
       encoding: 'utf8',
       // The scripts commit in a throwaway copy; the developer's signing settings must not matter.
       env: {
-        ...process.env,
+        ...withoutGitVariables(process.env),
         ...env(),
         CLAUDE_CODE_OAUTH_TOKEN: 'not-a-real-token',
         GIT_CONFIG_GLOBAL: '/dev/null',
@@ -178,8 +180,60 @@ describe('the real sample runner', () => {
       mkdirSync(join(run, 'copy', d), { recursive: true })
     const r = spawnSync(join(import.meta.dirname, '../../examples/live-run/finish.sh'), [run], {
       encoding: 'utf8',
-      env: { ...process.env, ...env() },
+      env: { ...withoutGitVariables(process.env), ...env() },
     })
+    expect(r.status, r.stderr).toBe(0)
+    expect(readFileSync(join(run, 'cost.txt'), 'utf8')).toBe('total_usd 1.5\n')
+    expect(r.stdout).toContain('turns 1\n')
+  })
+
+  it.each([
+    ['5', true],
+    ['4.99', false],
+  ])('turn.sh stops a run whose total is %s against a budget of 5: %s', (total, stops) => {
+    const live = join(tmp, 'live')
+    rmSync(live, { recursive: true, force: true })
+    for (const d of ['raw', 'copy', 'claudehome']) mkdirSync(join(live, d), { recursive: true })
+    writeFileSync(join(live, 'costlog.txt'), `turn 1 ${total}\n`)
+    writeFileSync(join(live, 'r.txt'), 'hello')
+    writeFileSync(join(live, 'session.id'), 'S1')
+    const r = spawnSync(
+      join(import.meta.dirname, '../../examples/live-run/turn.sh'),
+      [live, '2', join(live, 'r.txt')],
+      {
+        encoding: 'utf8',
+        env: {
+          ...withoutGitVariables(process.env),
+          ...env({ LIVE_RUN_BUDGET_USD: '5', FAKE_COST_BASE: total }),
+        },
+      },
+    )
+    if (stops) {
+      expect(r.status).toBe(3)
+      expect(r.stdout).toBe('STOP: 5 spent, the stop is 5. No turn was run.\n')
+      expect(dockerLines('exec')).toHaveLength(0)
+    } else {
+      expect(r.status, r.stdout).toBe(0)
+      expect(dockerLines('exec')).toHaveLength(1)
+    }
+  })
+
+  it('finish-update.sh gathers the total and the turn count through the run folder', () => {
+    const copy = join(run, 'copy')
+    mkdirSync(join(copy, 'config'), { recursive: true })
+    writeFileSync(join(copy, 'config', 'rules.yaml'), 'a: 1\n')
+    gitIn(copy, 'init', '-q', '-b', 'main')
+    gitIn(copy, 'add', '-A')
+    gitIn(copy, 'commit', '-q', '-m', 'base')
+    writeFileSync(join(run, 'before.txt'), gitIn(copy, 'rev-parse', 'HEAD').stdout.trim())
+    const r = spawnSync(
+      join(import.meta.dirname, '../../examples/live-run/finish-update.sh'),
+      [run],
+      {
+        encoding: 'utf8',
+        env: { ...withoutGitVariables(process.env), ...env() },
+      },
+    )
     expect(r.status, r.stderr).toBe(0)
     expect(readFileSync(join(run, 'cost.txt'), 'utf8')).toBe('total_usd 1.5\n')
     expect(r.stdout).toContain('turns 1\n')

@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
@@ -182,8 +182,8 @@ describe('recording a turn', () => {
       failure: `turn 2 left no result; ${run}/raw/turn2.err and ${run}/raw/turn2.jsonl hold why`,
     })
     expect(readFileSync(join(run, 'costlog.txt'), 'utf8')).toBe('turn 1 0.5\n')
-    expect(() => readFileSync(join(run, 'transcript.md'))).toThrow()
-    expect(() => readFileSync(join(run, 'session.id'))).toThrow()
+    expect(existsSync(join(run, 'transcript.md'))).toBe(false)
+    expect(existsSync(join(run, 'session.id'))).toBe(false)
   })
 
   it('notes a skipped line and still records the turn', () => {
@@ -208,21 +208,44 @@ describe('recording a turn', () => {
 })
 
 describe('the command line', () => {
-  it('prints the total, the session and the turn count, and records a turn', () => {
-    const run = newRun()
-    writeFileSync(join(run, 'costlog.txt'), 'turn 1 0.5\nturn 2 0.75\n')
-    writeFileSync(join(run, 'session.id'), 'S2')
-    writeFileSync(join(run, 'transcript.md'), transcriptBlock(1, 'a', 'b'))
+  const capture = (args: string[]) => {
     const out: string[] = []
     const log = console.log
     console.log = (m: unknown) => void out.push(String(m))
     try {
-      expect(runFolderCommand(['total', run])).toBe(0)
-      expect(runFolderCommand(['turns', run])).toBe(0)
+      return { code: runFolderCommand(args), out }
     } finally {
       console.log = log
     }
-    expect(out).toEqual(['0.75', '1'])
+  }
+
+  it('prints the total, the session and the turn count', () => {
+    const run = newRun()
+    writeFileSync(join(run, 'costlog.txt'), 'turn 1 0.5\nturn 2 0.75\n')
+    writeFileSync(join(run, 'session.id'), 'S2')
+    writeFileSync(join(run, 'transcript.md'), transcriptBlock(1, 'a', 'b'))
+    expect(capture(['total', run])).toEqual({ code: 0, out: ['0.75'] })
+    expect(capture(['session', run])).toEqual({ code: 0, out: ['S2'] })
+    expect(capture(['turns', run])).toEqual({ code: 0, out: ['1'] })
+  })
+
+  it('records a turn and prints its note, or fails with exit 2 and the message', () => {
+    const run = newRun()
+    writeFileSync(join(run, 'raw', 'turn2.jsonl'), `oops\n${result('S2', 0.75)}\n`)
+    const reply = join(run, 'r.txt')
+    writeFileSync(reply, 'hi')
+    expect(capture(['record', run, '2', reply])).toEqual({
+      code: 0,
+      out: ['raw/turn2.jsonl: skipped 1 line that is not JSON'],
+    })
+    expect(capture(['record', run, '3', reply])).toEqual({
+      code: 2,
+      out: [`turn 3 left no result; ${run}/raw/turn3.err and ${run}/raw/turn3.jsonl hold why`],
+    })
+  })
+
+  it('refuses a call it does not understand with the usage code', () => {
+    const run = newRun()
     expect(runFolderCommand(['record', run])).toBe(64)
     expect(runFolderCommand(['nope', run])).toBe(64)
     expect(runFolderCommand([])).toBe(64)

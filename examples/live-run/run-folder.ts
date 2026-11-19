@@ -249,7 +249,7 @@ export const runFolderCommand = (args: string[]): number => {
     return 64
   }
   if (verb === 'total') console.log(runningTotal(readCostLog(run)))
-  else if (verb === 'session') process.stdout.write(readSession(run))
+  else if (verb === 'session') console.log(readSession(run))
   else if (verb === 'turns') console.log(turnCount(run))
   else if (verb === 'record' && n !== undefined && replyFile !== undefined) {
     const r = recordTurn(run, Number(n), replyFile)
