@@ -34,10 +34,6 @@ export type Stack = {
   claim: (item: string, roleId?: string) => Claim
   covers: (keyword: string) => boolean
   breaches: (text: string) => string[]
-  // The never-claim patterns that catch text, as data for a caller that words its own message.
-  catches: (text: string) => Catch[]
-  // Why each never-claim pattern that is not a valid expression is invalid.
-  patternProblems: () => string[]
   limitBreaches: (text: string, roleId?: string) => string[]
   problems: (historyIds: string[]) => string[]
 }
@@ -180,8 +176,6 @@ export const buildStack = (file: StackFile): Stack => {
     covers: (keyword) => entries.some((e) => looselyMatches(keyword, e.tokens)),
     breaches: (text) =>
       catchesIn(guards, text).map((c) => `do_not_claim "${c.item}" (/${c.pattern}/)`),
-    catches: (text) => catchesIn(guards, text),
-    patternProblems: () => invalidPatterns(guards),
     limitBreaches: (text, roleId) => limitBreachesIn(entries, text, roleId),
     problems: (historyIds) => [
       ...entries.flatMap(({ limit }) =>
