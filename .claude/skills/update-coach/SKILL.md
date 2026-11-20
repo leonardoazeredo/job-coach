@@ -45,6 +45,8 @@ After `merged` or `clashes:` may come `- settled <file>, from yours: <line>` or 
 
   A file one side removed holds no markers. Describe it as "you changed it, and the new version removes it" (or the other way round) and offer only the first two choices. So does a file that is not text, such as an image: say "you changed it, and so did the new version", and offer the same two.
 
+  `not taken: these files are in the way: <files>; nothing was changed`: taking that side would replace a folder that holds files of the user's own that were never saved (a PDF they exported, a note). Say in plain words which of the user's files are in the way and that nothing was touched, and ask them to move those files elsewhere, or to say yes to you moving them out of this folder, before you take that side again. Never delete them.
+
   Each `take` prints the clashes still left. Once every file is settled, go to step 4.
 - `not started: …`: the user's records fail the check before anything changed. Say what is wrong in one sentence (from stderr) and offer to fix it, then update.
 - `not merged: …` or `not fetched: …`: say in one line that the update could not start and nothing changed.

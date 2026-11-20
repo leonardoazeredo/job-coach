@@ -1,59 +1,20 @@
-import {
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  readFileSync,
-  readlinkSync,
-  symlinkSync,
-  writeFileSync,
-} from 'node:fs'
-import { dirname, join } from 'node:path'
+import { existsSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { gitIn } from '../lib/history.ts'
+import { type ClashKind, clashKinds, finishUpdate, takeSide } from '../lib/update-git.ts'
 import {
-  type ClashKind,
-  clashKinds,
-  engineChanges,
-  finishUpdate,
-  mergeEngine,
-  takeSide,
-} from '../lib/update-git.ts'
-import {
-  cloned,
-  commitAll,
-  g,
-  put,
-  read,
-  runner,
-  upstream,
-  userCommit,
-  work,
-} from './update-helpers.ts'
-
-const gitOf = () => {
-  const git = gitIn(work())
-  if (!git) throw new Error('no git')
-  return git
-}
-const link = (base: string, rel: string, target: string) => {
-  g(base, 'rm', '-q', '-f', '--ignore-unmatch', rel)
-  mkdirSync(dirname(join(base, rel)), { recursive: true })
-  symlinkSync(target, join(base, rel))
-}
-// What a path holds in the folder: its text, a link's target, 'dir', or null when nothing is there.
-const seen = (rel: string): string | null => {
-  const path = join(work(), rel)
-  try {
-    const stat = lstatSync(path)
-    if (stat.isSymbolicLink()) return `-> ${readlinkSync(path)}`
-    return stat.isDirectory() ? 'dir' : readFileSync(path, 'utf8')
-  } catch {
-    return null
-  }
-}
-type Seen = Record<string, string | null>
-const commitUser = (message: string) => commitAll(work(), message)
-const commitEngine = (message: string) => commitAll(upstream(), message)
+  commitEngine,
+  engineLink,
+  engineRemove,
+  engineWrite,
+  link,
+  type Seen,
+  seen,
+  start,
+  userLink,
+  userRemove,
+} from './update-clash-helpers.ts'
+import { cloned, g, read, runner, upstream, userCommit, work } from './update-helpers.ts'
 
 type Row = {
   name: string
@@ -70,26 +31,6 @@ type Row = {
   theirs: Seen
 }
 
-const engineWrite = (files: Record<string, string>) => {
-  put(upstream(), files)
-  commitEngine('New version')
-}
-const userLink = (rel: string, target: string) => {
-  link(work(), rel, target)
-  commitUser('Saved: link')
-}
-const engineLink = (rel: string, target: string) => {
-  link(upstream(), rel, target)
-  commitEngine('New link')
-}
-const engineRemove = (rel: string) => {
-  g(upstream(), 'rm', '-q', '-r', rel)
-  commitEngine('Drop')
-}
-const userRemove = (rel: string) => {
-  g(work(), 'rm', '-q', '-r', rel)
-  commitUser('Saved: removal')
-}
 const TARGETS = { t1: 'one\n', t2: 'two\n', t3: 'three\n' }
 
 const rows: Row[] = [
@@ -275,13 +216,6 @@ const setup = (row: Row) => {
   }
   row.user()
   row.engine()
-}
-
-const start = () => {
-  const git = gitOf()
-  const url = upstream()
-  engineChanges(git, { url })
-  return { git, merged: mergeEngine(work(), git, { url, run: runner().run }) }
 }
 
 describe('a clashing file by kind', () => {

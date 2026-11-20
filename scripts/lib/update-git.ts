@@ -126,18 +126,26 @@ const realPath = (git: Git, file: string) =>
 
 // Takes a whole side over one path. The index stages say what each side holds, because the
 // commits cannot for a parked path; the other side's parked copy goes with it.
-const resolve = (git: Git, side: 'ours' | 'theirs', file: string) => {
+// Returns the files in the chosen file's way when it would replace a directory holding any git
+// does not keep (untracked or ignored, such as an exported PDF); then nothing is changed.
+const resolve = (git: Git, side: 'ours' | 'theirs', file: string): string[] => {
   const held = stages(git)
   const real = realPath(git, file)
   const group = [...held.keys()].filter((path) => realPath(git, path) === real)
   const wanted = side === 'ours' ? '2' : '3'
   const mine = group.flatMap((path) => held.get(path) ?? []).find((e) => e.stage === wanted)
+  // Without --exclude-standard, ignored files are listed too.
+  const inTheWay = mine
+    ? lines(git(['ls-files', '--others', '-z', '--', real]).stdout.replaceAll('\0', '\n'))
+    : []
+  if (inTheWay.length) return inTheWay.sort()
   for (const path of group) git(['rm', '-q', '-f', '--', path])
-  if (!mine) return
+  if (!mine) return []
   // The chosen side's file replaces whatever else stands there, such as the other side's directory.
   git(['rm', '-r', '-q', '-f', '--ignore-unmatch', '--', real])
   git(['update-index', '--add', '--cacheinfo', `${mine.mode},${mine.id},${real}`])
   git(['checkout-index', '-f', '--', real])
+  return []
 }
 
 export type ClashKind =
@@ -268,6 +276,8 @@ export type TakeResult =
   | { kind: 'taken'; left: string[] }
   | { kind: 'no-merge' }
   | { kind: 'not-clashing' }
+  // The chosen file would replace a folder that holds files of the user's that git does not keep.
+  | { kind: 'in-the-way'; files: string[] }
 
 export const takeSide = (git: Git, side: 'ours' | 'theirs', file: string): TakeResult => {
   if (!inMerge(git)) return { kind: 'no-merge' }
@@ -279,7 +289,10 @@ export const takeSide = (git: Git, side: 'ours' | 'theirs', file: string): TakeR
   if (clashKinds(git, top).get(file) === 'text-open') {
     writeFileSync(path, settle(readFileSync(path, 'utf8'), side))
     git(['add', '--', file])
-  } else resolve(git, side, file)
+  } else {
+    const inTheWay = resolve(git, side, file)
+    if (inTheWay.length) return { kind: 'in-the-way', files: inTheWay }
+  }
   return { kind: 'taken', left: unmerged(git) }
 }
 

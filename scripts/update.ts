@@ -163,6 +163,11 @@ const takeStep: Step = (git, _root, args) => {
   const result = takeSide(git, side, file)
   if (result.kind === 'no-merge') return refuse('no update is in progress')
   if (result.kind === 'not-clashing') return refuse(`${file} is not a clashing file`)
+  if (result.kind === 'in-the-way')
+    return say(
+      EXIT.problems,
+      `not taken: these files are in the way: ${result.files.join(', ')}; nothing was changed`,
+    )
   const left = result.left.length ? `clashes left: ${result.left.join(', ')}` : 'no clashes left'
   return say(0, `taken: ${file}; ${left}`)
 }
