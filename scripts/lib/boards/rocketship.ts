@@ -12,12 +12,11 @@ import type { SearchPreferences } from '../schema.ts'
 import type { JobBoard } from './index.ts'
 import { ask, type BoardDeps, pages } from './pull-loop.ts'
 import {
-  ROCKETSHIP_COUNTRIES,
   ROCKETSHIP_EMPLOYMENT,
-  ROCKETSHIP_STACK,
+  ROCKETSHIP_SENIORITY,
+  type UnknownValue as Unknown,
+  unknownIn,
 } from './rocketship-values.ts'
-
-export { ROCKETSHIP_COUNTRIES, ROCKETSHIP_EMPLOYMENT, ROCKETSHIP_STACK }
 
 // Only the fields read below; the payload carries many more.
 type Card = {
@@ -92,38 +91,6 @@ const toCard = (x: unknown): Card | undefined => {
   }
 }
 
-// The levels the site filters on; docs/boards/rocketship.md lists the same ones, and a test
-// holds the two together. The site answers any other word with every listing, so the
-// search has to say so itself.
-export const ROCKETSHIP_SENIORITY = ['entry-level', 'junior', 'mid-level', 'senior', 'expert']
-
-// The user's words for what this board will do with a place or a skill it does not know. They are
-// notes rather than refusals: a real skill can be missing from its list, and another board can
-// know the place.
-export const searchNotes = (
-  now: Record<string, unknown>,
-  was: Record<string, unknown> | undefined,
-): string[] => {
-  const { country, stack } = now
-  const knownBefore = Array.isArray(was?.stack) ? was.stack : []
-  const place =
-    typeof country === 'string' &&
-    country !== '' &&
-    country !== was?.country &&
-    !ROCKETSHIP_COUNTRIES.includes(country)
-      ? [`One job site doesn't know ${country}, so it will show worldwide-remote roles only.`]
-      : []
-  const skills = (Array.isArray(stack) ? stack : [])
-    .filter((s) => typeof s === 'string' && !knownBefore.includes(s))
-    .filter((s) => !ROCKETSHIP_STACK.includes(s))
-    .map((s) => {
-      const right = ROCKETSHIP_STACK.find((k) => k.toLowerCase() === s.toLowerCase())
-      const hint = right ? `; it writes it ${right}` : ''
-      return `One job site doesn't know ${s}, so it won't search by it${hint}.`
-    })
-  return [...place, ...skills]
-}
-
 const quoted = (words: string[]): string => {
   const marked = words.map((w) => `"${w}"`)
   return marked.length < 2
@@ -133,33 +100,37 @@ const quoted = (words: string[]): string => {
 
 // Warned here as well as at the Draft because a file the Draft did not write reaches the pull
 // unchecked. Not in the schema, because that would stop such a file from loading at all.
-const seniorityWarning = (seniority: string[]): string | undefined => {
-  const unknown = seniority.filter((x) => !ROCKETSHIP_SENIORITY.includes(x))
-  if (unknown.length === 0) return undefined
-  const [one, many] = unknown.length === 1 ? ['is not a level', 'it'] : ['are not levels', 'them']
-  return `warning: profile/search.yaml seniority ${quoted(unknown)} ${one} Remote Rocketship knows, so it ignores ${many} and the search loses that filter; it takes ${ROCKETSHIP_SENIORITY.join(', ')}`
-}
-
-const countryWarning = (country: string): string | undefined =>
-  ROCKETSHIP_COUNTRIES.includes(country)
-    ? undefined
-    : `warning: profile/search.yaml country "${country}" is not a place Remote Rocketship knows, so the search falls back to worldwide-remote roles only; the names are in its location filter, for example United Kingdom, Germany, Czechia`
-
-const employmentWarning = (employment: string): string | undefined =>
-  ROCKETSHIP_EMPLOYMENT.includes(employment)
-    ? undefined
-    : `warning: profile/search.yaml employment "${employment}" is not a type Remote Rocketship knows, so it answers every title with nothing; it takes ${ROCKETSHIP_EMPLOYMENT.join(', ')}`
-
-const stackWarning = (stack: string[]): string | undefined => {
-  const unknown = stack.filter((x) => !ROCKETSHIP_STACK.includes(x))
-  if (unknown.length === 0) return undefined
-  const [one, many] = unknown.length === 1 ? ['is not a name', 'it'] : ['are not names', 'them']
-  const recased = unknown.flatMap((x) => {
-    const right = ROCKETSHIP_STACK.find((k) => k.toLowerCase() === x.toLowerCase())
-    return right ? `${quoted([x])} is written ${right}` : []
-  })
-  const hint = recased.length > 0 ? `; names are case-sensitive, and ${recased.join(', ')}` : ''
-  return `warning: profile/search.yaml stack ${quoted(unknown)} ${one} Remote Rocketship knows, so it ignores ${many} and the search loses that filter${hint}`
+const warningsFor = (found: Unknown[]): string[] => {
+  const of = (field: Unknown['field']) => found.filter((f) => f.field === field)
+  const seniority = of('seniority').map((f) => f.value)
+  const stack = of('stack')
+  const warnings: string[] = []
+  if (seniority.length > 0) {
+    const [one, many] =
+      seniority.length === 1 ? ['is not a level', 'it'] : ['are not levels', 'them']
+    warnings.push(
+      `warning: profile/search.yaml seniority ${quoted(seniority)} ${one} Remote Rocketship knows, so it ignores ${many} and the search loses that filter; it takes ${ROCKETSHIP_SENIORITY.join(', ')}`,
+    )
+  }
+  for (const f of of('country'))
+    warnings.push(
+      `warning: profile/search.yaml country "${f.value}" is not a place Remote Rocketship knows, so the search falls back to worldwide-remote roles only; the names are in its location filter, for example United Kingdom, Germany, Czechia`,
+    )
+  for (const f of of('employment'))
+    warnings.push(
+      `warning: profile/search.yaml employment "${f.value}" is not a type Remote Rocketship knows, so it answers every title with nothing; it takes ${ROCKETSHIP_EMPLOYMENT.join(', ')}`,
+    )
+  if (stack.length > 0) {
+    const [one, many] = stack.length === 1 ? ['is not a name', 'it'] : ['are not names', 'them']
+    const recased = stack.flatMap((f) =>
+      f.rightCase ? `${quoted([f.value])} is written ${f.rightCase}` : [],
+    )
+    const hint = recased.length > 0 ? `; names are case-sensitive, and ${recased.join(', ')}` : ''
+    warnings.push(
+      `warning: profile/search.yaml stack ${quoted(stack.map((f) => f.value))} ${one} Remote Rocketship knows, so it ignores ${many} and the search loses that filter${hint}`,
+    )
+  }
+  return warnings
 }
 
 const SITE = 'https://www.remoterocketship.com'
@@ -293,14 +264,7 @@ export const rocketshipBoard = ({
   return {
     name: 'rocketship',
     pull: async () => {
-      // Country is skipped when empty: what the site does with a blank location is not recorded.
-      const warnings = [
-        seniorityWarning(preferences.seniority),
-        preferences.country ? countryWarning(preferences.country) : undefined,
-        employmentWarning(preferences.employment),
-        stackWarning(preferences.stack),
-      ]
-      for (const warning of warnings) if (warning) log?.(warning)
+      for (const warning of warningsFor(unknownIn(preferences))) log?.(warning)
       const buildId = await readBuildId()
       const seen = new Map<string, Listing>()
       for (const title of searchTitles) await search(buildId, title, seen)

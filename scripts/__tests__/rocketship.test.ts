@@ -1,7 +1,5 @@
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { ROCKETSHIP_SENIORITY, rocketshipBoard } from '../lib/boards/rocketship.ts'
+import { rocketshipBoard } from '../lib/boards/rocketship.ts'
 import { fakeFetch, fixture, html, json, search, sleep } from './board-fakes.ts'
 import { personaRules } from './temp-repo.ts'
 
@@ -297,11 +295,5 @@ describe('rocketship seniority values', () => {
   it('stays quiet when every value is one the board takes', async () => {
     const { lines } = await pullWith(['mid-level', 'senior', 'expert'])
     expect(lines.filter((l) => l.includes('seniority'))).toEqual([])
-  })
-
-  it('lists every accepted value in the board notes', () => {
-    const notes = readFileSync(join(import.meta.dirname, '../../docs/boards/rocketship.md'), 'utf8')
-    const row = notes.split('\n').find((l) => l.startsWith('| Seniority |')) ?? ''
-    for (const level of ROCKETSHIP_SENIORITY) expect(row).toContain(`\`${level}\``)
   })
 })

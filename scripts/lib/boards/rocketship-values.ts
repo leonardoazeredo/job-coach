@@ -1,3 +1,5 @@
+import type { SearchPreferences } from '../schema.ts'
+
 // Taken from the site's own filter lists. The location list holds countries, US states and
 // regions; docs/boards/rocketship.md says how each value behaves. An unknown name falls
 // back to the worldwide-remote set alone.
@@ -482,3 +484,69 @@ export const ROCKETSHIP_STACK = [
   'OpenCV',
   'PagerDuty',
 ]
+
+// The levels the site filters on; docs/boards/rocketship.md lists the same ones, and a test
+// holds the two together. The site answers any other word with every listing, so the
+// search has to say so itself.
+export const ROCKETSHIP_SENIORITY = ['entry-level', 'junior', 'mid-level', 'senior', 'expert']
+
+export type UnknownValue = {
+  field: 'seniority' | 'country' | 'employment' | 'stack'
+  value: string
+  // Only a tech name has a recorded case; the other lists are matched exactly with no hint.
+  rightCase?: string | undefined
+}
+
+// Both the pull and the Draft ask this, so they cannot disagree on what the board does not
+// know; each words the findings itself. A blank country is skipped because what the site does
+// with one is not recorded.
+export const unknownIn = (
+  search: {
+    [K in 'seniority' | 'country' | 'employment' | 'stack']?: SearchPreferences[K] | undefined
+  },
+): UnknownValue[] => {
+  const miss = (list: string[], value: string) => !list.includes(value)
+  const { seniority = [], country, employment, stack = [] } = search
+  return [
+    ...seniority
+      .filter((v) => miss(ROCKETSHIP_SENIORITY, v))
+      .map((value) => ({ field: 'seniority' as const, value })),
+    ...(country && miss(ROCKETSHIP_COUNTRIES, country)
+      ? [{ field: 'country' as const, value: country }]
+      : []),
+    ...(employment !== undefined && miss(ROCKETSHIP_EMPLOYMENT, employment)
+      ? [{ field: 'employment' as const, value: employment }]
+      : []),
+    ...stack
+      .filter((v) => miss(ROCKETSHIP_STACK, v))
+      .map((value) => ({
+        field: 'stack' as const,
+        value,
+        rightCase: ROCKETSHIP_STACK.find((k) => k.toLowerCase() === value.toLowerCase()),
+      })),
+  ]
+}
+
+// The user's words for what this board will do with a place or a skill it does not know. They are
+// notes rather than refusals: a real skill can be missing from its list, and another board can
+// know the place. Reads unvalidated input and skips what the draft left as it was.
+export const searchNotes = (
+  now: Record<string, unknown>,
+  was: Record<string, unknown> | undefined,
+): string[] => {
+  const { country, stack } = now
+  const knownBefore = Array.isArray(was?.stack) ? was.stack : []
+  const changed = {
+    country: typeof country === 'string' && country !== was?.country ? country : undefined,
+    stack: (Array.isArray(stack) ? stack : []).filter(
+      (s): s is string => typeof s === 'string' && !knownBefore.includes(s),
+    ),
+  }
+  return unknownIn(changed).flatMap((f) =>
+    f.field === 'country'
+      ? [`One job site doesn't know ${f.value}, so it will show worldwide-remote roles only.`]
+      : [
+          `One job site doesn't know ${f.value}, so it won't search by it${f.rightCase ? `; it writes it ${f.rightCase}` : ''}.`,
+        ],
+  )
+}

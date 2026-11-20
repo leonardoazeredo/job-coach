@@ -1,12 +1,16 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { rocketshipBoard } from '../lib/boards/rocketship.ts'
 import {
   ROCKETSHIP_COUNTRIES,
   ROCKETSHIP_EMPLOYMENT,
+  ROCKETSHIP_SENIORITY,
   ROCKETSHIP_STACK,
-  rocketshipBoard,
-} from '../lib/boards/rocketship.ts'
+  searchNotes,
+  unknownIn,
+} from '../lib/boards/rocketship-values.ts'
+import { oneOf } from '../lib/draft-rules.ts'
 import { fakeFetch, fixture, html, json, search, sleep } from './board-fakes.ts'
 
 const index = fixture('rocketship-index.html')
@@ -75,10 +79,98 @@ describe('rocketship country, employment type and stack values', () => {
     for (const type of ROCKETSHIP_EMPLOYMENT) expect(row).toContain(`\`${type}\``)
   })
 
+  // Guards drift: reads the board notes, outside the fixture, so they keep naming the levels the warning takes.
+  it('lists every accepted seniority value in the board notes', () => {
+    const notes = readFileSync(join(import.meta.dirname, '../../docs/boards/rocketship.md'), 'utf8')
+    const row = notes.split('\n').find((l) => l.startsWith('| Seniority |')) ?? ''
+    for (const level of ROCKETSHIP_SENIORITY) expect(row).toContain(`\`${level}\``)
+  })
+
   it('holds the names the board notes give as examples', () => {
     expect(ROCKETSHIP_COUNTRIES).toEqual(expect.arrayContaining(['Czechia', 'Europe', 'Worldwide']))
     expect(ROCKETSHIP_STACK).toEqual(expect.arrayContaining(['React', 'Postgres', '.NET']))
     expect(ROCKETSHIP_COUNTRIES).not.toContain('EMEA')
     expect(ROCKETSHIP_STACK).not.toContain('PostgreSQL')
+  })
+
+  it('has the Draft and the pull flag the same unknown values for the same search', async () => {
+    const unknown = {
+      seniority: ['mid', 'senior'],
+      country: 'Narnia',
+      employment: 'permanent',
+      stack: ['typescript', 'Routewise', 'React'],
+    }
+    const { warnings } = await pullWith(unknown)
+    const notes = searchNotes({ country: unknown.country, stack: unknown.stack }, undefined)
+    const quoted = (v: string) => `"${v}"`
+    const flagged = (name: string) => warnings.find((w) => w.includes(` ${name} `)) ?? ''
+
+    // Notes cover country and stack; the Draft refuses the other two with the same lists.
+    expect(notes.filter((n) => n.includes('Narnia'))).toHaveLength(1)
+    expect(flagged('country')).toContain(quoted('Narnia'))
+    for (const v of ['typescript', 'Routewise']) {
+      expect(notes.filter((n) => n.includes(` ${v},`))).toHaveLength(1)
+      expect(flagged('stack')).toContain(quoted(v))
+    }
+    expect(notes.join(' ')).not.toContain(' React,')
+    expect(flagged('stack')).not.toContain(quoted('React'))
+    expect(oneOf(ROCKETSHIP_SENIORITY).holds('mid')).toBe(false)
+    expect(flagged('seniority')).toContain(quoted('mid'))
+    expect(oneOf(ROCKETSHIP_SENIORITY).holds('senior')).toBe(true)
+    expect(flagged('seniority')).not.toContain(quoted('senior'))
+    expect(oneOf(ROCKETSHIP_EMPLOYMENT).holds('permanent')).toBe(false)
+    expect(flagged('employment')).toContain(quoted('permanent'))
+  })
+})
+
+describe('unknownIn', () => {
+  it('flags an unknown value in each field', () => {
+    expect(
+      unknownIn({
+        seniority: ['junior', 'lead'],
+        country: 'Narnia',
+        employment: 'permanent',
+        stack: ['Routewise'],
+      }),
+    ).toEqual([
+      { field: 'seniority', value: 'lead' },
+      { field: 'country', value: 'Narnia' },
+      { field: 'employment', value: 'permanent' },
+      { field: 'stack', value: 'Routewise', rightCase: undefined },
+    ])
+  })
+
+  it('stays quiet for known values', () => {
+    expect(
+      unknownIn({
+        seniority: ['junior', 'expert'],
+        country: 'Germany',
+        employment: 'contract',
+        stack: ['React'],
+      }),
+    ).toEqual([])
+  })
+
+  it('gives the right case for a stack name only', () => {
+    const [stack] = unknownIn({ stack: ['typescript'] })
+    expect(stack?.rightCase).toBe('TypeScript')
+    expect(unknownIn({ country: 'germany' })).toEqual([{ field: 'country', value: 'germany' }])
+    expect(unknownIn({ employment: 'Full-Time' })).toEqual([
+      { field: 'employment', value: 'Full-Time' },
+    ])
+    expect(unknownIn({ seniority: ['Senior'] })).toEqual([{ field: 'seniority', value: 'Senior' }])
+  })
+
+  it('skips a blank country and a field it is not given', () => {
+    expect(unknownIn({ country: '' })).toEqual([])
+    expect(unknownIn({})).toEqual([])
+  })
+})
+
+describe('the Draft table', () => {
+  it('imports the values module and not the board adapter', () => {
+    const source = readFileSync(join(import.meta.dirname, '../lib/draft-table.ts'), 'utf8')
+    const imports = source.split('\n').filter((l) => /from '\.\/boards\//.test(l))
+    expect(imports).toEqual(["} from './boards/rocketship-values.ts'"])
   })
 })
