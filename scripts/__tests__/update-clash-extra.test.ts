@@ -1,7 +1,9 @@
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { EXIT } from '../lib/problem.ts'
 import { clashKinds, finishUpdate, takeSide } from '../lib/update-git.ts'
+import { updateCommand } from '../update.ts'
 import { engineWrite, link, seen, start, userLink } from './update-clash-helpers.ts'
 import {
   cloned,
@@ -18,12 +20,12 @@ import {
 const files = (...rels: string[]) => Object.fromEntries(rels.map((rel) => [rel, seen(rel)]))
 
 // The user's folder holds files git does not track; one of them is ignored, as an exported PDF is.
-const userDirVsEngineFile = () => {
+const userDirVsEngineFile = (strays = true) => {
   cloned({ x: 'one\n' })
   userCommit({ '.gitignore': '*.pdf\n' }, 'Saved: ignore')
   g(work(), 'rm', '-q', 'x')
   userCommit({ 'x/m.md': 'mine\n' }, 'Saved: folder')
-  put(work(), { 'x/notes.txt': 'unsaved\n', 'x/cv.pdf': 'pdf\n' })
+  if (strays) put(work(), { 'x/notes.txt': 'unsaved\n', 'x/cv.pdf': 'pdf\n' })
   engineWrite({ x: 'new\n' })
   return start().git
 }
@@ -47,6 +49,38 @@ describe('a take that would delete files git does not keep', () => {
     expect(files('x', 'x/m.md', 'x/notes.txt', 'x/cv.pdf', 'x~origin_main')).toEqual(before)
     expect(before['x/cv.pdf']).toBe('pdf\n')
     expect(clashKinds(git, work()).get('x~origin_main')).toBe('other')
+  })
+
+  it('refuses to delete a saved file whose edits were made after the update started', () => {
+    const git = userDirVsEngineFile(false)
+    writeFileSync(join(work(), 'x/m.md'), 'edited since\n')
+    expect(takeSide(git, 'theirs', 'x~origin_main')).toEqual({
+      kind: 'in-the-way',
+      files: ['x/m.md'],
+    })
+    expect(files('x', 'x/m.md', 'x~origin_main')).toEqual({
+      x: 'dir',
+      'x/m.md': 'edited since\n',
+      'x~origin_main': 'new\n',
+    })
+  })
+
+  it('prints the refusal as one plain line and exits with a problem', async () => {
+    userDirVsEngineFile()
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const code = await updateCommand(['take', 'theirs', 'x~origin_main'], work(), {
+      engineUrl: upstream(),
+      run: runner().run,
+    })
+    const lines = log.mock.calls.map((c) => c[0])
+    log.mockRestore()
+    error.mockRestore()
+    expect({ code, lines }).toEqual({
+      code: EXIT.problems,
+      lines: ['not taken: these files are in the way: x/cv.pdf, x/notes.txt; nothing was changed'],
+    })
+    expect(seen('x/cv.pdf')).toBe('pdf\n')
   })
 
   it('keeps the folder when the user takes the side that keeps it', () => {

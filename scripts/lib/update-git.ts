@@ -126,8 +126,9 @@ const realPath = (git: Git, file: string) =>
 
 // Takes a whole side over one path. The index stages say what each side holds, because the
 // commits cannot for a parked path; the other side's parked copy goes with it.
-// Returns the files in the chosen file's way when it would replace a directory holding any git
-// does not keep (untracked or ignored, such as an exported PDF); then nothing is changed.
+// Returns the files in the chosen file's way when it would replace a directory holding any that
+// are not saved (untracked, ignored such as an exported PDF, or edited since the update began);
+// then nothing is changed.
 const resolve = (git: Git, side: 'ours' | 'theirs', file: string): string[] => {
   const held = stages(git)
   const real = realPath(git, file)
@@ -135,10 +136,16 @@ const resolve = (git: Git, side: 'ours' | 'theirs', file: string): string[] => {
   const wanted = side === 'ours' ? '2' : '3'
   const mine = group.flatMap((path) => held.get(path) ?? []).find((e) => e.stage === wanted)
   // Without --exclude-standard, ignored files are listed too.
+  const notSaved = (args: string[]) => lines(git(args).stdout.replaceAll('\0', '\n'))
   const inTheWay = mine
-    ? lines(git(['ls-files', '--others', '-z', '--', real]).stdout.replaceAll('\0', '\n'))
+    ? [
+        ...new Set([
+          ...notSaved(['ls-files', '--others', '-z', '--', real]),
+          ...notSaved(['diff', '--name-only', '--diff-filter=MT', '-z', '--', real]),
+        ]),
+      ].sort()
     : []
-  if (inTheWay.length) return inTheWay.sort()
+  if (inTheWay.length) return inTheWay
   for (const path of group) git(['rm', '-q', '-f', '--', path])
   if (!mine) return []
   // The chosen side's file replaces whatever else stands there, such as the other side's directory.
@@ -276,7 +283,7 @@ export type TakeResult =
   | { kind: 'taken'; left: string[] }
   | { kind: 'no-merge' }
   | { kind: 'not-clashing' }
-  // The chosen file would replace a folder that holds files of the user's that git does not keep.
+  // The chosen file would replace a folder that holds files of the user's that are not saved.
   | { kind: 'in-the-way'; files: string[] }
 
 export const takeSide = (git: Git, side: 'ours' | 'theirs', file: string): TakeResult => {
