@@ -245,6 +245,10 @@ _Avoid_: commit, backup (a backup is the copy a ZIP update keeps)
 Bringing the engine up to the newest upstream version: a merge in a folder with history, or a copy over the engine files with backups in `.coach/backups/` in one without. An update is kept only when the record check passes before it starts and after it is in place; otherwise it does not start, or is undone.
 _Avoid_: pipeline update (recording a change to a role)
 
+**Clash**:
+A file the user's copy and the new version both changed, so the update waits for the user's choice of a side. Its kind decides how it is shown and taken: a text file shows clash markers and is taken block by block; a binary file, a file one side removed, and anything that is not a plain file (a link, or a file against a folder) is taken whole, and finishing never chooses for the user.
+_Avoid_: conflict (in anything the user reads)
+
 **User copy**:
 A folder made from the engine template that holds one person's User data and takes Coach updates.
 _Avoid_: template (the GitHub button), repo (in anything the user reads), workspace (the folders a command reads)
