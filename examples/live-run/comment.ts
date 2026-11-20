@@ -119,7 +119,8 @@ export const buildComment = (run: string, previousPath?: string): string => {
   const report = readFileSync(join(run, 'judge-report.txt'), 'utf8')
   // Both are printed in code spans, so a stray backtick in either file is dropped.
   const commit = readFileSync(join(run, 'commit.txt'), 'utf8').trim().replace(/`/g, '')
-  // The file holds a float sum (1.2699870999999996); a value that is not a number is shown as is.
+  // A total is a float sum (1.2699870999999996), shown to the cent; anything else readCost gives,
+  // such as n/a or the empty total an old run may hold, is shown as read.
   const read = readCost(run)
   const cost = typeof read === 'number' ? `$${read.toFixed(2)}` : read
   const turns = turnCount(run)
