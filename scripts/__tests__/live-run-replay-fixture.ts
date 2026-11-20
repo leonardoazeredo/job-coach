@@ -2,7 +2,7 @@
 // with the environment it reads and its output captured, a docker stand-in for the real adapter
 // (real up.sh and turn.sh run against it) and a fake adapter for the replay's own rules.
 
-import { chmodSync, mkdirSync, writeFileSync } from 'node:fs'
+import { appendFileSync, chmodSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { vi } from 'vitest'
 import {
@@ -84,6 +84,12 @@ export const makeRun = (tmp: string, opts: RunOptions = {}): string => {
     }
     const recorded = recordTurn(run, n, reply)
     if ('failure' in recorded) throw new Error(recorded.failure)
+    // The turn changes the live copy and session after the snapshot, so a sample that matches the
+    // snapshot did not come from the live run.
+    if (n === turns) {
+      writeFileSync(join(run, copy, 'CLAUDE.md'), 'live rules\n')
+      appendFileSync(join(run, claudehome, 'projects', 's.jsonl'), '{"turn":"live"}\n')
+    }
   }
   return run
 }

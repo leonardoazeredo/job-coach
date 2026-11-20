@@ -276,8 +276,8 @@ export const recordTurn = (run: string, n: number, replyFile: string): Recorded 
 // packages, which are large and come back with npm ci, and the coach's session, which lives in
 // claudehome. The .packages marker says whether npm ci is needed, so it is reset on every call, as
 // a stale one would make a replay install packages the snapshot never had. A failed tar leaves a
-// partial archive that missingForReplay would accept, so it is removed. Returns why the snapshot
-// failed, or undefined.
+// partial archive that missingForReplay would accept, so it is removed and no marker is set: a
+// failure leaves neither. Returns why the snapshot failed, or undefined.
 export const snapshot = (run: string, n: number): string | undefined => {
   const { copy, claudehome, snap } = LAYOUT
   mkdirSync(join(run, snap), { recursive: true })
@@ -297,7 +297,7 @@ export const snapshot = (run: string, n: number): string | undefined => {
   if (tar.status !== 0) rmSync(join(run, snap, `before${n}.tgz`), { force: true })
   const marker = join(run, snap, `before${n}.packages`)
   rmSync(marker, { force: true })
-  if (existsSync(join(run, copy, 'node_modules'))) writeFileSync(marker, '')
+  if (tar.status === 0 && existsSync(join(run, copy, 'node_modules'))) writeFileSync(marker, '')
   return tar.status === 0 ? undefined : `could not snapshot before turn ${n}: ${tar.stderr.trim()}`
 }
 
@@ -361,7 +361,7 @@ export const writeCost = (run: string): string => {
 export const readCost = (run: string): number | string => {
   const raw = readFileSync(join(run, 'cost.txt'), 'utf8')
     .trim()
-    .replace(/^total_usd\s+/, '')
+    .replace(/^total_usd(\s+|$)/, '')
     .replace(/`/g, '')
   return Number.isFinite(Number(raw)) && raw !== '' ? Number(raw) : raw
 }

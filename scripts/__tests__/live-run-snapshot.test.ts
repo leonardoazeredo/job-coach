@@ -64,10 +64,17 @@ describe('the snapshot and the replay sample', () => {
     expect(missingForReplay(run, 2)).toEqual(['snap/before2.tgz'])
   })
 
-  it('names the one file a replay lacks', () => {
-    const run = makeRun(tmp, { name: 'lacks-stream' })
-    rmSync(join(run, 'raw', 'turn2.jsonl'))
-    expect(missingForReplay(run, 3)).toEqual(['raw/turn2.jsonl'])
+  it.each([
+    'snap/before3.tgz',
+    'raw/reply3.txt',
+    'raw/turn3.jsonl',
+    'costlog.txt',
+    'raw/turn2.jsonl',
+  ])('names %s as the one file a replay of turn 3 lacks', (file) => {
+    const run = makeRun(tmp, { name: 'lacks-one' })
+    expect(missingForReplay(run, 3)).toEqual([])
+    rmSync(join(run, file))
+    expect(missingForReplay(run, 3)).toEqual([file])
   })
 
   it('gives a turn-1 sample no session or cost log, and an empty transcript', () => {
@@ -107,6 +114,7 @@ describe('the snapshot and the replay sample', () => {
 
   it('says why a snapshot failed, leaves no archive for a replay to accept, and the command exits 65', () => {
     const run = makeRun(tmp, { name: 'no-home' })
+    mkdirSync(join(run, 'copy', 'node_modules'))
     expect(missingForReplay(run, 3)).toEqual([])
     rmSync(join(run, 'claudehome'), { recursive: true })
     expect(snapshot(run, 3)).toMatch(/^could not snapshot before turn 3: /)
@@ -135,6 +143,24 @@ describe('a finished run’s cost', () => {
     expect(readCost(run)).toBe('n/a')
     writeFileSync(join(run, 'cost.txt'), 'total_usd `x`\n')
     expect(readCost(run)).toBe('x')
+  })
+
+  it('reads a cost.txt with the label and nothing after it as empty', () => {
+    const run = makeRun(tmp, { name: 'cost-empty', turns: 0 })
+    writeFileSync(join(run, 'cost.txt'), 'total_usd \n')
+    expect(readCost(run)).toBe('')
+  })
+
+  it('writes a total of 0 and exits 0 for a run with no cost log', () => {
+    const run = makeRun(tmp, { name: 'cost-no-log', turns: 0 })
+    const out = vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
+    try {
+      expect(runFolderCommand(['cost', run])).toBe(0)
+      expect(out.mock.calls.map((c) => String(c[0]))).toEqual(['total_usd 0\n'])
+    } finally {
+      out.mockRestore()
+    }
+    expect(readFileSync(join(run, 'cost.txt'), 'utf8')).toBe('total_usd 0\n')
   })
 
   it('writes nothing when the cost log cannot be read, never a total of 0', () => {
