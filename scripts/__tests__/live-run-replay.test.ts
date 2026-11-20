@@ -101,7 +101,7 @@ const fingerprint = (dir: string): string[] =>
       : [`${p} ${createHash('sha1').update(readFileSync(p)).digest('hex')}`]
   })
 
-// What the snapshot-to-sample round trip checks lives in live-run-run-folder.test.ts; these are the
+// What the snapshot-to-sample round trip checks lives in live-run-snapshot.test.ts; these are the
 // parts replay.ts adds on top: this checkout’s wording, put in after the swap.
 describe('preparing a sample', () => {
   const tree = (name: string, skill: string, body: string) => {

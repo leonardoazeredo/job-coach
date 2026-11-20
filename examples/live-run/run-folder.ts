@@ -19,8 +19,8 @@ import {
 import { join } from 'node:path'
 import { EXIT } from '../../scripts/lib/problem.ts'
 
-// The folders of a run. start.sh, start-update.sh and up.sh create and mount them by these names
-// in shell, so a rename has to reach those scripts too.
+// The folders of a run. start.sh, start-update.sh and up.sh create and mount all but snap by these
+// names in shell, so a rename has to reach those scripts too; snap is made here, by snapshot.
 export const LAYOUT = {
   copy: 'copy',
   raw: 'raw',
