@@ -93,6 +93,21 @@ describe('rocketship country, employment type and stack values', () => {
     expect(ROCKETSHIP_STACK).not.toContain('PostgreSQL')
   })
 
+  it('warns in the order seniority, country, employment, stack', async () => {
+    const { warnings } = await pullWith({
+      seniority: ['mid', 'Senior', 'lead'],
+      country: 'germany',
+      employment: 'Full-Time',
+      stack: ['typescript', 'Routewise', 'React', 'react'],
+    })
+    expect(warnings).toEqual([
+      'warning: profile/search.yaml seniority "mid", "Senior" and "lead" are not levels Remote Rocketship knows, so it ignores them and the search loses that filter; it takes entry-level, junior, mid-level, senior, expert',
+      'warning: profile/search.yaml country "germany" is not a place Remote Rocketship knows, so the search falls back to worldwide-remote roles only; the names are in its location filter, for example United Kingdom, Germany, Czechia',
+      'warning: profile/search.yaml employment "Full-Time" is not a type Remote Rocketship knows, so it answers every title with nothing; it takes full-time, part-time, contract, internship',
+      'warning: profile/search.yaml stack "typescript", "Routewise" and "react" are not names Remote Rocketship knows, so it ignores them and the search loses that filter; names are case-sensitive, and "typescript" is written TypeScript, "react" is written React',
+    ])
+  })
+
   it('has the Draft and the pull flag the same unknown values for the same search', async () => {
     const unknown = {
       seniority: ['mid', 'senior'],
@@ -165,12 +180,38 @@ describe('unknownIn', () => {
     expect(unknownIn({ country: '' })).toEqual([])
     expect(unknownIn({})).toEqual([])
   })
+
+  it('still flags a blank employment', () => {
+    expect(unknownIn({ employment: '' })).toEqual([{ field: 'employment', value: '' }])
+  })
+
+  it('leaves out a stack name the draft already had', () => {
+    expect(
+      searchNotes(
+        { country: 'Narnia', stack: ['Routewise', 'Elixirr'] },
+        { country: 'Germany', stack: ['Routewise'] },
+      ),
+    ).toEqual([
+      "One job site doesn't know Narnia, so it will show worldwide-remote roles only.",
+      "One job site doesn't know Elixirr, so it won't search by it.",
+    ])
+  })
 })
 
-describe('the Draft table', () => {
-  it('imports the values module and not the board adapter', () => {
-    const source = readFileSync(join(import.meta.dirname, '../lib/draft-table.ts'), 'utf8')
-    const imports = source.split('\n').filter((l) => /from '\.\/boards\//.test(l))
-    expect(imports).toEqual(["} from './boards/rocketship-values.ts'"])
+// Every module specifier the file imports, however the import is laid out.
+const importsOf = (path: string): string[] =>
+  [...readFileSync(join(import.meta.dirname, path), 'utf8').matchAll(/\bfrom\s+'([^']+)'/g)].map(
+    (m) => m[1] ?? '',
+  )
+
+describe('the import direction', () => {
+  it('has the Draft table import the values module and not the board adapter', () => {
+    const imports = importsOf('../lib/draft-table.ts')
+    expect(imports).toContain('./boards/rocketship-values.ts')
+    expect(imports).not.toContain('./boards/rocketship.ts')
+  })
+
+  it('has the values module not import the adapter', () => {
+    expect(importsOf('../lib/boards/rocketship-values.ts')).not.toContain('./rocketship.ts')
   })
 })

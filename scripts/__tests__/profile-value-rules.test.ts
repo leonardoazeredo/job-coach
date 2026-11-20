@@ -106,6 +106,14 @@ describe('the summary says what a job site will not know', () => {
     expect(shown.stdout).not.toContain(NOTE)
   })
 
+  it('says nothing about a skill the file already holds', async () => {
+    repo.editSearch((r) => {
+      r.discovery.search.stack = ['Routewise']
+    })
+    const shown = await draft(SEARCH, { fit: { min_stack_overlap_pct: 75 } })
+    expect(shown.stdout).not.toContain(NOTE)
+  })
+
   it('names no tool in the note', async () => {
     const shown = await draft(SEARCH, searching({ country: 'Narnia' }))
     expect(shown.stdout).not.toMatch(/rocketship|whatruns/i)
