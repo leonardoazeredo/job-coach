@@ -198,7 +198,8 @@ describe('unknownIn', () => {
   })
 })
 
-// Every module specifier the file imports, however the import is laid out.
+// The specifier of each `from '…'` clause, however the import is laid out; the repo writes
+// every import that way.
 const importsOf = (path: string): string[] =>
   [...readFileSync(join(import.meta.dirname, path), 'utf8').matchAll(/\bfrom\s+'([^']+)'/g)].map(
     (m) => m[1] ?? '',
