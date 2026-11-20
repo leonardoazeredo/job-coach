@@ -11,16 +11,7 @@
 // Exit codes: 64 usage, 66 the run folder lacks what a replay of that turn needs, 1 the image did not
 // build or a sample failed (the samples done before it are still printed).
 import { spawnSync } from 'node:child_process'
-import {
-  cpSync,
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs'
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { EXIT } from '../../scripts/lib/problem.ts'
@@ -29,13 +20,10 @@ import { failedAt, formatRow } from './findings.ts'
 import { failRates, formatRates } from './rates.ts'
 import {
   cacheSummary,
-  costLine,
-  readCostLog,
-  readStream,
-  runKind,
+  costAfter,
+  missingForReplay,
+  prepareReplaySample,
   totalAfter,
-  transcriptBefore,
-  writeKind,
 } from './run-folder.ts'
 import { scoreFindings } from './score.ts'
 import { describeSwap, swapSkillsInSample } from './swap.ts'
@@ -59,12 +47,6 @@ export const parseReplayArgs = (args: string[]): ReplayArgs | string => {
   return { run, turn: Number(turn), n: n === undefined ? 5 : Number(n) }
 }
 
-// What a replay of the turn needs from the run folder, or what is missing.
-export const missingForReplay = (run: string, turn: number): string[] =>
-  [`snap/before${turn}.tgz`, `raw/reply${turn}.txt`, `raw/turn${turn}.jsonl`, 'costlog.txt']
-    .concat(turn > 1 ? [`raw/turn${turn - 1}.jsonl`] : [])
-    .filter((f) => !existsSync(join(run, f)))
-
 // A hook that runs this (pre-push) sets GIT_DIR and friends, which would send a git call here to
 // the hook's repository instead of the sample's.
 export const withoutGitVariables = (env: NodeJS.ProcessEnv): NodeJS.ProcessEnv =>
@@ -72,13 +54,6 @@ export const withoutGitVariables = (env: NodeJS.ProcessEnv): NodeJS.ProcessEnv =
 
 const sh = (cmd: string, args: string[], cwd?: string) =>
   spawnSync(cmd, args, { cwd, encoding: 'utf8', env: withoutGitVariables(process.env) })
-
-// The session id a turn ended with is in the result of its raw stream.
-const sessionAfter = (run: string, turn: number): string => {
-  const id = readStream(readFileSync(join(run, 'raw', `turn${turn}.jsonl`), 'utf8')).sessionId
-  if (id === undefined) throw new Error(`raw/turn${turn}.jsonl holds no result with a session id`)
-  return id
-}
 
 // What one sample spent: its running total at the turn less the run's total before the turn.
 export const sampleSpend = (costlog: string, turn: number, base: number): number => {
@@ -156,8 +131,6 @@ const stopMessage = (spent: number, budget: number, i: number, n: number): strin
 
 const sampleFolder = (out: string, i: number): string => join(out, `${basename(out)}-s${i}`)
 
-const costAfter = (run: string, turn: number): number => totalAfter(readCostLog(run), turn) ?? 0
-
 // This checkout's CLAUDE.md and skills go into the sample's copy. They are committed there, as
 // start.sh's copy of a commit has them, dated like the copy's last commit so the order of a
 // history the coach reads does not change. In the middle of an update's merge the files are only
@@ -203,31 +176,15 @@ export const applyTree = (copy: string, root: string) => {
     throw new Error(`could not commit the wording under test: ${commit.stderr}`)
 }
 
-// A sample folder has a run folder's shape, so turn.sh and the scorer work on it unchanged. It
-// holds the run's transcript and raw streams up to the turn, which is how the scorer knows what
-// came earlier. Reads the run folder and root; writes only the sample.
+// The sample is the run folder's own replay sample with this checkout's wording put in: the swap
+// goes first, in the session the snapshot brought, and applyTree then commits the tree's skills.
 export const prepareSample = (
   run: string,
   turn: number,
   sample: string,
   root: string,
 ): string[] => {
-  mkdirSync(sample, { recursive: true })
-  const tar = sh('tar', ['-xzf', join(run, 'snap', `before${turn}.tgz`), '-C', sample])
-  if (tar.status !== 0) throw new Error(`could not unpack the snapshot: ${tar.stderr}`)
-  for (const d of ['raw', 'cachehome', 'tmpd']) mkdirSync(join(sample, d), { recursive: true })
-  if (existsSync(join(run, 'engine')))
-    cpSync(join(run, 'engine'), join(sample, 'engine'), { recursive: true })
-  writeKind(sample, runKind(run))
-  writeFileSync(join(sample, 'transcript.md'), transcriptBefore(run, turn))
-  for (let k = 1; k < turn; k++)
-    if (existsSync(join(run, 'raw', `turn${k}.jsonl`)))
-      cpSync(join(run, 'raw', `turn${k}.jsonl`), join(sample, 'raw', `turn${k}.jsonl`))
-  cpSync(join(run, 'raw', `reply${turn}.txt`), join(sample, 'reply.txt'))
-  if (turn > 1) {
-    writeFileSync(join(sample, 'session.id'), sessionAfter(run, turn - 1))
-    writeFileSync(join(sample, 'costlog.txt'), costLine(turn - 1, costAfter(run, turn - 1)))
-  }
+  prepareReplaySample(run, turn, sample)
   const swapped = swapSkillsInSample(sample, root)
   applyTree(join(sample, 'copy'), root)
   sh('chmod', ['-R', 'a+rwX', sample])

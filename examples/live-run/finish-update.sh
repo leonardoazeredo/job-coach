@@ -23,6 +23,6 @@ git -C "$C" diff --stat "$BEFORE" -- profile cv experience-bank pipeline >"$OUT/
 git -C "$C" diff --stat "$BEFORE" >"$OUT/all.diff" || true
 
 HERE=$(cd "$(dirname "$0")" && pwd)
-echo "total_usd $(node "$HERE/run-folder.ts" total "$RUN")" | tee "$RUN/cost.txt"
+node "$HERE/run-folder.ts" cost "$RUN"
 echo "turns $(node "$HERE/run-folder.ts" turns "$RUN")"
 find "$OUT" -type f

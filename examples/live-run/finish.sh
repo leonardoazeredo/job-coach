@@ -8,6 +8,6 @@ cp -R "$RUN/copy/profile" "$RUN/copy/cv" "$RUN/written/"
 cp -R "$RUN/copy/config/competencies" "$RUN/written/config/"
 [ -d "$RUN/copy/experience-bank" ] && cp -R "$RUN/copy/experience-bank" "$RUN/written/"
 HERE=$(cd "$(dirname "$0")" && pwd)
-echo "total_usd $(node "$HERE/run-folder.ts" total "$RUN")" | tee "$RUN/cost.txt"
+node "$HERE/run-folder.ts" cost "$RUN"
 echo "turns $(node "$HERE/run-folder.ts" turns "$RUN")"
 find "$RUN/written" -type f

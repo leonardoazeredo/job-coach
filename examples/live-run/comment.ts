@@ -18,7 +18,7 @@ import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { EXIT } from '../../scripts/lib/problem.ts'
 import { failedLines } from './findings.ts'
-import { turnCount } from './run-folder.ts'
+import { readCost, turnCount } from './run-folder.ts'
 import { scoreFindings } from './score.ts'
 
 const USAGE = 'usage: node examples/live-run/comment.ts <run-dir> [<previous-comment-or-report>]'
@@ -119,14 +119,9 @@ export const buildComment = (run: string, previousPath?: string): string => {
   const report = readFileSync(join(run, 'judge-report.txt'), 'utf8')
   // Both are printed in code spans, so a stray backtick in either file is dropped.
   const commit = readFileSync(join(run, 'commit.txt'), 'utf8').trim().replace(/`/g, '')
-  // finish.sh writes `total_usd <n>`, already the running total, so it is read and never summed.
-  const rawCost = readFileSync(join(run, 'cost.txt'), 'utf8')
-    .trim()
-    .replace(/^total_usd\s+/, '')
-    .replace(/`/g, '')
   // The file holds a float sum (1.2699870999999996); a value that is not a number is shown as is.
-  const cost =
-    Number.isFinite(Number(rawCost)) && rawCost !== '' ? `$${Number(rawCost).toFixed(2)}` : rawCost
+  const read = readCost(run)
+  const cost = typeof read === 'number' ? `$${read.toFixed(2)}` : read
   const turns = turnCount(run)
   const flagged = failedLines(scoreFindings(run))
   const previous = previousPath === undefined ? undefined : readFileSync(previousPath, 'utf8')
