@@ -4,10 +4,11 @@
 // Usage: node examples/live-run/score.ts <run-dir>
 // Prints one line per finding (`line 26 FAIL T15 "..."`), one `line N PASS` for each covered
 // line without a finding (`SKIPPED` when the folder lacks what the line reads), and, for an
-// onboarding run, the turn count. A rule names its checklist line by the `[key]` after the line's
-// number, read from the checklist when the scorer runs, so inserting a line cannot move a rule. A finding is a report, not an error: the exit code says only
-// whether the folder could be scored (64 usage, 66 no run folder or transcript, 65 a rule's key
-// missing from, or twice in, the run's checklist).
+// onboarding run, the turn count. A rule names its checklist line by the `[key]` after the
+// line's number, read from the checklist when the scorer runs, so inserting a line cannot move a
+// rule. A finding is a report, not an error: the exit code says only whether the folder could be
+// scored (64 usage, 66 no run folder or transcript, 65 a rule's key missing from, or twice in,
+// the run's checklist).
 // Line 4 asks whether each summary line appears in the reply, so a merged or dropped duplicate
 // line passes: a finding is a lead for the judge, not a verdict.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
@@ -91,8 +92,8 @@ type Found = { turn?: number; where?: string; text: string }
 type Ctx = { run: string; turns: Turn[]; firstWins: number | undefined }
 
 // One checklist line: the `[key]` that names it in the checklist (its number is found there, so
-// it is never written here), the kinds of run it applies to, when its evidence is missing, and what it
-// reports. A line with `find` gets a FAIL row per finding, or one PASS row when it has none, or a
+// it is never written here), the kinds of run it applies to, when its evidence is missing, and
+// what it reports. A line with `find` gets a FAIL row per finding, or one PASS row when it has none, or a
 // SKIPPED row when `skip` says the folder lacks what it reads; a line with `info` is a note, never
 // a verdict. The printed rows follow from this table alone.
 export type Rule = {
