@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { EXIT } from '../lib/problem.ts'
 import { clashKinds, finishUpdate, takeSide } from '../lib/update-git.ts'
 import { updateCommand } from '../update.ts'
-import { engineWrite, link, seen, start, userLink } from './update-clash-helpers.ts'
+import { engineRemove, engineWrite, link, seen, start, userLink } from './update-clash-helpers.ts'
 import {
   cloned,
   commitAll,
@@ -118,6 +118,41 @@ describe('a take that would delete files git does not keep', () => {
       'x/scratch.txt': 'stray\n',
       'x~HEAD': null,
     })
+  })
+})
+
+describe('a take discards hand edits to the clashing file itself', () => {
+  it.each([
+    ['theirs', 'new\n'],
+    ['ours', 'mine\n'],
+  ] as const)('takes %s over a text clash settled by hand', (side, text) => {
+    cloned({ 'docs/a.md': 'one\n' })
+    userCommit({ 'docs/a.md': 'mine\n' }, 'Saved')
+    engineWrite({ 'docs/a.md': 'new\n' })
+    const { git } = start()
+    writeFileSync(join(work(), 'docs/a.md'), 'both\n')
+    expect(takeSide(git, side, 'docs/a.md')).toEqual({ kind: 'taken', left: [] })
+    expect(seen('docs/a.md')).toBe(text)
+  })
+
+  it("keeps the user's version of a file the engine removed, though it was edited since", () => {
+    cloned({ 'docs/a.md': 'one\n' })
+    userCommit({ 'docs/a.md': 'mine\n' }, 'Saved')
+    engineRemove('docs/a.md')
+    const { git } = start()
+    writeFileSync(join(work(), 'docs/a.md'), 'edited since\n')
+    expect(takeSide(git, 'ours', 'docs/a.md')).toEqual({ kind: 'taken', left: [] })
+    expect(seen('docs/a.md')).toBe('mine\n')
+  })
+
+  it('takes the new binary file over one replaced by hand', () => {
+    cloned({ 'assets/logo.bin': 'a\0base\n' })
+    userCommit({ 'assets/logo.bin': 'a\0mine\n' }, 'Saved')
+    engineWrite({ 'assets/logo.bin': 'a\0new\n' })
+    const { git } = start()
+    writeFileSync(join(work(), 'assets/logo.bin'), 'a\0by hand\n')
+    expect(takeSide(git, 'theirs', 'assets/logo.bin')).toEqual({ kind: 'taken', left: [] })
+    expect(seen('assets/logo.bin')).toBe('a\0new\n')
   })
 })
 

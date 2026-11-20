@@ -136,7 +136,10 @@ const resolve = (git: Git, side: 'ours' | 'theirs', file: string): string[] => {
   const wanted = side === 'ours' ? '2' : '3'
   const mine = group.flatMap((path) => held.get(path) ?? []).find((e) => e.stage === wanted)
   // Without --exclude-standard, ignored files are listed too.
-  const notSaved = (args: string[]) => lines(git(args).stdout.replaceAll('\0', '\n'))
+  // Only what sits under the path counts: a hand edit to the clashing file itself is what a take
+  // discards.
+  const notSaved = (args: string[]) =>
+    lines(git(args).stdout.replaceAll('\0', '\n')).filter((path) => path.startsWith(`${real}/`))
   const inTheWay = mine
     ? [
         ...new Set([
