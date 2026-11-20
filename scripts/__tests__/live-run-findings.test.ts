@@ -1,13 +1,20 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import { failedAt, failedLines, formatRow, type Row } from '../../examples/live-run/findings.ts'
 import { transcriptBlock } from '../../examples/live-run/run-folder.ts'
-import { RULES, scoreFindings, scoreRun } from '../../examples/live-run/score.ts'
+import {
+  CHECKLIST_FILE,
+  checklistLines,
+  RULES,
+  scoreFindings,
+  scoreRun,
+} from '../../examples/live-run/score.ts'
 import { repoRoot } from '../lib/workspace.ts'
 
-const fixture = join(repoRoot(), 'examples/live-run/fixture')
+const checklistDir = join(repoRoot(), 'examples/live-run')
+const fixture = join(checklistDir, 'fixture')
 const tmp = mkdtempSync(join(tmpdir(), 'findings-'))
 afterAll(() => rmSync(tmp, { recursive: true, force: true }))
 let count = 0
@@ -131,13 +138,29 @@ describe('the order of the rows', () => {
 })
 
 describe('the rules', () => {
+  it('find every key exactly once in the checklist of each kind of run they apply to', () => {
+    const keys = RULES.map((r) => r.key)
+    expect(new Set(keys).size).toBe(keys.length)
+    for (const r of RULES) {
+      for (const kind of r.runs) {
+        const text = readFileSync(join(checklistDir, CHECKLIST_FILE[kind]), 'utf8')
+        const found = text
+          .split('\n')
+          .filter((l) => l.match(/^\d+\.\s+\[([^\]]+)\]/)?.[1] === r.key)
+        expect(found, `${r.key} in ${CHECKLIST_FILE[kind]}`).toHaveLength(1)
+      }
+    }
+  })
+
   it('give every declared line a row on a run with no finding, and no row for an undeclared line', () => {
     const full = makeRun((d) => {
       mkdirSync(join(d, 'raw'))
       mkdirSync(join(d, 'written'))
       oneTurn(d)
     })
-    const declared = RULES.filter((r) => r.runs.includes('onboarding')).map((r) => r.line)
+    const onboarding = RULES.filter((r) => r.runs.includes('onboarding'))
+    const at = checklistLines('onboarding', onboarding)
+    const declared = onboarding.map((r) => at.get(r.key) as number)
     const rows = scoreFindings(full)
     expect(rows.map((r) => r.line).sort((a, b) => a - b)).toEqual(
       [...declared].sort((a, b) => a - b),
@@ -146,13 +169,15 @@ describe('the rules', () => {
   })
 
   it('never report a line no rule declares, even on a run full of findings', () => {
-    const declared = new Set(RULES.map((r) => r.line))
+    const declared = new Set(
+      (['onboarding', 'update'] as const).flatMap((k) => [...checklistLines(k).values()]),
+    )
     for (const r of scoreFindings(fixture)) expect(declared.has(r.line), formatRow(r)).toBe(true)
   })
 
   it('give a rule added to the table its PASS row without any other edit', () => {
     const extra = {
-      line: 99,
+      key: 'extra-rule',
       runs: ['onboarding' as const],
       find: () => [],
     }
@@ -161,9 +186,15 @@ describe('the rules', () => {
       mkdirSync(join(d, 'written'))
       oneTurn(d)
     })
-    expect(scoreFindings(full, [...RULES, extra]).map(formatRow)).toContain('line 99 PASS')
+    const dir = makeRun((d) =>
+      writeFileSync(
+        join(d, 'checklist.md'),
+        `${readFileSync(join(checklistDir, 'checklist.md'), 'utf8')}\n99. [extra-rule] Anything.\n`,
+      ),
+    )
+    expect(scoreFindings(full, [...RULES, extra], dir).map(formatRow)).toContain('line 99 PASS')
     const failing = { ...extra, find: () => [{ turn: 1, text: 'zzz happened.' }] }
-    expect(scoreFindings(full, [...RULES, failing]).map(formatRow)).toContain(
+    expect(scoreFindings(full, [...RULES, failing], dir).map(formatRow)).toContain(
       'line 99 FAIL T1 "zzz happened."',
     )
   })

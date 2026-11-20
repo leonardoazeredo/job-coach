@@ -4,8 +4,10 @@
 // Usage: node examples/live-run/score.ts <run-dir>
 // Prints one line per finding (`line 26 FAIL T15 "..."`), one `line N PASS` for each covered
 // line without a finding (`SKIPPED` when the folder lacks what the line reads), and, for an
-// onboarding run, the turn count. A finding is a report, not an error: the exit code says only
-// whether the folder could be scored (64 usage, 66 no run folder or transcript).
+// onboarding run, the turn count. A rule names its checklist line by the `[key]` after the line's
+// number, read from the checklist when the scorer runs, so inserting a line cannot move a rule. A finding is a report, not an error: the exit code says only
+// whether the folder could be scored (64 usage, 66 no run folder or transcript, 65 a rule's key
+// missing from, or twice in, the run's checklist).
 // Line 4 asks whether each summary line appears in the reply, so a merged or dropped duplicate
 // line passes: a finding is a lead for the judge, not a verdict.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
@@ -14,6 +16,12 @@ import { EXIT } from '../../scripts/lib/problem.ts'
 import { repoRoot } from '../../scripts/lib/workspace.ts'
 import { formatRow, type Row } from './findings.ts'
 import { draftsIn, type RunKind, readTranscript, runKind } from './run-folder.ts'
+
+const CHECKLIST_DIR = import.meta.dirname
+export const CHECKLIST_FILE: Record<RunKind, string> = {
+  onboarding: 'checklist.md',
+  update: 'update-checklist.md',
+}
 
 const USAGE = 'usage: node examples/live-run/score.ts <run-dir>'
 
@@ -82,12 +90,13 @@ const writtenFiles = (dir: string): string[] =>
 type Found = { turn?: number; where?: string; text: string }
 type Ctx = { run: string; turns: Turn[]; firstWins: number | undefined }
 
-// One checklist line: the kinds of run it applies to, when its evidence is missing, and what it
+// One checklist line: the `[key]` that names it in the checklist (its number is found there, so
+// it is never written here), the kinds of run it applies to, when its evidence is missing, and what it
 // reports. A line with `find` gets a FAIL row per finding, or one PASS row when it has none, or a
 // SKIPPED row when `skip` says the folder lacks what it reads; a line with `info` is a note, never
 // a verdict. The printed rows follow from this table alone.
 export type Rule = {
-  line: number
+  key: string
   runs: RunKind[]
   skip?: (run: string) => string | undefined
 } & ({ find: (c: Ctx) => Found[] } | { info: (c: Ctx) => string })
@@ -125,7 +134,7 @@ const pronounsWritten = (run: string): Found[] => {
 
 export const RULES: Rule[] = [
   {
-    line: 4,
+    key: 'summary-whole',
     runs: ['onboarding'],
     skip: noRaw,
     find: (c) =>
@@ -136,7 +145,7 @@ export const RULES: Rule[] = [
       ),
   },
   {
-    line: 5,
+    key: 'one-framing',
     runs: ['onboarding'],
     skip: noRaw,
     find: (c) =>
@@ -149,13 +158,13 @@ export const RULES: Rule[] = [
       }),
   },
   {
-    line: 18,
+    key: 'pronouns-in-coach-md',
     runs: ['onboarding'],
     skip: noWritten,
     find: (c) => pronounsWritten(c.run),
   },
   {
-    line: 26,
+    key: 'working-words',
     runs: ['onboarding'],
     find: (c) =>
       perTurn(c, (t) =>
@@ -165,7 +174,7 @@ export const RULES: Rule[] = [
       ),
   },
   {
-    line: 28,
+    key: 'ordinal-names',
     runs: ['onboarding'],
     skip: noRaw,
     find: (c) =>
@@ -177,9 +186,9 @@ export const RULES: Rule[] = [
           : [],
       ),
   },
-  { line: 36, runs: ['onboarding'], info: (c) => `${c.turns.length} turns` },
+  { key: 'turn-count', runs: ['onboarding'], info: (c) => `${c.turns.length} turns` },
   {
-    line: 13,
+    key: 'update-working-words',
     runs: ['update'],
     find: (c) =>
       perTurn(c, (t) =>
@@ -190,30 +199,67 @@ export const RULES: Rule[] = [
   },
 ]
 
+// A key that is missing or twice would put a row on the wrong line, so it stops the scorer.
+export class ChecklistKeyError extends Error {}
+
+// The line number of each key in a kind's checklist, for the keys of `rules` that apply to it.
+export const checklistLines = (
+  kind: RunKind,
+  rules: Rule[] = RULES,
+  dir = CHECKLIST_DIR,
+): Map<string, number> => {
+  const file = CHECKLIST_FILE[kind]
+  const found = new Map<string, number[]>()
+  for (const l of readFileSync(join(dir, file), 'utf8').split('\n')) {
+    const m = /^(\d+)\.\s+\[([^\]]+)\]/.exec(l)
+    if (m) found.set(m[2] as string, [...(found.get(m[2] as string) ?? []), Number(m[1])])
+  }
+  const at = new Map<string, number>()
+  for (const r of rules.filter((x) => x.runs.includes(kind))) {
+    const lines = found.get(r.key) ?? []
+    if (lines.length === 0) throw new ChecklistKeyError(`"${r.key}" is not in ${file}`)
+    if (lines.length > 1) throw new ChecklistKeyError(`"${r.key}" is in ${file} more than once`)
+    at.set(r.key, lines[0] as number)
+  }
+  return at
+}
+
 // The rows of a run, ordered by line, then by turn; a row with no turn comes first in its line.
-export const scoreFindings = (run: string, rules: Rule[] = RULES): Row[] => {
+// `checklistDir` is for tests that bring their own checklists.
+export const scoreFindings = (
+  run: string,
+  rules: Rule[] = RULES,
+  checklistDir = CHECKLIST_DIR,
+): Row[] => {
   const turns = readTurns(run)
   const kind = runKind(run)
+  const at = checklistLines(kind, rules, checklistDir)
+  const lineOf = (r: Rule) => at.get(r.key) as number
   const ctx: Ctx = { run, turns, firstWins: turns.find((t) => t.winsDrafted)?.n }
   const rows = rules
     .filter((r) => r.runs.includes(kind))
     .flatMap((r): Row[] => {
-      if ('info' in r) return [{ line: r.line, status: 'INFO', text: r.info(ctx) }]
+      if ('info' in r) return [{ line: lineOf(r), status: 'INFO', text: r.info(ctx) }]
       const found = r.find(ctx)
-      if (found.length > 0) return found.map((f) => ({ line: r.line, status: 'FAIL', ...f }))
+      if (found.length > 0) return found.map((f) => ({ line: lineOf(r), status: 'FAIL', ...f }))
       const why = r.skip?.(run)
       return [
         why === undefined
-          ? { line: r.line, status: 'PASS' }
-          : { line: r.line, status: 'SKIPPED', text: why },
+          ? { line: lineOf(r), status: 'PASS' }
+          : { line: lineOf(r), status: 'SKIPPED', text: why },
       ]
     })
   return rows.sort((a, b) => a.line - b.line || (a.turn ?? 0) - (b.turn ?? 0))
 }
 
-export const scoreRun = (run: string): string[] => scoreFindings(run).map(formatRow)
+export const scoreRun = (run: string, rules: Rule[] = RULES, checklistDir?: string): string[] =>
+  scoreFindings(run, rules, checklistDir).map(formatRow)
 
-export const scoreCommand = (args: string[]): number => {
+export const scoreCommand = (
+  args: string[],
+  rules: Rule[] = RULES,
+  checklistDir?: string,
+): number => {
   const [run, ...extra] = args
   if (run === undefined || extra.length > 0 || run.startsWith('--')) {
     console.error(USAGE)
@@ -227,7 +273,13 @@ export const scoreCommand = (args: string[]): number => {
     console.error(`no transcript.md in ${run}; the run has not played a turn`)
     return EXIT.missing
   }
-  console.log(scoreRun(run).join('\n'))
+  try {
+    console.log(scoreRun(run, rules, checklistDir).join('\n'))
+  } catch (e) {
+    if (!(e instanceof ChecklistKeyError)) throw e
+    console.error(e.message)
+    return EXIT.data
+  }
   return 0
 }
 

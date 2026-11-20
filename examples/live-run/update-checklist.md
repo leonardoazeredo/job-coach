@@ -29,7 +29,7 @@ When a run finds a new fault, add a line here and fix the skill or the command. 
 
 ## Words she reads
 
-13. No reply named git, a command, a file path, a key, a remote, a merge, a commit or a branch, including in explaining a fault. No reply narrated a working step ("I'll load the update steps now") or carried a note to itself ("Keep both: their 10 days, upstream's 3 working days.").
+13. [update-working-words] No reply named git, a command, a file path, a key, a remote, a merge, a commit or a branch, including in explaining a fault. No reply narrated a working step ("I'll load the update steps now") or carried a note to itself ("Keep both: their 10 days, upstream's 3 working days.").
 14. No reply made a claim about her records or the coach that the tool output does not support.
 15. The coach ran no git command of its own for the update: every step went through `scripts/update.ts`. List any `git` call in the raw tool calls apart from those inside the coach's scripts.
 
