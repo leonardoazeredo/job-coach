@@ -18,6 +18,7 @@ import {
   readCost,
   runFolderCommand,
   snapshot,
+  snapshotHadPackages,
   transcriptBefore,
   writeCost,
 } from '../../examples/live-run/run-folder.ts'
@@ -92,10 +93,10 @@ describe('the snapshot and the replay sample', () => {
     })
     expect(listing.stdout).toContain('copy/CLAUDE.md')
     expect(listing.stdout).not.toContain('node_modules')
-    expect(existsSync(join(run, 'snap', 'before1.packages'))).toBe(true)
+    expect(snapshotHadPackages(run, 1)).toBe(true)
     rmSync(join(run, 'copy', 'node_modules'), { recursive: true })
     expect(snapshot(run, 1)).toBeUndefined()
-    expect(existsSync(join(run, 'snap', 'before1.packages'))).toBe(false)
+    expect(snapshotHadPackages(run, 1)).toBe(false)
   })
 
   it('says why a snapshot failed, and the command exits 65', () => {

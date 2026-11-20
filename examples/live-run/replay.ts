@@ -23,6 +23,7 @@ import {
   costAfter,
   missingForReplay,
   prepareReplaySample,
+  snapshotHadPackages,
   totalAfter,
 } from './run-folder.ts'
 import { scoreFindings } from './score.ts'
@@ -315,7 +316,7 @@ export const replayCommand = (args: string[], makeAdapter: MakeAdapter = dockerA
   const { run, turn, n, budget } = checked
   const root = repoRoot()
   const out = mkdtempSync(join(tmpdir(), `replay-${basename(run)}-t${turn}-`))
-  const hasPackages = existsSync(join(run, 'snap', `before${turn}.packages`))
+  const hasPackages = snapshotHadPackages(run, turn)
   const adapter = makeAdapter({ run, turn, hasPackages, budget, root })
 
   console.log(`${stamp()} building the image (a few minutes the first time)`)

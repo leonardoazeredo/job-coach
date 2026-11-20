@@ -299,6 +299,11 @@ export const snapshot = (run: string, n: number): string | undefined => {
   return tar.status === 0 ? undefined : `could not snapshot before turn ${n}: ${tar.stderr.trim()}`
 }
 
+// Whether the copy had installed packages when the snapshot was taken, so a replay sample of the
+// turn needs npm ci before it runs.
+export const snapshotHadPackages = (run: string, n: number): boolean =>
+  existsSync(join(run, LAYOUT.snap, `before${n}.packages`))
+
 // What a replay of the turn needs from the run folder, or what is missing.
 export const missingForReplay = (run: string, turn: number): string[] =>
   [`snap/before${turn}.tgz`, `raw/reply${turn}.txt`, `raw/turn${turn}.jsonl`, 'costlog.txt']
