@@ -275,8 +275,9 @@ export const recordTurn = (run: string, n: number, replyFile: string): Recorded 
 // What a replay of turn `n` starts from, taken before the turn: the copy without its installed
 // packages, which are large and come back with npm ci, and the coach's session, which lives in
 // claudehome. The .packages marker says whether npm ci is needed, so it is reset on every call, as
-// a stale one would make a replay install packages the snapshot never had. Returns why the
-// snapshot failed, or undefined.
+// a stale one would make a replay install packages the snapshot never had. A failed tar leaves a
+// partial archive that missingForReplay would accept, so it is removed. Returns why the snapshot
+// failed, or undefined.
 export const snapshot = (run: string, n: number): string | undefined => {
   const { copy, claudehome, snap } = LAYOUT
   mkdirSync(join(run, snap), { recursive: true })
@@ -293,6 +294,7 @@ export const snapshot = (run: string, n: number): string | undefined => {
     ],
     { encoding: 'utf8' },
   )
+  if (tar.status !== 0) rmSync(join(run, snap, `before${n}.tgz`), { force: true })
   const marker = join(run, snap, `before${n}.packages`)
   rmSync(marker, { force: true })
   if (existsSync(join(run, copy, 'node_modules'))) writeFileSync(marker, '')
@@ -375,6 +377,19 @@ const snapshotCommand = (run: string, n: number): number => {
   return EXIT.data
 }
 
+// A cost log that exists but cannot be read stops here with nothing written, so cost.txt never
+// holds a 0 the log did not give; a missing log is a real 0, as for the running total.
+const costCommand = (run: string): number => {
+  try {
+    process.stdout.write(writeCost(run))
+    return 0
+  } catch (e) {
+    const why = (e instanceof Error ? e.message : String(e)).split('\n')[0]
+    console.error(`could not write cost.txt in ${run}: ${why}`)
+    return EXIT.data
+  }
+}
+
 const recordCommand = (run: string, n: number, replyFile: string): number => {
   const r = recordTurn(run, n, replyFile)
   if ('failure' in r) {
@@ -394,7 +409,7 @@ export const runFolderCommand = (args: string[]): number => {
   if (verb === 'total') console.log(runningTotal(readCostLog(run)))
   else if (verb === 'session') console.log(readSession(run))
   else if (verb === 'turns') console.log(turnCount(run))
-  else if (verb === 'cost') process.stdout.write(writeCost(run))
+  else if (verb === 'cost') return costCommand(run)
   else if (verb === 'snapshot' && n !== undefined) return snapshotCommand(run, Number(n))
   else if (verb === 'record' && n !== undefined && replyFile !== undefined)
     return recordCommand(run, Number(n), replyFile)

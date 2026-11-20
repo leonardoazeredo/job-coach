@@ -10,7 +10,7 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it, vi } from 'vitest'
 import {
   LAYOUT,
   missingForReplay,
@@ -55,13 +55,19 @@ describe('the snapshot and the replay sample', () => {
     expect(read(sample, 'session.id')).toBe('sid-2')
     expect(read(sample, 'reply.txt')).toBe('message 3\n')
     expect(read(sample, 'costlog.txt')).toBe('turn 2 0.75\n')
-    expect(existsSync(join(sample, 'raw', 'turn1.jsonl'))).toBe(true)
-    expect(existsSync(join(sample, 'raw', 'turn2.jsonl'))).toBe(true)
+    for (const f of ['turn1.jsonl', 'turn2.jsonl'])
+      expect(readFileSync(join(sample, 'raw', f))).toEqual(readFileSync(join(run, 'raw', f)))
     expect(existsSync(join(sample, 'raw', 'turn3.jsonl'))).toBe(false)
     expect(existsSync(join(sample, 'written'))).toBe(false)
     expect(contents(run)).toEqual(before)
     expect(missingForReplay(run, 3)).toEqual([])
-    expect(missingForReplay(run, 2)).toContain('snap/before2.tgz')
+    expect(missingForReplay(run, 2)).toEqual(['snap/before2.tgz'])
+  })
+
+  it('names the one file a replay lacks', () => {
+    const run = makeRun(tmp, { name: 'lacks-stream' })
+    rmSync(join(run, 'raw', 'turn2.jsonl'))
+    expect(missingForReplay(run, 3)).toEqual(['raw/turn2.jsonl'])
   })
 
   it('gives a turn-1 sample no session or cost log, and an empty transcript', () => {
@@ -99,12 +105,19 @@ describe('the snapshot and the replay sample', () => {
     expect(snapshotHadPackages(run, 1)).toBe(false)
   })
 
-  it('says why a snapshot failed, and the command exits 65', () => {
-    const run = makeRun(tmp, { name: 'no-home', turns: 0 })
+  it('says why a snapshot failed, leaves no archive for a replay to accept, and the command exits 65', () => {
+    const run = makeRun(tmp, { name: 'no-home' })
+    expect(missingForReplay(run, 3)).toEqual([])
     rmSync(join(run, 'claudehome'), { recursive: true })
-    expect(snapshot(run, 1)).toMatch(/^could not snapshot before turn 1: /)
-    expect(runFolderCommand(['snapshot', run, '1'])).toBe(EXIT.data)
-    expect(runFolderCommand(['snapshot', run])).toBe(EXIT.usage)
+    expect(snapshot(run, 3)).toMatch(/^could not snapshot before turn 3: /)
+    expect(existsSync(join(run, 'snap', 'before3.tgz'))).toBe(false)
+    expect(snapshotHadPackages(run, 3)).toBe(false)
+    expect(missingForReplay(run, 3)).toEqual(['snap/before3.tgz'])
+    expect(runFolderCommand(['snapshot', run, '3'])).toBe(EXIT.data)
+  })
+
+  it('refuses a snapshot call with no turn', () => {
+    expect(runFolderCommand(['snapshot', join(tmp, 'anywhere')])).toBe(EXIT.usage)
   })
 })
 
@@ -128,6 +141,21 @@ describe('a finished run’s cost', () => {
     const run = makeRun(tmp, { name: 'cost-unreadable', turns: 0 })
     mkdirSync(join(run, 'costlog.txt'))
     expect(() => writeCost(run)).toThrow()
+    expect(existsSync(join(run, 'cost.txt'))).toBe(false)
+  })
+
+  it('says so in one line on stderr and exits 65 from the command, with no cost.txt', () => {
+    const run = makeRun(tmp, { name: 'cost-command', turns: 0 })
+    mkdirSync(join(run, 'costlog.txt'))
+    const err = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    try {
+      expect(runFolderCommand(['cost', run])).toBe(EXIT.data)
+      expect(err.mock.calls).toHaveLength(1)
+      expect(String(err.mock.calls[0]?.[0])).toMatch(/^could not write cost\.txt in .*: .+$/)
+      expect(String(err.mock.calls[0]?.[0])).not.toContain('\n')
+    } finally {
+      err.mockRestore()
+    }
     expect(existsSync(join(run, 'cost.txt'))).toBe(false)
   })
 })

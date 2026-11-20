@@ -244,6 +244,27 @@ describe('the real sample runner', () => {
     expect(dockerLines('exec')).toHaveLength(0)
   })
 
+  it('turn.sh goes on after a failed snapshot, and says why', () => {
+    rmSync(join(tmp, 'live-no-snapshot'), { recursive: true, force: true })
+    const live = makeRun(tmp, { name: 'live-no-snapshot', turns: 1 })
+    rmSync(join(live, 'claudehome'), { recursive: true })
+    writeFileSync(join(live, 'r.txt'), 'hello')
+    const r = spawnSync(
+      join(import.meta.dirname, '../../examples/live-run/turn.sh'),
+      [live, '2', join(live, 'r.txt')],
+      {
+        encoding: 'utf8',
+        env: {
+          ...withoutGitVariables(process.env),
+          ...env({ LIVE_RUN_BUDGET_USD: '5', FAKE_COST_BASE: '0.5' }),
+        },
+      },
+    )
+    expect(r.status, r.stdout + r.stderr).toBe(0)
+    expect(dockerLines('exec')).toHaveLength(1)
+    expect(r.stdout + r.stderr).toContain('could not snapshot before turn 2:')
+  })
+
   it('finish-update.sh gathers the total and the turn count through the run folder', () => {
     const copy = join(run, 'copy')
     mkdirSync(join(copy, 'config'), { recursive: true })
