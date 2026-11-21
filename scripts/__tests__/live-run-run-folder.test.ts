@@ -300,86 +300,50 @@ describe('the drafts in a stream', () => {
     expect(d).toEqual({ summaries: ['new one', 'new two'], winsDrafted: true })
   })
 
-  it('keeps only the last summary of a file drafted as the second draft of a command', () => {
-    const both = (...files: string[]) =>
-      'echo ----; ' + files.map((f) => 'node scripts/profile.ts draft ' + f).join('; echo ----; ')
-    const call = (id: string, command: string) =>
+  describe('a command that drafts and echoes', () => {
+    const call = (command: string) =>
       JSON.stringify({
         type: 'assistant',
-        message: { content: [{ type: 'tool_use', id, input: { command } }] },
-      })
-    const d = draftsIn(
-      [
-        use('a', 'profile/identity.yaml'),
-        out('a', 'Name: Hanna'),
-        call('b', both('profile/voice.md', 'profile/identity.yaml')),
-        out('b', '----\nVoice: plain\n----\nName: Hannah'),
-      ].join('\n'),
-    )
-    expect(d).toEqual({ summaries: ['Voice: plain', 'Name: Hannah'], winsDrafted: false })
-  })
-
-  it('knows the achievements file was drafted when it is the second draft of a command', () => {
-    const command =
-      'node scripts/profile.ts draft profile/identity.yaml <<EOF\n{}\nEOF\necho ----; node scripts/profile.ts draft profile/wins.yaml <<EOF\n{}\nEOF'
-    const d = draftsIn(
-      JSON.stringify({
-        type: 'assistant',
-        message: { content: [{ type: 'tool_use', id: 'a', input: { command } }] },
-      }) +
-        '\n' +
-        out('a', 'Name: A\n----\nAchievement: B'),
-    )
-    expect(d).toEqual({ summaries: ['Name: A', 'Achievement: B'], winsDrafted: true })
-  })
-
-  it('shows the later draft of one file from a side-by-side pair, and a pair only for a draft of both', () => {
-    const call = (id: string, command: string) =>
-      JSON.stringify({
-        type: 'assistant',
-        message: { content: [{ type: 'tool_use', id, input: { command } }] },
-      })
-    const pair =
-      'node scripts/profile.ts draft profile/a.yaml\nnode scripts/profile.ts draft profile/b.yaml'
-    const d = draftsIn(
-      [
-        call('a', pair),
-        out('a', 'A1\nB1'),
-        call('b', 'node scripts/profile.ts draft profile/a.yaml'),
-        out('b', 'A2'),
-      ].join('\n'),
-    )
-    // The outdated A1 may stay: side-by-side drafts cannot be told apart, so a draft of only one
-    // file does not replace the pair. Only the lines that are right are asserted.
-    expect(d.summaries).toContain('B1')
-    expect(d.summaries.at(-1)).toBe('A2')
-    const e = draftsIn(
-      [call('a', pair), out('a', 'A1\nB1'), call('b', pair), out('b', 'A2\nB2')].join('\n'),
-    )
-    expect(e.summaries).toEqual(['A2', 'B2'])
-  })
-
-  it('drops "No change." from drafts side by side, and a separated draft that printed only that', () => {
-    const call = (id: string, command: string) =>
-      JSON.stringify({
-        type: 'assistant',
-        message: { content: [{ type: 'tool_use', id, input: { command } }] },
+        message: { content: [{ type: 'tool_use', id: 'c', input: { command } }] },
       })
     const draft = (f: string) => 'node scripts/profile.ts draft ' + f
-    const side = draftsIn(
-      [
-        call('a', draft('profile/a.yaml') + '\n' + draft('profile/b.yaml')),
-        out('a', 'No change.\nB1'),
-      ].join('\n'),
-    )
-    expect(side.summaries).toEqual(['B1'])
-    const apart = draftsIn(
-      [
-        call('a', draft('profile/a.yaml') + '; echo ----; ' + draft('profile/b.yaml')),
-        out('a', 'No change.\n----\nB1'),
-      ].join('\n'),
-    )
-    expect(apart.summaries).toEqual(['B1'])
+    const both = (sep: string) =>
+      draft('profile/identity.yaml') + '\n' + sep + '\n' + draft('profile/search.yaml')
+    const summaries = (command: string, result: string) =>
+      draftsIn(call(command) + '\n' + out('c', result)).summaries
+
+    it('leaves out a separator the command echoed between two drafts', () => {
+      expect(summaries(both('echo ----'), 'Name: A\n----\nCity: B')).toEqual(['Name: A', 'City: B'])
+    })
+
+    it('still counts a summary line that is dropped from the result of such a command', () => {
+      const lines = summaries(both('echo ----'), 'Name: A\n----\nCity: B\nCountry: C')
+      expect(lines).toContain('Country: C')
+    })
+
+    it('never leaves out an echoed text that holds a letter or a digit', () => {
+      expect(summaries(both('echo Done'), 'Name: A\nDone\nCity: B')).toContain('Done')
+      expect(summaries(both("echo 'Name: X'"), 'Name: X\nCity: B')).toContain('Name: X')
+      expect(summaries(both('echo 2024'), 'Name: A\n2024\nCity: B')).toContain('2024')
+    })
+
+    it('leaves out a separator only when the command echoed that very text', () => {
+      expect(summaries(both('echo ===='), 'Name: A\n----\nCity: B')).toContain('----')
+    })
+
+    it('leaves out a separator a summary also holds, and still counts the real lines', () => {
+      const result = 'Name: A\n----\nCity: B'
+      expect(summaries(both('echo ----'), result)).toEqual(['Name: A', 'City: B'])
+      expect(summaries(both('echo ----'), result)).not.toContain('----')
+    })
+
+    it('flags the achievements file for a second draft and for a heredoc written without a space', () => {
+      const wins = (command: string) =>
+        draftsIn(call(command) + '\n' + out('c', 'Name: A')).winsDrafted
+      expect(wins(both('echo ----').replace('search.yaml', 'wins.yaml'))).toBe(true)
+      expect(wins("node scripts/profile.ts draft profile/wins.yaml<<'EOF'\n{}\nEOF")).toBe(true)
+      expect(wins(both('echo ----'))).toBe(false)
+    })
   })
 
   it('leaves out an empty result, "No change." and an error', () => {

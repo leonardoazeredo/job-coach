@@ -9,6 +9,9 @@ import { printResults } from '../../examples/live-run/replay.ts'
 })
 
 import { dirname, join } from 'node:path'
+  })
+})
+
 import { describe, expect, it, vi } from 'vitest'
 import { transcriptBlock } from '../../examples/live-run/run-folder.ts'
 import { scoreCommand, scoreRun } from '../../examples/live-run/score.ts'
@@ -370,6 +373,30 @@ describe('a write or a drop chained with a draft', () => {
       rmSync(dir, { recursive: true })
     })
   }
+
+  describe('an echoed separator between two drafts', () => {
+    const command =
+      'node scripts/profile.ts draft profile/identity.yaml\necho ----\nnode scripts/profile.ts draft profile/search.yaml'
+    const result = 'Name: Hannah Pruitt\n----\n' + summary
+    const line4 = (reply: string) => {
+      const dir = run(command, result, reply)
+      const rows = scoreRun(dir).filter((l) => l.startsWith('line 4'))
+      rmSync(dir, { recursive: true })
+      return rows
+    }
+
+    it('scores no finding when the reply relays both summaries', () => {
+      expect(line4('Here it is.\nName: Hannah Pruitt\n' + summary + '\nIs it right?')).toEqual([
+        'line 4 PASS',
+      ])
+    })
+
+    it('scores the line the reply dropped from the second summary', () => {
+      expect(line4('Here it is.\nName: Hannah Pruitt\nSearch city: Leeds\nIs it right?')).toEqual([
+        'line 4 FAIL T1 "Search country: United Kingdom"',
+      ])
+    })
+  })
 
   it('treats a draft that changed nothing as no summary, whatever was chained before it', () => {
     const dir = run(chains[0][1], `written: profile/identity.yaml\nNo change.`, 'Nothing to show.')
@@ -828,3 +855,6 @@ describe('one command that drafts two files', () => {
     expect(line4(dir)).toEqual(['line 4 FAIL T1 "Missing line"'])
   })
 })
+  })
+})
+
