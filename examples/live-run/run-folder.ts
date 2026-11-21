@@ -120,6 +120,15 @@ const NO_CHANGE = 'No change.'
 // command, with nothing between them to tell their output apart, make one entry of several files.
 type Drafted = { files: string[]; lines: string[] }
 
+// A cat's text can equal a draft's own lines, so the caller needs every place a part's lines could
+// be, not only the first.
+const matchesFrom = (out: string[], wanted: string[], at: number): number[] => {
+  const hits: number[] = []
+  for (let i = at; i + wanted.length <= out.length; i++)
+    if (wanted.every((w, k) => out[i + k]?.trim() === w)) hits.push(i)
+  return hits
+}
+
 // What the draft calls of one command printed. The result holds the command's whole output: the
 // lines a chained write or drop printed are told by their wording, the lines of a literal echo or
 // a cat by what the command text says they print; what is left between them is the drafts' output.
@@ -138,9 +147,9 @@ const draftedBy = (command: string, result: string, read: ReadFile): Drafted[] =
     if (part.kind === 'draft') files.push(part.file)
     if (part.kind !== 'known' || part.lines.length === 0) continue
     const wanted = part.lines.map((l) => l.trim())
-    let found = -1
-    for (let i = at; i + wanted.length <= out.length && found < 0; i++)
-      if (wanted.every((w, k) => out[i + k]?.trim() === w)) found = i
+    const hits = matchesFrom(out, wanted, at)
+    // A file's text found twice may be a draft's own lines, so its lines stay counted.
+    const found = part.read && hits.length > 1 ? -1 : (hits[0] ?? -1)
     if (found < 0) continue
     close(found)
     at = found + wanted.length
@@ -152,8 +161,9 @@ const draftedBy = (command: string, result: string, read: ReadFile): Drafted[] =
 // A turn's stream pairs each tool call with its result; the lines the draft calls printed are the
 // summaries the coach was to relay. The same result can hold output of other parts of the command,
 // which are never part of a summary. The summary is told from them by what the command text says
-// they print, so the coach's command shape does not matter. Drafts side by side with nothing
-// between them cannot be told apart, so they stay one entry for all their files.
+// they print. A command the text does not fully give counts every line of its result; the limits
+// are named at the top of command-parts.ts. Drafts side by side with nothing between them cannot
+// be told apart, so they stay one entry for all their files.
 // The entries a turn's tool results held, in order; a result of a failed call holds none.
 const entriesOf = (text: string, read: ReadFile): Drafted[] => {
   const commands = new Map<string, string>()

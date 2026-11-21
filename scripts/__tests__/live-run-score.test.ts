@@ -630,7 +630,7 @@ describe('one command that drafts two files', () => {
       mkdirSync(join(d, 'raw'))
       mkdirSync(join(d, 'written'))
       if (copy) {
-        mkdirSync(join(d, 'copy/templates'), { recursive: true })
+        mkdirSync(dirname(join(d, 'copy', copy[0])), { recursive: true })
         writeFileSync(join(d, 'copy', copy[0]), copy[1])
       }
       writeFileSync(join(d, 'transcript.md'), turn(1, reply))
@@ -714,6 +714,108 @@ describe('one command that drafts two files', () => {
     it('does not read a directory', () => {
       const dir = (d: string) => mkdirSync(join(d, 'copy/templates/note.md'), { recursive: true })
       expect(score('templates/note.md', dir)).toEqual(['line 4 FAIL T1 "' + note + '"'])
+    })
+  })
+
+  describe('a reply that relays nothing', () => {
+    const lesson = 'Lesson one\nLesson two'
+    const lessons = 'node scripts/profile.ts draft profile/lessons.md <<EOF\n' + lesson + '\nEOF'
+    const copy: [string, string] = ['profile/lessons.md', lesson + '\n']
+    const nothing = (command: string, out: string, file?: [string, string]) =>
+      line4(run(command, out, 'Ok?', file))
+    const failsOn = (rows: string[], text: string) =>
+      expect(rows).toContain('line 4 FAIL T1 "' + text + '"')
+
+    it('fails when a cat of the drafted file follows the draft', () => {
+      failsOn(
+        nothing(lessons + '\ncat profile/lessons.md', lesson + '\n' + lesson, copy),
+        'Lesson two',
+      )
+    })
+
+    it('fails when a cat of the drafted file comes before an overwriting draft', () => {
+      failsOn(
+        nothing('cat profile/lessons.md\n' + lessons, lesson + '\n' + lesson, copy),
+        'Lesson one',
+      )
+    })
+
+    it("fails when a cat reads another file that has the draft's own text", () => {
+      failsOn(
+        nothing(draft('profile/identity.yaml') + '\ncat templates/same.md', first + '\n' + first, [
+          'templates/same.md',
+          first + '\n',
+        ]),
+        first,
+      )
+    })
+
+    it('fails when "<<" in quotes comes before drafts that an echo separates', () => {
+      failsOn(
+        nothing(
+          'echo "a << b"\n' +
+            draft('profile/identity.yaml') +
+            '\necho ----\n' +
+            draft('profile/search.yaml'),
+          'a << b\n' + first + '\n----\n' + second,
+        ),
+        'Search city: Leeds',
+      )
+    })
+
+    it('fails when a here-string comes before a draft and the separator', () => {
+      failsOn(
+        nothing(
+          'node scripts/profile.ts draft profile/identity.yaml <<< word\necho ----\n' +
+            draft('profile/search.yaml'),
+          first + '\n----\n' + second,
+        ),
+        'Search city: Leeds',
+      )
+    })
+
+    it('fails when "||" puts an echo of a summary line after the draft', () => {
+      failsOn(
+        nothing('node scripts/profile.ts draft profile/identity.yaml || echo ' + first, first),
+        first,
+      )
+    })
+
+    // Each shape is one the splitter does not fully understand: the echoed word stays a summary
+    // line, so a reply that drops it fails.
+    const shapes: [string, string][] = [
+      ['a printf', "printf 'Hello\\n'"],
+      ['a bash -lc', 'bash -lc "echo Hello"'],
+      ['a backslash in double quotes', 'echo "Hel\\lo"'],
+      ['an echo -e with a backslash', 'echo -e "Hello\\n"'],
+      ['an expansion', 'echo "$HOME"'],
+      ['a pipe', 'echo Hello | cat'],
+      ['a redirect', 'echo Hello > note.txt'],
+      ['a glob', 'echo *'],
+    ]
+    for (const [name, cmd] of shapes)
+      it('counts the whole result of a command with ' + name, () => {
+        const rows = line4(
+          run(cmd + '\n' + draft('profile/identity.yaml'), 'Hello\n' + first, first),
+        )
+        failsOn(rows, 'Hello')
+      })
+
+    it('counts the whole result when a heredoc never closes', () => {
+      const command = 'echo Hello\nnode scripts/profile.ts draft profile/identity.yaml <<EOF\n{}'
+      failsOn(line4(run(command, 'Hello\n' + first, first)), 'Hello')
+    })
+
+    it('does not read an absolute path outside /w from the copy', () => {
+      failsOn(
+        line4(
+          run(draft('profile/identity.yaml') + '\ncat /etc/note.md', first + '\nNote', first, [
+            'etc/note.md',
+            'Note\n',
+          ]),
+        ),
+        'Note',
+      )
     })
   })
 

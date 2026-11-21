@@ -46,8 +46,10 @@ const sentences = (text: string) =>
     .filter(Boolean)
 
 // A cat in a coach's command reads from the folder the run worked in, which the run keeps as copy/.
-// A path that leaves that folder is not read.
+// A path that leaves that folder, or an absolute path outside /w, is not read: it names a file of
+// the container, not of the copy.
 const copyFile = (run: string) => (path: string) => {
+  if (path.startsWith('/') && path !== '/w' && !path.startsWith('/w/')) return
   const inside = relative('/w', join('/w', path.startsWith('/w/') ? path.slice(3) : path))
   const file = join(run, 'copy', inside)
   return inside.startsWith('..') || !existsSync(file) || !statSync(file).isFile()

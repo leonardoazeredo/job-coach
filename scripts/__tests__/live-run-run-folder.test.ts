@@ -333,7 +333,7 @@ describe('the drafts in a stream', () => {
     expect(d).toEqual({ summaries: ['Name: A', 'Achievement: B'], winsDrafted: true })
   })
 
-  it('shows the later draft of one file in a side-by-side pair, and a pair only for a draft of both', () => {
+  it('shows the later draft of one file from a side-by-side pair, and a pair only for a draft of both', () => {
     const call = (id: string, command: string) =>
       JSON.stringify({
         type: 'assistant',
@@ -349,9 +349,10 @@ describe('the drafts in a stream', () => {
         out('b', 'A2'),
       ].join('\n'),
     )
-    // Keeping the outdated A1 is a known limit, not the contract: side-by-side drafts cannot be
-    // told apart, so the pair is one entry that a draft of only one file does not replace.
-    expect(d.summaries).toEqual(['A1', 'B1', 'A2'])
+    // The outdated A1 may stay: side-by-side drafts cannot be told apart, so a draft of only one
+    // file does not replace the pair. Only the lines that are right are asserted.
+    expect(d.summaries).toContain('B1')
+    expect(d.summaries.at(-1)).toBe('A2')
     const e = draftsIn(
       [call('a', pair), out('a', 'A1\nB1'), call('b', pair), out('b', 'A2\nB2')].join('\n'),
     )
