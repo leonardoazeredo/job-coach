@@ -337,6 +337,49 @@ describe('the drafts in a stream', () => {
       expect(summaries(both('echo ----'), result)).not.toContain('----')
     })
 
+    it.each([
+      ['a command after it', 'node scripts/profile.ts draft profile/wins.yaml; echo x'],
+      ['quotes', 'node scripts/profile.ts draft "profile/wins.yaml"'],
+      ['a redirect', 'node scripts/profile.ts draft profile/wins.yaml>/dev/null'],
+      ['a pipe', 'node scripts/profile.ts draft profile/wins.yaml|cat'],
+      ['a subshell', '(node scripts/profile.ts draft profile/wins.yaml)'],
+      ['&&', 'node scripts/profile.ts draft profile/wins.yaml && echo x'],
+      [
+        'a heredoc with a space',
+        "node scripts/profile.ts draft profile/wins.yaml <<'EOF'\n{}\nEOF",
+      ],
+      [
+        'a heredoc without a space',
+        "node scripts/profile.ts draft profile/wins.yaml<<'EOF'\n{}\nEOF",
+      ],
+    ])('flags the achievements file named with %s', (_name, command) => {
+      expect(draftsIn(call(command) + '\n' + out('c', 'Name: A')).winsDrafted).toBe(true)
+    })
+
+    it('does not flag the achievements file when only an echo names it', () => {
+      const command = 'node scripts/profile.ts draft profile/identity.yaml; echo wins.yaml'
+      expect(draftsIn(call(command) + '\n' + out('c', 'Name: A')).winsDrafted).toBe(false)
+    })
+
+    it('counts the lines of an error result when the command holds several drafts', () => {
+      const result = 'Name: A\nboom: search.yaml failed'
+      const d = draftsIn(call(both('echo ----')) + '\n' + out('c', result, true))
+      expect(d.summaries).toEqual(['Name: A', 'boom: search.yaml failed'])
+    })
+
+    it('leaves out the error result of a command that holds one draft', () => {
+      const d = draftsIn(call(draft('profile/identity.yaml')) + '\n' + out('c', 'boom', true))
+      expect(d.summaries).toEqual([])
+    })
+
+    it('lets an echo text inside a heredoc body excuse a separator line, which carries nothing', () => {
+      const command =
+        draft('profile/identity.yaml') +
+        "\ncat > notes.txt <<'EOF'\necho ----\nEOF\n" +
+        draft('profile/search.yaml')
+      expect(summaries(command, 'Name: A\n----\nCity: B')).toEqual(['Name: A', 'City: B'])
+    })
+
     it('flags the achievements file for a second draft and for a heredoc written without a space', () => {
       const wins = (command: string) =>
         draftsIn(call(command) + '\n' + out('c', 'Name: A')).winsDrafted

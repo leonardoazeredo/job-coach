@@ -391,6 +391,32 @@ describe('a write or a drop chained with a draft', () => {
       ])
     })
 
+    const both = (sep: string) =>
+      `node scripts/profile.ts draft profile/identity.yaml${sep}node scripts/profile.ts draft profile/search.yaml`
+    const relayed = 'Here it is.\nName: Hannah Pruitt\n' + summary + '\nIs it right?'
+    const rowsFor = (cmd: string, out: string, reply: string) => {
+      const dir = run(cmd, out, reply)
+      const rows = scoreRun(dir).filter((l) => l.startsWith('line 4'))
+      rmSync(dir, { recursive: true })
+      return rows
+    }
+
+    it('scores a dropped line that an echo also printed when it holds a letter', () => {
+      expect(
+        rowsFor(both('\necho Done\n'), 'Name: Hannah Pruitt\nDone\n' + summary, relayed),
+      ).toEqual(['line 4 FAIL T1 "Done"'])
+    })
+
+    it.each([
+      ['a quoted echo', both('\necho "----"\n')],
+      ['an echo ended by a semicolon on one line', both('; echo ----; ')],
+      ['an && chain', both(' && echo ---- && ')],
+    ])('scores no finding for the separator of %s', (_name, cmd) => {
+      expect(rowsFor(cmd, 'Name: Hannah Pruitt\n----\n' + summary, relayed)).toEqual([
+        'line 4 PASS',
+      ])
+    })
+
     it('scores the line the reply dropped from the second summary', () => {
       expect(line4('Here it is.\nName: Hannah Pruitt\nSearch city: Leeds\nIs it right?')).toEqual([
         'line 4 FAIL T1 "Search country: United Kingdom"',

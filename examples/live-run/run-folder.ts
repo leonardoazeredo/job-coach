@@ -114,6 +114,10 @@ const textOf = (content: unknown): string =>
     : String(content ?? '')
 
 const DRAFT_FILE = /profile\.ts\s+draft\s+([^\s<]+)/g
+// The file name is matched without requiring it to end the token, so a shell character after it
+// (`;`, `|`, `>`, `)`, a quote) cannot hide the draft; a file other than wins.yaml named later in the
+// command cannot match because the lazy \S* stops at whitespace.
+const WINS_DRAFT = /profile\.ts\s+draft\s+["'(]*\S*?wins\.yaml/
 const escaped = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 // A separator line has nothing in it to lose, so a reply that does not relay it is not at fault,
@@ -127,6 +131,13 @@ const echoedSeparator = (command: string, line: string): boolean =>
 // their lines in the same result; those are the command's own and never part of a summary. Any
 // other line of the result counts, even when another command printed it, so a fault is never
 // hidden at the price of a finding on output that is not a summary.
+//
+// An error result of a command with several drafts is counted line by line: an earlier draft's
+// summary was printed before the failure and still has to be relayed, and a false finding from the
+// error text is visible and accepted. With one draft an error means nothing was printed to relay.
+//
+// The echo check reads the whole command, heredoc bodies included, so an echo text inside a heredoc
+// can excuse a separator line; such a line carries nothing, so no summary is lost by it.
 export const draftsIn = (text: string): { summaries: string[]; winsDrafted: boolean } => {
   let winsDrafted = false
   const commands = new Map<string, { command: string; files: string[] }>()
@@ -143,7 +154,8 @@ export const draftsIn = (text: string): { summaries: string[]; winsDrafted: bool
     if (block.type === 'tool_use' && block.id && files.length > 0)
       commands.set(block.id, { command, files })
     const drafted = commands.get(block.tool_use_id ?? '')
-    if (block.type !== 'tool_result' || drafted === undefined || block.is_error) continue
+    if (block.type !== 'tool_result' || drafted === undefined) continue
+    if (block.is_error && drafted.files.length < 2) continue
     const shown = textOf(block.content)
       .split('\n')
       .filter(
@@ -152,7 +164,7 @@ export const draftsIn = (text: string): { summaries: string[]; winsDrafted: bool
     if (shown.length === 0 || shown.join('\n').trim() === 'No change.') continue
     latest = latest.filter((e) => !e.files.every((f) => drafted.files.includes(f)))
     latest.push({ files: drafted.files, lines: shown })
-    winsDrafted ||= drafted.files.some((f) => /wins\.yaml$/.test(f))
+    winsDrafted ||= WINS_DRAFT.test(drafted.command)
   }
   return { summaries: latest.flatMap((e) => e.lines), winsDrafted }
 }
