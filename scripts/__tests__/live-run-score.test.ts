@@ -511,6 +511,65 @@ describe('the notes a skill asks for beside a summary', () => {
     }
   })
 
+  const FRAMING = "Here is how I'd save it."
+  const ONE_SENTENCE_OVER = [
+    "Here are your preferences as they'd go in.",
+    "Here is what you'd rather avoid, as it would go in.",
+    "Here's the condition list as it would go into your search.",
+    'Here are your answers, none of them deal-breakers.',
+    "Here is how I'd save your search, with no hard limits changed.",
+    "I've left out nothing, and your gaps are covered.",
+    'I kept it generic so it reads well.',
+    "You'd rather not rush, so take your time going into each one.",
+    "Nothing here is a deal-breaker yet, so let's look.",
+    'Here is the condition I went with.',
+    'Your gaps are not included in this list, which is fine.',
+  ]
+
+  it.each(ONE_SENTENCE_OVER)('counts a sentence that only presents or mentions: %s', (s) => {
+    const out = line5(`${FRAMING}\n${SUMMARY}\n${s}`)
+    expect(out.some((l) => l.includes('EXCUSED'))).toBe(false)
+    expect(out.filter((l) => l.includes('FAIL'))).toHaveLength(2)
+  })
+
+  it.each([
+    [
+      'The "rather not" parcel carriers line and the Transport Manager condition both sit under what a good role has, in your words.',
+      'preference-placed-or-left-out',
+    ],
+    [
+      'Transport Manager stays out of the job titles I search for, because a search can\'t carry a condition like "small firm only".',
+      'title-condition-placed-or-left-out',
+    ],
+    [
+      "I've left out links and the gaps entry, since you have no LinkedIn or GitHub and no gaps to explain.",
+      'career-gaps-left-out',
+    ],
+    ["I've left out links and the gaps entry.", 'career-gaps-left-out'],
+  ])('keeps excusing the sentence a past run showed: %s', (s, by) => {
+    const out = line5(`${FRAMING}\n${SUMMARY}\n${s}`)
+    expect(out.map((l) => l.split(' ')[2])).toEqual(['PASS', 'EXCUSED'])
+    expect(out[1]).toMatch(new RegExp(` by ${by}$`))
+  })
+
+  it('gives a sentence that fits two entries to the next unused entry', () => {
+    const both =
+      'The "rather not" parcel carriers line and the Transport Manager condition both sit under what a good role has.'
+    const out = line5(`${FRAMING}\n${SUMMARY}\n${both} ${both}`)
+    expect(out.map((l) => l.split(' ')[2])).toEqual(['PASS', 'EXCUSED', 'EXCUSED'])
+    expect(out[1]).toContain('by preference-placed-or-left-out')
+    expect(out[2]).toContain('by title-condition-placed-or-left-out')
+  })
+
+  it.each([
+    "I've left out the career gaps entry in standard-answers.yaml.",
+    "I've left out the career gaps entry from the draft.",
+  ])('does not excuse a note that names a path or the draft: %s', (s) => {
+    const out = line5(`${FRAMING}\n${SUMMARY}\n${s}`)
+    expect(out.some((l) => l.includes('EXCUSED'))).toBe(false)
+    expect(out.filter((l) => l.includes('FAIL'))).toHaveLength(2)
+  })
+
   it('recognises no entry on plain framing', () => {
     expect(
       NOTES.some((o) => o.matches.test("Here's your standard answers as I'd save them.")),
