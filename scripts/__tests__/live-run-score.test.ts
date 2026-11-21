@@ -100,7 +100,12 @@ describe('the live-run scorer', () => {
 
 const turn = (n: number, reply: string) => transcriptBlock(n, 'Yes.', reply)
 
-const draftRaw = (id: string, file: string, out: string) =>
+const draftRaw = (
+  id: string,
+  file: string,
+  out: string,
+  command = `node scripts/profile.ts draft ${file}`,
+) =>
   [
     {
       type: 'assistant',
@@ -110,7 +115,7 @@ const draftRaw = (id: string, file: string, out: string) =>
             type: 'tool_use',
             id,
             name: 'Bash',
-            input: { command: `node scripts/profile.ts draft ${file}` },
+            input: { command },
           },
         ],
       },
@@ -298,6 +303,66 @@ describe('the words the scorer marks as a note to itself', () => {
       )
     })
     expect(scoreRun(dir).filter((l) => l.startsWith('line 26'))).toEqual(['line 26 PASS'])
+    rmSync(dir, { recursive: true })
+  })
+})
+
+describe('a write or a drop chained with a draft', () => {
+  const run = (command: string, out: string, reply: string) =>
+    makeRun((d) => {
+      mkdirSync(join(d, 'raw'))
+      mkdirSync(join(d, 'written'))
+      writeFileSync(join(d, 'transcript.md'), turn(1, reply))
+      writeFileSync(
+        join(d, 'raw/turn1.jsonl'),
+        `${draftRaw('a', 'profile/search.yaml', out, command)}\n`,
+      )
+    })
+  const chains = [
+    [
+      'write',
+      'node scripts/profile.ts write profile/identity.yaml && node scripts/profile.ts draft profile/search.yaml',
+      'written: profile/identity.yaml',
+    ],
+    [
+      'drop',
+      'node scripts/profile.ts drop profile/voice.md && node scripts/profile.ts draft profile/search.yaml',
+      'dropped: profile/voice.md',
+    ],
+  ] as const
+  const summary = 'Search city: Leeds\nSearch country: United Kingdom'
+
+  for (const [name, command, own] of chains) {
+    it(`does not take the line of a chained ${name} for a line the reply dropped`, () => {
+      const dir = run(
+        command,
+        `${own}\n${summary}`,
+        'Here is the setup.\nSearch city: Leeds\nSearch country: United Kingdom\nIs it right?',
+      )
+      expect(scoreRun(dir).filter((l) => l.startsWith('line 4'))).toEqual(['line 4 PASS'])
+      rmSync(dir, { recursive: true })
+    })
+
+    it(`still marks a summary line the reply left out after a chained ${name}`, () => {
+      const dir = run(
+        command,
+        `${own}\n${summary}`,
+        'Here is the setup.\nSearch city: Leeds\nIs it right?',
+      )
+      expect(scoreRun(dir).filter((l) => l.startsWith('line 4'))).toEqual([
+        'line 4 FAIL T1 "Search country: United Kingdom"',
+      ])
+      rmSync(dir, { recursive: true })
+    })
+  }
+
+  it('also leaves the line out when the write or drop prints after the draft', () => {
+    const dir = run(
+      chains[0][1],
+      `${summary}\nwritten: profile/identity.yaml`,
+      'Search city: Leeds\nSearch country: United Kingdom',
+    )
+    expect(scoreRun(dir).filter((l) => l.startsWith('line 4'))).toEqual(['line 4 PASS'])
     rmSync(dir, { recursive: true })
   })
 })

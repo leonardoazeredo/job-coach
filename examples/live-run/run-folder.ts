@@ -18,6 +18,7 @@ import {
 } from 'node:fs'
 import { join } from 'node:path'
 import { EXIT } from '../../scripts/lib/problem.ts'
+import { isWriteOrDropLine } from '../../scripts/lib/profile-lines.ts'
 
 // The folders of a run. start.sh and start-update.sh create all but snap by these names in shell,
 // and up.sh mounts most of them, so a rename has to reach those scripts too; snap is made here.
@@ -113,7 +114,8 @@ const textOf = (content: unknown): string =>
     : String(content ?? '')
 
 // A turn's stream pairs each tool call with its result; the stdout of a `profile.ts draft` call is
-// the summary the coach was to relay.
+// the summary the coach was to relay. A command that chains a write or a drop with the draft has
+// their lines in the same result; those are the command's own and never part of a summary.
 export const draftsIn = (text: string): { summaries: string[]; winsDrafted: boolean } => {
   let winsDrafted = false
   const files = new Map<string, string>()
@@ -131,7 +133,7 @@ export const draftsIn = (text: string): { summaries: string[]; winsDrafted: bool
     if (out === '' || out === 'No change.') continue
     latest.set(
       drafted,
-      out.split('\n').filter((l) => l.trim() !== ''),
+      out.split('\n').filter((l) => l.trim() !== '' && !isWriteOrDropLine(l)),
     )
     winsDrafted ||= /wins\.yaml$/.test(drafted)
   }
