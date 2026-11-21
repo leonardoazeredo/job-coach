@@ -356,6 +356,26 @@ describe('a write or a drop chained with a draft', () => {
     })
   }
 
+  it('treats a draft that changed nothing as no summary, whatever was chained before it', () => {
+    const dir = run(chains[0][1], `written: profile/identity.yaml\nNo change.`, 'Nothing to show.')
+    expect(scoreRun(dir).filter((l) => l.startsWith('line 4'))).toEqual(['line 4 PASS'])
+    rmSync(dir, { recursive: true })
+  })
+
+  it('keeps the earlier summary of a file when a later chained result holds no draft line', () => {
+    const dir = makeRun((d) => {
+      mkdirSync(join(d, 'raw'))
+      mkdirSync(join(d, 'written'))
+      writeFileSync(join(d, 'transcript.md'), turn(1, 'Search city: Leeds'))
+      writeFileSync(
+        join(d, 'raw/turn1.jsonl'),
+        `${draftRaw('a', 'profile/search.yaml', 'Search city: Leeds')}\n${draftRaw('b', 'profile/search.yaml', 'dropped: profile/voice.md', chains[1][1])}\n`,
+      )
+    })
+    expect(scoreRun(dir).filter((l) => l.startsWith('line 4'))).toEqual(['line 4 PASS'])
+    rmSync(dir, { recursive: true })
+  })
+
   it('also leaves the line out when the write or drop prints after the draft', () => {
     const dir = run(
       chains[0][1],

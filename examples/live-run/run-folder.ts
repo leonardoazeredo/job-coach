@@ -129,12 +129,11 @@ export const draftsIn = (text: string): { summaries: string[]; winsDrafted: bool
     if (block.type === 'tool_use' && block.id && file) files.set(block.id, file)
     const drafted = files.get(block.tool_use_id ?? '')
     if (block.type !== 'tool_result' || drafted === undefined || block.is_error) continue
-    const out = textOf(block.content).trim()
-    if (out === '' || out === 'No change.') continue
-    latest.set(
-      drafted,
-      out.split('\n').filter((l) => l.trim() !== '' && !isWriteOrDropLine(l)),
-    )
+    const shown = textOf(block.content)
+      .split('\n')
+      .filter((l) => l.trim() !== '' && !isWriteOrDropLine(l))
+    if (shown.length === 0 || shown.join('\n').trim() === 'No change.') continue
+    latest.set(drafted, shown)
     winsDrafted ||= /wins\.yaml$/.test(drafted)
   }
   return { summaries: [...latest.values()].flat(), winsDrafted }
