@@ -413,6 +413,9 @@ export const takeSide = (git: Git, side: 'ours' | 'theirs', file: string): TakeR
   // Only the clash blocks are the user's choice; the rest of the file already holds both sides'
   // changes. Any other kind has no blocks and is taken whole.
   if (rename) {
+    // The old name holds no saved version, so anything standing there is the user's own file,
+    // untracked or ignored, and a take must not delete it.
+    if (existsSync(join(top, rename.base))) return { kind: 'in-the-way', files: [rename.base] }
     resolveRename(git, side, rename)
   } else if (clashKinds(git, top).get(file) === 'text-open') {
     writeFileSync(path, settle(readFileSync(path, 'utf8'), side))

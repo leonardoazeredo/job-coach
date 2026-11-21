@@ -239,6 +239,18 @@ describe('a file both sides renamed', () => {
     expect(finishUpdate(work(), git, { run: runner().run })).toEqual({ kind: 'updated' })
   })
 
+  it('refuses a take that would delete an unsaved file standing at the old name', () => {
+    renamedOnBothSides()
+    const { git } = start()
+    writeFileSync(join(work(), A), 'MY NOTES\n')
+    const before = onDisk()
+    for (const side of ['ours', 'theirs'] as const) {
+      expect(takeSide(git, side, B)).toEqual({ kind: 'in-the-way', files: [A] })
+    }
+    expect(onDisk()).toEqual(before)
+    expect(finishUpdate(work(), git, { run: runner().run })).toMatchObject({ kind: 'clashes' })
+  })
+
   describe('when the folder no longer shows the clash that git staged', () => {
     const user = edited(BASE, 5, 'mine')
     const engine = edited(BASE, 5, 'new')
