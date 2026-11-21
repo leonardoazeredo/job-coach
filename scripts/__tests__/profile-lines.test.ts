@@ -24,4 +24,14 @@ describe('isWriteOrDropLine', () => {
   it('is false for a line of a summary', () => {
     expect(isWriteOrDropLine('Name: A')).toBe(false)
   })
+
+  it.each([
+    ['a summary line that holds the word later in it', 'Notes: dropped: the Friday handover'],
+    ['a sentence that starts with the word', 'written by hand'],
+    ['an indented line', '  written: x'],
+    ['a capitalised line', 'Written: y'],
+    ['a line with no space after the colon', 'written:x'],
+  ])('is false for %s', (_name, line) => {
+    expect(isWriteOrDropLine(line)).toBe(false)
+  })
 })

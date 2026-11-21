@@ -141,9 +141,10 @@ const echoedSeparator = (command: string, line: string): boolean =>
 export const draftsIn = (text: string): { summaries: string[]; winsDrafted: boolean } => {
   let winsDrafted = false
   const commands = new Map<string, { command: string; files: string[] }>()
-  // A file drafted again in the same turn replaces its earlier summary: only the last one is shown.
-  // A call replaces an earlier one only when it drafts every file the earlier one did, so a
-  // summary is never dropped on a guess about which of a command's lines were whose.
+  // A call that printed something replaces an earlier one only when it drafts every file the
+  // earlier one did, so a summary is never dropped on a guess about which of a command's lines were
+  // whose. An empty result or "No change." leaves what is waiting alone; an error's text is shown, so it
+  // replaces the earlier summary of the same file.
   let latest: { files: string[]; lines: string[] }[] = []
   const blocks: Block[] = parseStream(text).events.flatMap((e) =>
     Array.isArray(e.message?.content) ? e.message.content : [],

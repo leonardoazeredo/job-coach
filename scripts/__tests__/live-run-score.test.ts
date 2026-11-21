@@ -207,6 +207,63 @@ describe('what the scorer will not call a pass or a fault', () => {
     rmSync(dir, { recursive: true })
   })
 
+  describe('two files drafted in separate calls of one turn', () => {
+    const line4 = (reply: string) => {
+      const dir = makeRun((d) => {
+        mkdirSync(join(d, 'raw'))
+        mkdirSync(join(d, 'written'))
+        writeFileSync(join(d, 'transcript.md'), turn(1, reply))
+        writeFileSync(
+          join(d, 'raw/turn1.jsonl'),
+          `${draftRaw('a', 'profile/identity.yaml', 'Name: Hannah Pruitt\nTimezone: Europe/London')}\n${draftRaw('b', 'profile/search.yaml', 'Search city: Leeds')}\n`,
+        )
+      })
+      const rows = scoreRun(dir).filter((l) => l.startsWith('line 4'))
+      rmSync(dir, { recursive: true })
+      return rows
+    }
+
+    it('scores no finding when the reply relays both summaries', () => {
+      expect(line4('Name: Hannah Pruitt\nTimezone: Europe/London\nSearch city: Leeds')).toEqual([
+        'line 4 PASS',
+      ])
+    })
+
+    it('marks exactly the line the reply left out of the first summary', () => {
+      expect(line4('Name: Hannah Pruitt\nSearch city: Leeds')).toEqual([
+        'line 4 FAIL T1 "Timezone: Europe/London"',
+      ])
+    })
+  })
+
+  describe('an error result of a redraft after a good summary of the same file', () => {
+    const line4 = (reply: string) => {
+      const dir = makeRun((d) => {
+        mkdirSync(join(d, 'raw'))
+        mkdirSync(join(d, 'written'))
+        writeFileSync(join(d, 'transcript.md'), turn(1, reply))
+        writeFileSync(
+          join(d, 'raw/turn1.jsonl'),
+          `${draftRaw('a', 'profile/search.yaml', 'Search city: Leeds')}\n${draftRaw('b', 'profile/search.yaml', 'boom: search.yaml failed', { isError: true })}\n`,
+        )
+      })
+      const rows = scoreRun(dir).filter((l) => l.startsWith('line 4'))
+      rmSync(dir, { recursive: true })
+      return rows
+    }
+
+    // Known gap: the error text replaces the good summary, so the turn's summaries hold only it.
+    it('holds only the error lines, so the earlier summary is no longer required', () => {
+      expect(line4('boom: search.yaml failed')).toEqual(['line 4 PASS'])
+    })
+
+    it('still marks a reply that relays only the earlier summary and one that relays nothing', () => {
+      const boom = 'line 4 FAIL T1 "boom: search.yaml failed"'
+      expect(line4('Search city: Leeds')).toEqual([boom])
+      expect(line4('Looks fine.')).toEqual([boom])
+    })
+  })
+
   it('scores an update run on line 13 only', () => {
     const update = (reply: string) =>
       makeRun((d) => {

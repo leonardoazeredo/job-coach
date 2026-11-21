@@ -332,9 +332,35 @@ describe('the drafts in a stream', () => {
     })
 
     it('leaves out a separator a summary also holds, and still counts the real lines', () => {
-      const result = 'Name: A\n----\nCity: B'
-      expect(summaries(both('echo ----'), result)).toEqual(['Name: A', 'City: B'])
-      expect(summaries(both('echo ----'), result)).not.toContain('----')
+      const result = 'Name: A\n----\nCity: B\n----\nCountry: C'
+      const shown = summaries(both('echo ----'), result)
+      expect(shown).toEqual(['Name: A', 'City: B', 'Country: C'])
+      expect(shown).not.toContain('----')
+    })
+
+    it('counts a line of only non-Latin letters that the command echoed exactly', () => {
+      expect(summaries(both('echo こんにちは'), 'Name: A\nこんにちは\nCity: B')).toContain(
+        'こんにちは',
+      )
+    })
+
+    it('keeps the flag for the achievements file when another draft follows in the turn', () => {
+      const d = draftsIn(
+        [
+          call(draft('profile/wins.yaml')),
+          out('c', 'Win: A'),
+          use('d', 'profile/identity.yaml'),
+          out('d', 'Name: A'),
+        ].join('\n'),
+      )
+      expect(d.winsDrafted).toBe(true)
+    })
+
+    it('flags the achievements file when it is the first of two drafts in one command', () => {
+      const command = both('echo ----').replace('identity.yaml', 'wins.yaml')
+      expect(draftsIn(call(command) + '\n' + out('c', 'Win: A\n----\nCity: B')).winsDrafted).toBe(
+        true,
+      )
     })
 
     it.each([
@@ -394,6 +420,47 @@ describe('the drafts in a stream', () => {
       expect(wins(both('echo ----').replace('search.yaml', 'wins.yaml'))).toBe(true)
       expect(wins("node scripts/profile.ts draft profile/wins.yaml<<'EOF'\n{}\nEOF")).toBe(true)
       expect(wins(both('echo ----'))).toBe(false)
+    })
+  })
+
+  describe('two calls in one turn', () => {
+    const callAs = (id: string, command: string) =>
+      JSON.stringify({
+        type: 'assistant',
+        message: { content: [{ type: 'tool_use', id, input: { command } }] },
+      })
+    const draft = (f: string) => `node scripts/profile.ts draft ${f}`
+    const identity = 'profile/identity.yaml'
+    const search = 'profile/search.yaml'
+    const twoFiles = `${draft(identity)}\necho ----\n${draft(search)}`
+    const shown = (...parts: string[]) => draftsIn(parts.join('\n')).summaries
+
+    it('keeps the summaries of two different files drafted in separate calls', () => {
+      expect(
+        shown(use('a', identity), out('a', 'Name: A'), use('b', search), out('b', 'City: B')),
+      ).toEqual(['Name: A', 'City: B'])
+    })
+
+    it('keeps the earlier lines of a file the later call did not draft', () => {
+      expect(
+        shown(
+          callAs('a', twoFiles),
+          out('a', 'Name: A\n----\nCity: B'),
+          use('b', search),
+          out('b', 'City: B2'),
+        ),
+      ).toEqual(['Name: A', 'City: B', 'City: B2'])
+    })
+
+    it('replaces an earlier call when the later one drafts every file it did', () => {
+      expect(
+        shown(
+          use('a', search),
+          out('a', 'City: B'),
+          callAs('b', twoFiles),
+          out('b', 'Name: B\n----\nCity: B2'),
+        ),
+      ).toEqual(['Name: B', 'City: B2'])
     })
   })
 
