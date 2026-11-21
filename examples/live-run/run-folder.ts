@@ -113,11 +113,21 @@ const textOf = (content: unknown): string =>
     ? content.map((p: { text?: string }) => p.text ?? '').join('\n')
     : String(content ?? '')
 
-const DRAFT_FILE = /profile\.ts\s+draft\s+([^\s<]+)/g
-// The file name is matched without requiring it to end the token, so a shell character after it
-// (`;`, `|`, `>`, `)`, a quote) cannot hide the draft; a file other than wins.yaml named later in the
-// command cannot match because the lazy \S* stops at whitespace.
-const WINS_DRAFT = /profile\.ts\s+draft\s+["'(]*\S*?wins\.yaml/
+// The arguments end at a command separator, so a second draft after `&&` is a call of its own.
+const DRAFT_CALL = /profile\.ts\s+draft(?=\s|$)((?:(?!\s(?:&&|\|\||[|&])(?:\s|$))[^\n])*)/g
+// A redirect and its target (`< a.json`, `<<'EOF'`, `2>&1`) sit between `draft` and the file name in
+// some commands; they are removed so the name can be read. Only the rest of the line is read: a
+// heredoc body starts on the next one.
+const REDIRECT = /\d*[<>]+\s*(?:'[^']*'|"[^"]*"|[^\s<>]*)/g
+// undefined when no file name can be read from the call's arguments.
+const draftFile = (args: string): string | undefined =>
+  args
+    .replace(REDIRECT, ' ')
+    .trim()
+    .split(/\s+/)[0]
+    ?.replace(/^[;)#].*/, '') || undefined
+// The file name is read without requiring it to end the token, so a shell character after it
+// (`;`, `)`, a quote) cannot hide the draft.
 const escaped = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 // A separator line has nothing in it to lose, so a reply that does not relay it is not at fault,
@@ -140,7 +150,7 @@ const echoedSeparator = (command: string, line: string): boolean =>
 // can excuse a separator line; such a line carries nothing, so no summary is lost by it.
 export const draftsIn = (text: string): { summaries: string[]; winsDrafted: boolean } => {
   let winsDrafted = false
-  const commands = new Map<string, { command: string; files: string[] }>()
+  const commands = new Map<string, { command: string; files: string[]; unknown: boolean }>()
   // A non-error result is never replaced: a later call that names the same file may have printed
   // nothing for it (a refused redraft, "No change."), and the lines of the first summary are then
   // still the draft the user's yes would write. When both drafts of a file were good, the first
@@ -150,17 +160,25 @@ export const draftsIn = (text: string): { summaries: string[]; winsDrafted: bool
   // It is dropped only when a later non-error call drafts every file the error call's command
   // named, which is what a redraft after a refusal looks like.
   // One silent pass remains: a draft that printed its summary inside a command whose later part
-  // failed, then a call that exits 0, names that file, and whose redraft of it was refused or
+  // failed, then a call that exits 0, names that file anywhere in its command (a comment, an
+  // unquoted echo or a heredoc body count), and prints something besides "No change." (an
+  // unchanged redraft alone is skipped) while its own redraft of the file was refused or
   // unchanged. Only the Draft command recording what it printed could close it.
-  let latest: { files: string[]; lines: string[]; error: boolean }[] = []
+  // A call whose file names cannot be read never covers an error entry, and an error entry whose
+  // names cannot be read is never dropped.
+  // Files are the names read from the command; unknown is set when a draft in it has none to read.
+  let latest: { files: string[]; unknown: boolean; lines: string[]; error: boolean }[] = []
   const blocks: Block[] = parseStream(text).events.flatMap((e) =>
     Array.isArray(e.message?.content) ? e.message.content : [],
   )
   for (const block of blocks) {
     const command = String(block.input?.command ?? '')
-    const files = [...command.matchAll(DRAFT_FILE)].map((m) => m[1] ?? '')
-    if (block.type === 'tool_use' && block.id && files.length > 0)
-      commands.set(block.id, { command, files })
+    // Whether a call is a draft is decided by `profile.ts draft` alone, so its result's lines count
+    // even when no file name can be read.
+    const names = [...command.matchAll(DRAFT_CALL)].map((m) => draftFile(m[1] ?? ''))
+    const files = names.filter((f): f is string => f !== undefined)
+    if (block.type === 'tool_use' && block.id && names.length > 0)
+      commands.set(block.id, { command, files, unknown: files.length < names.length })
     const drafted = commands.get(block.tool_use_id ?? '')
     if (block.type !== 'tool_result' || drafted === undefined) continue
     const shown = textOf(block.content)
@@ -170,12 +188,16 @@ export const draftsIn = (text: string): { summaries: string[]; winsDrafted: bool
       )
     // Set before the skip below: it only widens the check of a wins.yaml draft, and a draft whose
     // result printed nothing new is still a draft of that file.
-    winsDrafted ||= WINS_DRAFT.test(drafted.command)
+    winsDrafted ||= drafted.files.some((f) => /wins\.yaml/.test(f))
     if (shown.length === 0 || shown.join('\n').trim() === 'No change.') continue
     const error = block.is_error === true
-    if (!error)
-      latest = latest.filter((e) => !(e.error && e.files.every((f) => drafted.files.includes(f))))
-    latest.push({ files: drafted.files, lines: shown, error })
+    // An error entry is dropped only when both sides have every file name. Unknown is checked
+    // explicitly because [].every is true: an entry with no readable name would be dropped by any call.
+    if (!error && !drafted.unknown)
+      latest = latest.filter(
+        (e) => !(e.error && !e.unknown && e.files.every((f) => drafted.files.includes(f))),
+      )
+    latest.push({ files: drafted.files, unknown: drafted.unknown, lines: shown, error })
   }
   return { summaries: latest.flatMap((e) => e.lines), winsDrafted }
 }

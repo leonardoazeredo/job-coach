@@ -561,6 +561,67 @@ describe('the drafts in a stream', () => {
     })
   })
 
+  describe('a draft call whose file name follows a redirect', () => {
+    const callAs = (id: string, command: string) =>
+      JSON.stringify({
+        type: 'assistant',
+        message: { content: [{ type: 'tool_use', id, input: { command } }] },
+      })
+    const heredoc = "node scripts/profile.ts draft <<'EOF' profile/wins.yaml\n{}\nEOF"
+    const fromFile = 'node scripts/profile.ts draft < a.json profile/search.yaml'
+
+    it.each([
+      ['a heredoc opener before the name', heredoc, true],
+      ['an input file before the name', fromFile, false],
+    ])('counts the summary lines with %s', (_name, command, wins) => {
+      const d = draftsIn(callAs('a', command) + '\n' + out('a', 'Name: A\nCity: B'))
+      expect(d).toEqual({ summaries: ['Name: A', 'City: B'], winsDrafted: wins })
+    })
+
+    it('keeps an error entry whose files are unknown after a later good call', () => {
+      const d = draftsIn(
+        [
+          callAs('a', fromFile.replace(' profile/search.yaml', ' && cat nope')),
+          out('a', 'Search city: Leeds\ncat: nope', true),
+          use('b', 'profile/search.yaml'),
+          out('b', 'Search city: York'),
+        ].join('\n'),
+      )
+      expect(d.summaries).toEqual(['Search city: Leeds', 'cat: nope', 'Search city: York'])
+    })
+
+    it('lets a later call with unknown files drop nothing', () => {
+      const d = draftsIn(
+        [
+          callAs('a', 'node scripts/profile.ts draft profile/search.yaml && cat nope'),
+          out('a', 'Search city: Leeds\ncat: nope', true),
+          callAs(
+            'b',
+            'node scripts/profile.ts draft profile/search.yaml && node scripts/profile.ts draft < b.json',
+          ),
+          out('b', 'Search city: York'),
+        ].join('\n'),
+      )
+      expect(d.summaries).toEqual(['Search city: Leeds', 'cat: nope', 'Search city: York'])
+    })
+
+    it.each([
+      ['"No change."', 'No change.'],
+      ['an empty result', ''],
+      ['only a write line', 'written: profile/search.yaml'],
+    ])('keeps an error entry when the later call that drafts its file printed %s', (_n, later) => {
+      const d = draftsIn(
+        [
+          callAs('a', 'node scripts/profile.ts draft profile/search.yaml && cat nope'),
+          out('a', 'Search city: Leeds\ncat: nope', true),
+          use('b', 'profile/search.yaml'),
+          out('b', later),
+        ].join('\n'),
+      )
+      expect(d.summaries).toEqual(['Search city: Leeds', 'cat: nope'])
+    })
+  })
+
   it.each([
     ['"No change."', 'No change.'],
     ['only write lines', 'written: profile/wins.yaml\ndropped: profile/voice.md'],
