@@ -169,20 +169,27 @@ export const renamesOf = (git: Git): Rename[] => {
     if (!other || other === ours) return []
     if (!only(held.get(from), '1') || !only(held.get(ours), '2') || !only(held.get(other), '3'))
       return []
-    // Judged by merging the three committed versions, not from the folder or the text of the
-    // merged blob, so no hand edit, deleted file or marker-like line in a file changes it. Two
-    // different staged blobs count as a clash too: merge-file cannot read a binary file.
-    const ids = [held.get(ours)?.[0]?.id, held.get(other)?.[0]?.id]
-    const merged = git([
-      'merge-file',
-      '--object-id',
-      '-p',
-      blob(git, 'HEAD', ours),
-      held.get(from)?.[0]?.id ?? '',
-      blob(git, 'MERGE_HEAD', other),
-    ])
-    const clashes = merged.status !== null && merged.status > 0 && merged.status < 128
-    return [{ base: from, ours, theirs: other, contentClash: clashes || ids[0] !== ids[1] }]
+    // The content is clean only when merging the three committed versions again gives exactly the
+    // blob git staged, which a clash would have filled with markers. Git merges with one diff
+    // algorithm and merge-file defaults to another, so either may reproduce it. Anything else,
+    // including a binary file or a git without --object-id, counts as a clash: the take then
+    // keeps one side's whole file, which is safe.
+    const staged = held.get(ours)?.[0]?.id
+    const same = staged === held.get(other)?.[0]?.id
+    const stagedText = staged ? git(['cat-file', 'blob', staged]).stdout : undefined
+    const reproduced = ['myers', 'histogram'].some((algorithm) => {
+      const merged = git([
+        'merge-file',
+        '--object-id',
+        '-p',
+        `--diff-algorithm=${algorithm}`,
+        blob(git, 'HEAD', ours),
+        held.get(from)?.[0]?.id ?? '',
+        blob(git, 'MERGE_HEAD', other),
+      ])
+      return merged.status === 0 && merged.stdout === stagedText
+    })
+    return [{ base: from, ours, theirs: other, contentClash: !same || !reproduced }]
   })
 }
 

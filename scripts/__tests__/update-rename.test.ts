@@ -175,6 +175,23 @@ describe('a file both sides renamed', () => {
     expect(onDisk()[C]).toBe(engine)
   })
 
+  it('sees the clash git left even when another diff algorithm would merge it cleanly', () => {
+    const base = '{\n}\nx\nb\n{\n}\nb\n'
+    const user = '\n{\n}\nb\nb\n}\n}\nb\n'
+    const engine = '{\n}\nx\nb\n{\n}\nb\nx\n'
+    cloned({ [A]: base })
+    g(work(), 'mv', A, B)
+    userCommit({ [B]: user }, 'Saved: rename')
+    g(upstream(), 'mv', A, C)
+    writeFileSync(join(upstream(), C), engine)
+    commitEngine('Rename')
+    const { git } = start()
+    expect(renamesOf(git)).toMatchObject([{ contentClash: true }])
+    takeSide(git, 'theirs', A)
+    expect(finishUpdate(work(), git, { run: runner().run })).toEqual({ kind: 'updated' })
+    expect(onDisk()[C]).toBe(engine)
+  })
+
   describe('when the folder no longer shows the clash that git staged', () => {
     const user = edited(BASE, 5, 'mine')
     const engine = edited(BASE, 5, 'new')
