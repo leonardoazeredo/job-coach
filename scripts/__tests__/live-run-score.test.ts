@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { transcriptBlock } from '../../examples/live-run/run-folder.ts'
 import { scoreCommand, scoreRun } from '../../examples/live-run/score.ts'
 import { EXIT } from '../lib/problem.ts'
@@ -66,6 +66,30 @@ describe('the live-run scorer', () => {
     expect(run.status).toBe(EXIT.missing)
     expect(run.stdout).toBe('')
     expect(run.stderr.trim().split('\n')).toHaveLength(1)
+  })
+
+  it('stops with one plain line and the data exit when a rule key is missing or twice in the checklist', () => {
+    const real = readFileSync(join(repoRoot(), 'examples/live-run/checklist.md'), 'utf8')
+    const dir = mkdtempSync(join(tmpdir(), 'score-keys-'))
+    try {
+      const say = (checklist: string) => {
+        writeFileSync(join(dir, 'checklist.md'), checklist)
+        const err = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+        try {
+          return { code: scoreCommand([fixture], undefined, dir), said: err.mock.calls.flat() }
+        } finally {
+          err.mockRestore()
+        }
+      }
+      const missing = say(real.replace('[turn-count] ', ''))
+      expect(missing.code).toBe(EXIT.data)
+      expect(missing.said).toEqual(['"turn-count" is not in checklist.md'])
+      const twice = say(`${real}\n99. [turn-count] Again.\n`)
+      expect(twice.code).toBe(EXIT.data)
+      expect(twice.said).toEqual(['"turn-count" is in checklist.md more than once'])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 
   it('refuses a usage fault', () => {

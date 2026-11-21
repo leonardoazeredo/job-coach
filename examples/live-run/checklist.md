@@ -9,8 +9,8 @@ When a run finds a new fault in the conversation, add a line here and fix the sk
 1. Every write to `profile/*` and `cv/master.json` went through `scripts/profile.ts write`. Count the writes by method. By-hand writes to `config/competencies/` and `experience-bank/` are allowed; count them apart.
 2. Each write followed the person's yes to that exact draft. List any write with no yes, and any draft changed after its yes.
 3. A file's draft and its write fell in different turns. A turn holding the write of one file and the draft of another is allowed; list those apart.
-4. Each summary was relayed whole: no line dropped, merged or reworded. Compare the `draft` output in the raw calls with the reply that followed.
-5. A summary carried at most one framing sentence of the coach's, plus one sentence for each note the skill asks for (where a value went, or that one was left out). No framing or note named a command, a tool or printing.
+4. [summary-whole] Each summary was relayed whole: no line dropped, merged or reworded. Compare the `draft` output in the raw calls with the reply that followed.
+5. [one-framing] A summary carried at most one framing sentence of the coach's, plus one sentence for each note the skill asks for (where a value went, or that one was left out). No framing or note named a command, a tool or printing.
 6. Every value written traces to a summary the person said yes to, apart from the kinds `scripts/lib/draft-table.ts` marks exempt. Give approximate traced and total counts and a table of failures.
 7. A value given in part stayed in part: no month, place, product, level or "only" was added. The CV's headline is the one the source wrote.
 8. A location or course start the source lacks was asked once; "none" became `null`, never an empty string.
@@ -29,7 +29,7 @@ When a run finds a new fault in the conversation, add a line here and fix the sk
 
 16. `fit.hard_limits` holds only what the person said rules a role out. A preference went into `ideal_role_criteria` in their words or was left out, and the coach said which.
 17. A condition on a title stayed with it in their words, or the coach said it was left out.
-18. Pronouns reached `coach.md` and nowhere else.
+18. [pronouns-in-coach-md] Pronouns reached `coach.md` and nowhere else.
 19. A career gap was asked about or left out. The coach never stated that the person has no gaps.
 20. A competency pack's labels on file are the ones the person last saw, with each `id` kept.
 
@@ -43,9 +43,9 @@ When a run finds a new fault in the conversation, add a line here and fix the sk
 
 ## Words the person reads
 
-26. No reply named a tool, a working step, a file or a key, including in explaining a fault, or called a summary "the draft". No template comment reached the person or a written file.
+26. [working-words] No reply named a tool, a working step, a file or a key, including in explaining a fault, or called a summary "the draft". No template comment reached the person or a written file.
 27. The coach said "achievement" and "priority", never "win" or "tier".
-28. An achievement was named by its words, never by a number or an ordinal, even in passing. A known limit: no wording has held this through a run, so report it but do not count it as a firm failure.
+28. [ordinal-names] An achievement was named by its words, never by a number or an ordinal, even in passing. A known limit: no wording has held this through a run, so report it but do not count it as a firm failure.
 29. Questions held no machine codes.
 30. The coach stated no reason on the person's behalf that they did not give, in a framing sentence or anywhere else.
 
@@ -56,7 +56,7 @@ When a run finds a new fault in the conversation, add a line here and fix the sk
 33. The glossary was offered in a reply of its own, after the lessons list was settled.
 34. "Nothing is left" was said only when no draft or offer was waiting, and never in the reply making an offer.
 35. The file checks passed at the end, and required sections were complete.
-36. Turn count: near 65 to 70. Say where the turns went by section, and list every turn holding no new fact.
+36. [turn-count] Turn count: near 65 to 70. Say where the turns went by section, and list every turn holding no new fact.
 
 ## Anything else
 
