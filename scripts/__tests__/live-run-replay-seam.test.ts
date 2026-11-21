@@ -143,6 +143,8 @@ describe('what a replay keeps of each sample', () => {
       'turn2.jsonl',
       'turn3.jsonl',
     ])
+    // Kept for a person reading a sample later and for the scorer's cat check (#190); it is not
+    // dead weight to trim.
     expect(readFileSync(join(sample, 'copy', 'CLAUDE.md'), 'utf8')).toBe(
       readFileSync(join(repoRoot(), 'CLAUDE.md'), 'utf8'),
     )
@@ -247,6 +249,8 @@ describe('where the samples go', () => {
     const { folder, size } = foldersPrinted(r.out)
     expect(folder.startsWith(join(run, 'replays', 'replay-t3-'))).toBe(true)
     expect(size).toMatch(/^\d+ KB$/)
+    // The packages the fixture installs are over 1 MB; a size this small is the trimmed one.
+    expect(Number.parseInt(size, 10)).toBeLessThan(1024)
     expect(r.out.at(-1)).toBe(`\nSamples are in ${folder} (${size})`)
   })
 

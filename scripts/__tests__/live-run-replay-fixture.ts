@@ -131,9 +131,10 @@ export const draftLines = (file: string, summary: string): string[] => [
 ]
 
 // What the docker adapter's npm ci leaves in a sample: the installed packages, most of its size.
+// Over 1 MB, so a size printed before the trim cannot pass for a trimmed one.
 export const installPackages = (sample: string) => {
   mkdirSync(join(sample, 'copy', 'node_modules', 'pkg'), { recursive: true })
-  writeFileSync(join(sample, 'copy', 'node_modules', 'pkg', 'index.js'), 'x'.repeat(2000))
+  writeFileSync(join(sample, 'copy', 'node_modules', 'pkg', 'index.js'), 'x'.repeat(1_200_000))
 }
 
 // Spends 0.1 per sample on top of the run's 0.75; `failAt` is the sample that fails, with what it
