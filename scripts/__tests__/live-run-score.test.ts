@@ -397,18 +397,18 @@ describe('a write or a drop chained with a draft', () => {
 })
 
 describe('the notes a skill asks for beside a summary', () => {
-  const framed = (reply: string) =>
+  const framed = (reply: string, withSummary: boolean) =>
     makeRun((d) => {
       mkdirSync(join(d, 'raw'))
       mkdirSync(join(d, 'written'))
       writeFileSync(join(d, 'transcript.md'), turn(1, reply))
       writeFileSync(
         join(d, 'raw/turn1.jsonl'),
-        `${draftRaw('a', 'profile/standard-answers.yaml', 'Answers: three')}\n`,
+        withSummary ? `${draftRaw('a', 'profile/standard-answers.yaml', 'Answers: three')}\n` : '',
       )
     })
-  const line5 = (reply: string) => {
-    const dir = framed(reply)
+  const line5 = (reply: string, withSummary = true) => {
+    const dir = framed(reply, withSummary)
     try {
       return scoreRun(dir).filter((l) => l.startsWith('line 5 '))
     } finally {
@@ -461,13 +461,60 @@ describe('the notes a skill asks for beside a summary', () => {
     expect(out.filter((l) => l.includes('FAIL'))).toHaveLength(2)
   })
 
-  it('recognises each entry on its own example, and no entry on plain framing', () => {
+  it.each([
+    "I've left out the career gaps entry because the user has none.",
+    "I've left out the career gaps entry, so load the update skill.",
+  ])('does not excuse a gaps note that is a note to itself: %s', (note) => {
+    const out = line5(`Here is how I'd save it.\n${SUMMARY}\n${note}`)
+    expect(out.filter((l) => l.includes('FAIL'))).toHaveLength(2)
+    expect(out.some((l) => l.includes('EXCUSED'))).toBe(false)
+  })
+
+  it('excuses a preference note and a condition note each by its own entry', () => {
+    const out = line5(
+      [
+        "Here is how I'd save it.",
+        SUMMARY,
+        'The "rather not" parcel carriers line and the Transport Manager condition both sit under what a good role has, in your words.',
+        'Transport Manager stays out of the job titles I search for, because a search can\'t carry a condition like "small firm only".',
+      ].join('\n'),
+    )
+    expect(out[0]).toBe('line 5 PASS')
+    expect(out.slice(1)).toHaveLength(2)
+    expect(out[1]).toContain('by preference-placed-or-left-out')
+    expect(out[2]).toContain('by title-condition-placed-or-left-out')
+  })
+
+  it('excuses nothing in a turn that holds no summary', () => {
+    const out = line5("I've left out the career gaps entry.", false)
+    expect(out.some((l) => l.includes('EXCUSED'))).toBe(false)
+  })
+
+  it('scores every entry example as its own excused note, and its non-example as framing', () => {
     for (const e of NOTES) {
       expect(e.matches.test(e.example), e.id).toBe(true)
+      const excused = line5(`Here is how I'd save it.\n${SUMMARY}\n${e.example}`).filter((l) =>
+        l.includes('EXCUSED'),
+      )
+      expect(excused, e.id).toHaveLength(1)
+      expect(excused[0], e.id).toMatch(new RegExp(` by ${e.id}$`))
+      if (e.nonExample === undefined) continue
+      const out = line5(`Here is how I'd save it.\n${SUMMARY}\n${e.nonExample}`)
       expect(
-        NOTES.some((o) => o.matches.test("Here's your standard answers as I'd save them.")),
+        out.some((l) => l.includes('EXCUSED')),
+        e.id,
       ).toBe(false)
+      expect(
+        out.filter((l) => l.includes('FAIL')),
+        e.id,
+      ).toHaveLength(2)
     }
+  })
+
+  it('recognises no entry on plain framing', () => {
+    expect(
+      NOTES.some((o) => o.matches.test("Here's your standard answers as I'd save them.")),
+    ).toBe(false)
   })
 
   it('points every entry at a line the skill still holds', () => {

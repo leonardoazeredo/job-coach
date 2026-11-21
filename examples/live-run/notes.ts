@@ -16,9 +16,14 @@ export type NoteEntry = {
   matches: RegExp
   // A sentence the entry must recognise.
   example: string
+  // An ordinary framing sentence close to the entry's words that it must not recognise.
+  nonExample?: string
 }
 
-const PLACED = 'sits?|goes|go|went|put|placed|left out|stays? out|under|into'
+const PLACED = 'sits?|goes|go|went|put|placed|left out|stays? out|under'
+// A condition counts as placed only when a placing verb is followed by a destination, so "the
+// condition I went with" stays plain framing.
+const PLACED_IN = 'sits?|goes|go|went|put|placed'
 
 // Order matters when one sentence fits two entries: it is excused by the first entry that has
 // not yet excused a sentence in the turn.
@@ -28,8 +33,9 @@ export const NOTES: NoteEntry[] = [
     skill: '.claude/skills/onboarding/SKILL.md',
     anchor: 'say only that it was left out',
     matches:
-      /\b(?:left out|leave out|left off|not included)\b[^.]*\bgaps?\b|\bgaps?\b[^.]*\b(?:left out|left off|not included)\b/i,
+      /\b(?:left out|leave out|left off)\b[^.]*\bgaps?\b|\bgaps?\b[^.]*\b(?:left out|left off)\b/i,
     example: "I've left out the career gaps entry.",
+    nonExample: 'Your gaps are not included in this list, which is fine.',
   },
   {
     id: 'preference-placed-or-left-out',
@@ -40,24 +46,27 @@ export const NOTES: NoteEntry[] = [
       'i',
     ),
     example: 'Your preference for no night shifts sits under what a good role has.',
+    nonExample: "You'd rather not rush, so take your time going into each one.",
   },
   {
     id: 'hard-limits-empty',
     skill: '.claude/skills/onboarding/SKILL.md',
     anchor: 'the list is empty and you say so plainly',
     matches:
-      /\b(?:no|none|nothing)\b[^.]*\b(?:hard limits?|rules? (?:a )?roles? out|deal-?breakers?)\b|\b(?:hard limits?|deal-?breakers?)\b[^.]*\b(?:empty|none)\b/i,
+      /\b(?:no|none)\b[^.]*\b(?:hard limits?|deal-?breakers?)\b|\b(?:no|none|nothing)\b[^.]*\brules? (?:a )?roles? out\b|\b(?:hard limits?|deal-?breakers?)\b[^.]*\b(?:empty|none)\b/i,
     example: 'You named no hard limits, so that list is empty.',
+    nonExample: "Nothing here is a deal-breaker yet, so let's look.",
   },
   {
     id: 'title-condition-placed-or-left-out',
     skill: '.claude/skills/onboarding/SKILL.md',
     anchor: 'Tell the user in one sentence where it went',
     matches: new RegExp(
-      `\\bcondition\\b[^.]*\\b(?:${PLACED})\\b|\\b(?:stays? out|left out)\\b[^.]*\\bcondition\\b`,
+      `\\bcondition\\b[^.]*\\b(?:${PLACED_IN})\\s+(?:into|under)\\b|\\b(?:stays? out|left out)\\b[^.]*\\bcondition\\b`,
       'i',
     ),
     example: 'The small-firm condition went into what a good role has.',
+    nonExample: 'Here is the condition I went with.',
   },
   {
     id: 'generic-tool-name',
