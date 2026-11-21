@@ -19,6 +19,7 @@ import {
 import { join } from 'node:path'
 import { EXIT } from '../../scripts/lib/problem.ts'
 import { isWriteOrDropLine } from '../../scripts/lib/profile-lines.ts'
+import { partsOf, type ReadFile } from './command-parts.ts'
 
 // The folders of a run. start.sh and start-update.sh create all but snap by these names in shell,
 // and up.sh mounts most of them, so a rename has to reach those scripts too; snap is made here.
@@ -113,30 +114,79 @@ const textOf = (content: unknown): string =>
     ? content.map((p: { text?: string }) => p.text ?? '').join('\n')
     : String(content ?? '')
 
-// A turn's stream pairs each tool call with its result; the stdout of a `profile.ts draft` call is
-// the summary the coach was to relay. A command that chains a write or a drop with the draft has
-// their lines in the same result; those are the command's own and never part of a summary.
-export const draftsIn = (text: string): { summaries: string[]; winsDrafted: boolean } => {
-  let winsDrafted = false
-  const files = new Map<string, string>()
-  // A file drafted again in the same turn replaces its earlier summary: only the last one is shown.
-  const latest = new Map<string, string[]>()
+const NO_CHANGE = 'No change.'
+
+// The lines one run of drafts printed, and the files it drafted. Drafts that sit side by side in a
+// command, with nothing between them to tell their output apart, make one entry of several files.
+type Drafted = { files: string[]; lines: string[] }
+
+// What the draft calls of one command printed. The result holds the command's whole output: the
+// lines a chained write or drop printed are told by their wording, the lines of a literal echo or
+// a cat by what the command text says they print; what is left between them is the drafts' output.
+const draftedBy = (command: string, result: string, read: ReadFile): Drafted[] => {
+  const parts = partsOf(command, read)
+  if (!parts.some((p) => p.kind === 'draft')) return []
+  const out = result.split('\n').filter((l) => l.trim() !== '' && !isWriteOrDropLine(l))
+  const entries: Drafted[] = []
+  let files: string[] = []
+  let at = 0
+  const close = (to: number) => {
+    if (files.length > 0) entries.push({ files, lines: out.slice(at, to) })
+    files = []
+  }
+  for (const part of parts) {
+    if (part.kind === 'draft') files.push(part.file)
+    if (part.kind !== 'known' || part.lines.length === 0) continue
+    const wanted = part.lines.map((l) => l.trim())
+    let found = -1
+    for (let i = at; i + wanted.length <= out.length && found < 0; i++)
+      if (wanted.every((w, k) => out[i + k]?.trim() === w)) found = i
+    if (found < 0) continue
+    close(found)
+    at = found + wanted.length
+  }
+  close(out.length)
+  return entries
+}
+
+// A turn's stream pairs each tool call with its result; the lines the draft calls printed are the
+// summaries the coach was to relay. The same result can hold output of other parts of the command,
+// which are never part of a summary. The summary is told from them by what the command text says
+// they print, so the coach's command shape does not matter. Drafts side by side with nothing
+// between them cannot be told apart, so they stay one entry for all their files.
+// The entries a turn's tool results held, in order; a result of a failed call holds none.
+const entriesOf = (text: string, read: ReadFile): Drafted[] => {
+  const commands = new Map<string, string>()
+  const entries: Drafted[] = []
   const blocks: Block[] = parseStream(text).events.flatMap((e) =>
     Array.isArray(e.message?.content) ? e.message.content : [],
   )
   for (const block of blocks) {
-    const file = /profile\.ts\s+draft\s+(\S+)/.exec(String(block.input?.command ?? ''))?.[1]
-    if (block.type === 'tool_use' && block.id && file) files.set(block.id, file)
-    const drafted = files.get(block.tool_use_id ?? '')
-    if (block.type !== 'tool_result' || drafted === undefined || block.is_error) continue
-    const shown = textOf(block.content)
-      .split('\n')
-      .filter((l) => l.trim() !== '' && !isWriteOrDropLine(l))
-    if (shown.length === 0 || shown.join('\n').trim() === 'No change.') continue
-    latest.set(drafted, shown)
-    winsDrafted ||= /wins\.yaml$/.test(drafted)
+    if (block.type === 'tool_use' && block.id)
+      commands.set(block.id, String(block.input?.command ?? ''))
+    const command = commands.get(block.tool_use_id ?? '')
+    if (block.type === 'tool_result' && command !== undefined && !block.is_error)
+      entries.push(...draftedBy(command, textOf(block.content), read))
   }
-  return { summaries: [...latest.values()].flat(), winsDrafted }
+  return entries
+}
+
+export const draftsIn = (
+  text: string,
+  read: ReadFile = () => undefined,
+): { summaries: string[]; winsDrafted: boolean } => {
+  let winsDrafted = false
+  // A file drafted again in the same turn replaces its earlier summary: only the last one is shown.
+  let latest: Drafted[] = []
+  for (const entry of entriesOf(text, read)) {
+    const lines =
+      entry.files.length > 1 ? entry.lines.filter((l) => l.trim() !== NO_CHANGE) : entry.lines
+    if (lines.length === 0 || lines.join('\n').trim() === NO_CHANGE) continue
+    latest = latest.filter((e) => !e.files.every((f) => entry.files.includes(f)))
+    latest.push({ files: entry.files, lines })
+    winsDrafted ||= entry.files.some((f) => /wins\.yaml$/.test(f))
+  }
+  return { summaries: latest.flatMap((e) => e.lines), winsDrafted }
 }
 
 // ---- the cost log and the session ----

@@ -300,6 +300,62 @@ describe('the drafts in a stream', () => {
     expect(d).toEqual({ summaries: ['new one', 'new two'], winsDrafted: true })
   })
 
+  it('keeps only the last summary of a file drafted as the second draft of a command', () => {
+    const both = (...files: string[]) =>
+      'echo ----; ' + files.map((f) => 'node scripts/profile.ts draft ' + f).join('; echo ----; ')
+    const call = (id: string, command: string) =>
+      JSON.stringify({
+        type: 'assistant',
+        message: { content: [{ type: 'tool_use', id, input: { command } }] },
+      })
+    const d = draftsIn(
+      [
+        use('a', 'profile/identity.yaml'),
+        out('a', 'Name: Hanna'),
+        call('b', both('profile/voice.md', 'profile/identity.yaml')),
+        out('b', '----\nVoice: plain\n----\nName: Hannah'),
+      ].join('\n'),
+    )
+    expect(d).toEqual({ summaries: ['Voice: plain', 'Name: Hannah'], winsDrafted: false })
+  })
+
+  it('knows the achievements file was drafted when it is the second draft of a command', () => {
+    const command =
+      'node scripts/profile.ts draft profile/identity.yaml <<EOF\n{}\nEOF\necho ----; node scripts/profile.ts draft profile/wins.yaml <<EOF\n{}\nEOF'
+    const d = draftsIn(
+      JSON.stringify({
+        type: 'assistant',
+        message: { content: [{ type: 'tool_use', id: 'a', input: { command } }] },
+      }) +
+        '\n' +
+        out('a', 'Name: A\n----\nAchievement: B'),
+    )
+    expect(d).toEqual({ summaries: ['Name: A', 'Achievement: B'], winsDrafted: true })
+  })
+
+  it('keeps drafts that sit side by side as one entry, replaced only by a draft of all their files', () => {
+    const call = (id: string, command: string) =>
+      JSON.stringify({
+        type: 'assistant',
+        message: { content: [{ type: 'tool_use', id, input: { command } }] },
+      })
+    const pair =
+      'node scripts/profile.ts draft profile/a.yaml\nnode scripts/profile.ts draft profile/b.yaml'
+    const d = draftsIn(
+      [
+        call('a', pair),
+        out('a', 'A1\nB1'),
+        call('b', 'node scripts/profile.ts draft profile/a.yaml'),
+        out('b', 'A2'),
+      ].join('\n'),
+    )
+    expect(d.summaries).toEqual(['A1', 'B1', 'A2'])
+    const e = draftsIn(
+      [call('a', pair), out('a', 'A1\nB1'), call('b', pair), out('b', 'A2\nB2')].join('\n'),
+    )
+    expect(e.summaries).toEqual(['A2', 'B2'])
+  })
+
   it('leaves out an empty result, "No change." and an error', () => {
     const d = draftsIn(
       [

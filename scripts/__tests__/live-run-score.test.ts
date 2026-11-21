@@ -615,3 +615,74 @@ describe('the notes a skill asks for beside a summary', () => {
     ).toBe(false)
   })
 })
+
+describe('one command that drafts two files', () => {
+  const draft = (f: string) => 'node scripts/profile.ts draft ' + f + ' <<\'EOF\'\n{"a":1}\nEOF'
+  const first = 'Name: Hannah Pruitt'
+  const second = 'Search city: Leeds\nSearch country: United Kingdom'
+  const run = (command: string, out: string, reply: string, copy?: [string, string]) =>
+    makeRun((d) => {
+      mkdirSync(join(d, 'raw'))
+      mkdirSync(join(d, 'written'))
+      if (copy) {
+        mkdirSync(join(d, 'copy/templates'), { recursive: true })
+        writeFileSync(join(d, 'copy', copy[0]), copy[1])
+      }
+      writeFileSync(join(d, 'transcript.md'), turn(1, reply))
+      writeFileSync(
+        join(d, 'raw/turn1.jsonl'),
+        draftRaw('a', 'profile/identity.yaml', out, command),
+      )
+    })
+  const line4 = (dir: string) => {
+    const out = scoreRun(dir).filter((l) => l.startsWith('line 4'))
+    rmSync(dir, { recursive: true })
+    return out
+  }
+  const whole = 'Here is the setup.\n' + first + '\n' + second + '\nIs it right?'
+  const short = 'Here is the setup.\n' + first + '\nSearch city: Leeds\nIs it right?'
+
+  const shapes: [string, string, string, [string, string]?][] = [
+    [
+      'an echo between them',
+      draft('profile/identity.yaml') + '\necho ----; ' + draft('profile/search.yaml'),
+      first + '\n----\n' + second,
+    ],
+    [
+      'a cat between them',
+      draft('profile/identity.yaml') + '\ncat templates/note.md\n' + draft('profile/search.yaml'),
+      first + '\nNote line one\nNote line two\n' + second,
+      ['templates/note.md', 'Note line one\nNote line two\n'],
+    ],
+    [
+      'a cat after them',
+      draft('profile/identity.yaml') +
+        '\n' +
+        draft('profile/search.yaml') +
+        '\ncat templates/note.md',
+      first + '\n' + second + '\nNote line one\nNote line two',
+      ['templates/note.md', 'Note line one\nNote line two\n'],
+    ],
+  ]
+
+  for (const [name, command, out, copy] of shapes) {
+    it('scores no finding with ' + name + ' when the reply relays both summaries whole', () => {
+      expect(line4(run(command, out, whole, copy))).toEqual(['line 4 PASS'])
+    })
+
+    it('scores exactly the dropped line with ' + name, () => {
+      expect(line4(run(command, out, short, copy))).toEqual([
+        'line 4 FAIL T1 "Search country: United Kingdom"',
+      ])
+    })
+  }
+
+  it('still counts a command output it cannot read as part of the summaries', () => {
+    const dir = run(
+      draft('profile/identity.yaml') + '\ncat templates/missing.md',
+      first + '\nMissing line',
+      first,
+    )
+    expect(line4(dir)).toEqual(['line 4 FAIL T1 "Missing line"'])
+  })
+})
