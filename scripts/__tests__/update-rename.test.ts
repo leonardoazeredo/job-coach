@@ -239,17 +239,26 @@ describe('a file both sides renamed', () => {
     expect(finishUpdate(work(), git, { run: runner().run })).toEqual({ kind: 'updated' })
   })
 
-  it('refuses a take that would delete an unsaved file standing at the old name', () => {
-    renamedOnBothSides()
-    const { git } = start()
-    writeFileSync(join(work(), A), 'MY NOTES\n')
-    const before = onDisk()
-    for (const side of ['ours', 'theirs'] as const) {
-      expect(takeSide(git, side, B)).toEqual({ kind: 'in-the-way', files: [A] })
+  for (const [side, name] of [
+    ['ours', B],
+    ['theirs', C],
+  ] as const) {
+    for (const [file, how] of [
+      [A, 'at the old name'],
+      ['docs/A.md', 'at the old name in other capitals'],
+      ['docs/notes.md', 'beside the new names'],
+    ] as const) {
+      it(`keeps an unsaved file ${how} when ${side} is taken`, () => {
+        renamedOnBothSides()
+        const { git } = start()
+        writeFileSync(join(work(), file), 'MY NOTES\n')
+        expect(takeSide(git, side, B)).toEqual({ kind: 'taken', left: [] })
+        expect(finishUpdate(work(), git, { run: runner().run })).toEqual({ kind: 'updated' })
+        expect(readFileSync(join(work(), file), 'utf8')).toBe('MY NOTES\n')
+        expect(g(work(), 'ls-files', 'docs').split('\n')).toEqual([name])
+      })
     }
-    expect(onDisk()).toEqual(before)
-    expect(finishUpdate(work(), git, { run: runner().run })).toMatchObject({ kind: 'clashes' })
-  })
+  }
 
   for (const side of ['ours', 'theirs'] as const) {
     it(`takes ${side} when one name differs from the old one only in capitals`, () => {

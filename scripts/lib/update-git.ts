@@ -2,9 +2,9 @@
 // steps the coach drives across turns, because a file both sides changed needs the user's choice.
 // Nothing is stored between the steps: git's own merge state says where an update stands, and the
 // merge commit's first parent is the folder as it was before.
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { basename, dirname, join } from 'node:path'
+import { join } from 'node:path'
 import { hasClash, narrow, type SettledLine, settle } from './clash.ts'
 import { ENGINE, ENGINE_URL, type Git, gitHubRepo, output } from './history.ts'
 import { fallbackCommitter } from './save.ts'
@@ -297,7 +297,10 @@ const resolveRename = (git: Git, side: 'ours' | 'theirs', rename: Rename) => {
   const id = rename.contentClash
     ? blob(git, side === 'ours' ? 'HEAD' : 'MERGE_HEAD', chosen)
     : entry.id
-  for (const path of [rename.base, rename.ours, rename.theirs]) git(['rm', '-q', '-f', '--', path])
+  // The old name is dropped from the index only: no saved file stands there, so whatever the
+  // folder shows under it (even on a disk that ignores capitals) is the user's and stays.
+  git(['update-index', '--force-remove', '--', rename.base])
+  for (const path of [rename.ours, rename.theirs]) git(['rm', '-q', '-f', '--', path])
   git(['update-index', '--add', '--cacheinfo', `${entry.mode},${id},${chosen}`])
   git(['checkout-index', '-f', '--', chosen])
 }
@@ -413,12 +416,6 @@ export const takeSide = (git: Git, side: 'ours' | 'theirs', file: string): TakeR
   // Only the clash blocks are the user's choice; the rest of the file already holds both sides'
   // changes. Any other kind has no blocks and is taken whole.
   if (rename) {
-    // The old name holds no saved version, so a file there is the user's own and a take must not
-    // delete it. The folder's listing is read, not asked for the path: on a disk that ignores
-    // capitals the path also finds a rename to another case of the old name.
-    const parent = dirname(join(top, rename.base))
-    if (existsSync(parent) && readdirSync(parent).includes(basename(rename.base)))
-      return { kind: 'in-the-way', files: [rename.base] }
     resolveRename(git, side, rename)
   } else if (clashKinds(git, top).get(file) === 'text-open') {
     writeFileSync(path, settle(readFileSync(path, 'utf8'), side))
