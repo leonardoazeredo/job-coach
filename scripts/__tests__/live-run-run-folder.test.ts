@@ -367,9 +367,17 @@ describe('the drafts in a stream', () => {
       expect(d.summaries).toEqual(['Name: A', 'boom: search.yaml failed'])
     })
 
-    it('leaves out the error result of a command that holds one draft', () => {
-      const d = draftsIn(call(draft('profile/identity.yaml')) + '\n' + out('c', 'boom', true))
-      expect(d.summaries).toEqual([])
+    it('counts the lines of an error result when the command holds one draft', () => {
+      const command = draft('profile/identity.yaml') + '; cat missing-file'
+      const d = draftsIn(
+        call(command) + '\n' + out('c', 'Name: A\ncat: missing-file: No such file', true),
+      )
+      expect(d.summaries).toEqual(['Name: A', 'cat: missing-file: No such file'])
+    })
+
+    it('flags the achievements file when the command failed after its draft', () => {
+      const command = draft('profile/wins.yaml') + '; grep x file'
+      expect(draftsIn(call(command) + '\n' + out('c', 'Name: A', true)).winsDrafted).toBe(true)
     })
 
     it('lets an echo text inside a heredoc body excuse a separator line, which carries nothing', () => {
@@ -389,13 +397,11 @@ describe('the drafts in a stream', () => {
     })
   })
 
-  it('leaves out an empty result, "No change." and an error', () => {
+  it('leaves out an empty result and "No change."', () => {
     const d = draftsIn(
       [
         use('a', 'profile/voice.md'),
         out('a', 'No change.'),
-        use('b', 'profile/stack.yaml'),
-        out('b', 'boom', true),
         use('c', 'profile/coach.md'),
         out('c', '  '),
       ].join('\n'),

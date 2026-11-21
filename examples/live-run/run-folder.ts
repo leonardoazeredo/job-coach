@@ -132,9 +132,9 @@ const echoedSeparator = (command: string, line: string): boolean =>
 // other line of the result counts, even when another command printed it, so a fault is never
 // hidden at the price of a finding on output that is not a summary.
 //
-// An error result of a command with several drafts is counted line by line: an earlier draft's
-// summary was printed before the failure and still has to be relayed, and a false finding from the
-// error text is visible and accepted. With one draft an error means nothing was printed to relay.
+// An error result is counted line by line, whatever the number of drafts: a later part of the
+// command can fail after a draft printed its summary, which still has to be relayed. A genuine
+// draft failure then gives a visible false finding, which is accepted over a silent pass.
 //
 // The echo check reads the whole command, heredoc bodies included, so an echo text inside a heredoc
 // can excuse a separator line; such a line carries nothing, so no summary is lost by it.
@@ -155,7 +155,6 @@ export const draftsIn = (text: string): { summaries: string[]; winsDrafted: bool
       commands.set(block.id, { command, files })
     const drafted = commands.get(block.tool_use_id ?? '')
     if (block.type !== 'tool_result' || drafted === undefined) continue
-    if (block.is_error && drafted.files.length < 2) continue
     const shown = textOf(block.content)
       .split('\n')
       .filter(

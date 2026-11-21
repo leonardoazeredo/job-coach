@@ -114,7 +114,7 @@ const draftRaw = (
   id: string,
   file: string,
   out: string,
-  command = `node scripts/profile.ts draft ${file}`,
+  { command = `node scripts/profile.ts draft ${file}`, isError = false } = {},
 ) =>
   [
     {
@@ -132,7 +132,9 @@ const draftRaw = (
     },
     {
       type: 'user',
-      message: { content: [{ type: 'tool_result', tool_use_id: id, content: out }] },
+      message: {
+        content: [{ type: 'tool_result', tool_use_id: id, content: out, is_error: isError }],
+      },
     },
   ]
     .map((l) => JSON.stringify(l))
@@ -333,7 +335,7 @@ describe('a write or a drop chained with a draft', () => {
       writeFileSync(join(d, 'transcript.md'), turn(1, reply))
       writeFileSync(
         join(d, 'raw/turn1.jsonl'),
-        `${draftRaw('a', 'profile/search.yaml', out, command)}\n`,
+        `${draftRaw('a', 'profile/search.yaml', out, { command })}\n`,
       )
     })
   const chains = [
@@ -430,18 +432,98 @@ describe('a write or a drop chained with a draft', () => {
     rmSync(dir, { recursive: true })
   })
 
-  it('keeps the earlier summary of a file when a later chained result holds no draft line', () => {
-    const dir = makeRun((d) => {
-      mkdirSync(join(d, 'raw'))
-      mkdirSync(join(d, 'written'))
-      writeFileSync(join(d, 'transcript.md'), turn(1, 'Search city: Leeds'))
-      writeFileSync(
-        join(d, 'raw/turn1.jsonl'),
-        `${draftRaw('a', 'profile/search.yaml', 'Search city: Leeds')}\n${draftRaw('b', 'profile/search.yaml', 'dropped: profile/voice.md', chains[1][1])}\n`,
-      )
+  describe('an earlier summary and a later result that holds only a drop', () => {
+    const line4 = (reply: string) => {
+      const dir = makeRun((d) => {
+        mkdirSync(join(d, 'raw'))
+        mkdirSync(join(d, 'written'))
+        writeFileSync(join(d, 'transcript.md'), turn(1, reply))
+        writeFileSync(
+          join(d, 'raw/turn1.jsonl'),
+          `${draftRaw('a', 'profile/search.yaml', summary)}\n${draftRaw(
+            'b',
+            'profile/search.yaml',
+            'dropped: profile/voice.md',
+            {
+              command: chains[1][1],
+            },
+          )}\n`,
+        )
+      })
+      const rows = scoreRun(dir).filter((l) => l.startsWith('line 4'))
+      rmSync(dir, { recursive: true })
+      return rows
+    }
+
+    it('keeps the earlier summary, so a reply that relays it whole has no finding', () => {
+      expect(line4('Search city: Leeds\nSearch country: United Kingdom')).toEqual(['line 4 PASS'])
     })
-    expect(scoreRun(dir).filter((l) => l.startsWith('line 4'))).toEqual(['line 4 PASS'])
-    rmSync(dir, { recursive: true })
+
+    it('still marks a line of the earlier summary that the reply left out', () => {
+      expect(line4('Search city: Leeds')).toEqual([
+        'line 4 FAIL T1 "Search country: United Kingdom"',
+      ])
+    })
+  })
+
+  describe('a not-written line beside a summary', () => {
+    const command =
+      'node scripts/profile.ts write profile/identity.yaml; node scripts/profile.ts draft profile/search.yaml'
+    const line4 = (reply: string) => {
+      const dir = run(
+        command,
+        `not written: the record check found problems, so profile/identity.yaml stayed as before\n${summary}`,
+        reply,
+      )
+      const rows = scoreRun(dir).filter((l) => l.startsWith('line 4'))
+      rmSync(dir, { recursive: true })
+      return rows
+    }
+
+    it('scores no finding when the reply relays the summary whole', () => {
+      expect(line4('Search city: Leeds\nSearch country: United Kingdom')).toEqual(['line 4 PASS'])
+    })
+
+    it('still marks a summary line the reply left out', () => {
+      expect(line4('Search city: Leeds')).toEqual([
+        'line 4 FAIL T1 "Search country: United Kingdom"',
+      ])
+    })
+  })
+
+  describe('a draft whose command fails after it printed the summary', () => {
+    const command = 'node scripts/profile.ts draft profile/search.yaml; grep x file'
+    const line4 = (reply: string) => {
+      const dir = makeRun((d) => {
+        mkdirSync(join(d, 'raw'))
+        mkdirSync(join(d, 'written'))
+        writeFileSync(join(d, 'transcript.md'), turn(1, reply))
+        writeFileSync(
+          join(d, 'raw/turn1.jsonl'),
+          `${draftRaw('a', 'profile/search.yaml', summary, { command, isError: true })}\n`,
+        )
+      })
+      const rows = scoreRun(dir).filter((l) => l.startsWith('line 4'))
+      rmSync(dir, { recursive: true })
+      return rows
+    }
+
+    it('scores no finding when the reply relays the summary whole', () => {
+      expect(line4('Search city: Leeds\nSearch country: United Kingdom')).toEqual(['line 4 PASS'])
+    })
+
+    it('marks the one line the reply left out', () => {
+      expect(line4('Search city: Leeds')).toEqual([
+        'line 4 FAIL T1 "Search country: United Kingdom"',
+      ])
+    })
+
+    it('marks every line when the reply drops the summary', () => {
+      expect(line4('Looks fine.')).toEqual([
+        'line 4 FAIL T1 "Search city: Leeds"',
+        'line 4 FAIL T1 "Search country: United Kingdom"',
+      ])
+    })
   })
 
   it('also leaves the line out when the write or drop prints after the draft', () => {
