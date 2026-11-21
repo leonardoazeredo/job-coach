@@ -706,6 +706,95 @@ describe('the drafts in a stream', () => {
     })
   })
 
+  describe('a draft call whose file name is not a plain path with an extension', () => {
+    const callAs = (id: string, command: string) =>
+      JSON.stringify({
+        type: 'assistant',
+        message: { content: [{ type: 'tool_use', id, input: { command } }] },
+      })
+    const draft = (f: string) => 'node scripts/profile.ts draft ' + f
+    const shown = (...parts: string[]) => draftsIn(parts.join('\n')).summaries
+    const wins = (command: string) =>
+      draftsIn(callAs('a', command) + '\n' + out('a', 'Name: A')).winsDrafted
+
+    it.each([
+      ['a descriptor number before an input file', draft('0<a.json profile/search.yaml')],
+      ['a descriptor number before a heredoc', draft("0<<'EOF' profile/search.yaml\n{}\nEOF")],
+    ])(
+      'keeps the lines of an error entry when the next call has %s only in the first',
+      (_n, first) => {
+        expect(
+          shown(
+            callAs('a', first + '; cat nope'),
+            out('a', 'Search city: Leeds\ncat: nope', true),
+            callAs('b', draft('0<b.json profile/identity.yaml')),
+            out('b', 'Name: B'),
+          ),
+        ).toEqual(['Search city: Leeds', 'cat: nope', 'Name: B'])
+      },
+    )
+
+    it('flags the achievements file named after a descriptor number', () => {
+      expect(wins(draft('0<a.json profile/wins.yaml'))).toBe(true)
+    })
+
+    it('treats a bare draft at a line end followed by another word as unknown', () => {
+      expect(
+        shown(
+          callAs('a', draft('profile/search.yaml') + '\n' + draft('\necho x') + '; false'),
+          out('a', 'Search city: Leeds', true),
+          callAs('b', draft('profile/search.yaml')),
+          out('b', 'Search city: York'),
+        ),
+      ).toEqual(['Search city: Leeds', 'Search city: York'])
+    })
+
+    it.each([
+      ['a relative path with ./', './profile/wins.yaml'],
+      ['an absolute path', '/Users/x/job/profile/wins.yaml'],
+    ])('flags the achievements file given as %s', (_n, file) => {
+      expect(wins(draft(file))).toBe(true)
+    })
+
+    it('makes a call with a variable name unknown, so it never covers an error entry', () => {
+      expect(
+        shown(
+          callAs('a', 'F=profile/wins.yaml; ' + draft('$F') + ' ; false'),
+          out('a', 'Achievement: KEEP', true),
+          callAs('b', 'F=profile/stack.yaml; ' + draft('$F')),
+          out('b', 'Stack: S'),
+        ),
+      ).toEqual(['Achievement: KEEP', 'Stack: S'])
+    })
+
+    it('flags the achievements file drafted through a variable', () => {
+      expect(wins('W=profile/wins.yaml; ' + draft('$W'))).toBe(true)
+    })
+
+    it('makes the whole call unknown when one of several names is not plain', () => {
+      const two = (f: string) => 'D=profile; ' + draft('profile/stack.yaml') + ' ; ' + draft(f)
+      expect(
+        shown(
+          callAs('a', two('$F') + ' ; false'),
+          out('a', 'Stack: KEEP', true),
+          callAs('b', two('$F')),
+          out('b', 'Stack: S'),
+        ),
+      ).toEqual(['Stack: KEEP', 'Stack: S'])
+    })
+
+    it('does not read a name that holds a variable as plain even when it ends in an extension', () => {
+      expect(
+        shown(
+          callAs('a', 'D=profile; ' + draft('$D/wins.yaml') + ' ; false'),
+          out('a', 'Achievement: KEEP', true),
+          callAs('b', 'D=profile; ' + draft('$D/wins.yaml')),
+          out('b', 'Achievement: NEW'),
+        ),
+      ).toEqual(['Achievement: KEEP', 'Achievement: NEW'])
+    })
+  })
+
   it.each([
     ['"No change."', 'No change.'],
     ['only write lines', 'written: profile/wins.yaml\ndropped: profile/voice.md'],

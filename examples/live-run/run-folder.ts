@@ -118,7 +118,9 @@ const textOf = (content: unknown): string =>
 // the name, a draft with no name) makes the call's files unknown, and unknown only ever keeps lines.
 const DRAFT_WORD = /profile\.ts\s+draft\b/g
 const DRAFT_FILE = /profile\.ts\s+draft\s+([^\s<]+)/g
-const PLAIN_PATH = /^[\w./-]+$/
+// A file extension is required: a file descriptor number before a redirect (`0<a.json`) and a bare
+// word of the next line (`echo`) are then not read as a file name.
+const PLAIN_PATH = /^[\w./-]+\.\w+$/
 // The wins file is matched without requiring it to end the token, so a shell character after it
 // (`;`, `|`, `>`, `)`, a quote) cannot hide the draft; a file other than wins.yaml named later in the
 // command cannot match because the lazy \S* stops at whitespace.
