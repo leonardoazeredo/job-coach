@@ -148,6 +148,33 @@ describe('a file both sides renamed', () => {
     })
   })
 
+  it('does not take a marker-like line a side added for a clash', () => {
+    const user = edited(BASE, 2, 'mine')
+    const engine = edited(BASE, 10, '<<<<<<< example of a clash')
+    renamedOnBothSides(user, engine)
+    const { git } = start()
+    expect(renamesOf(git)).toMatchObject([{ contentClash: false }])
+    takeSide(git, 'theirs', A)
+    expect(finishUpdate(work(), git, { run: runner().run })).toEqual({ kind: 'updated' })
+    expect(onDisk()[C]).toBe(edited(user, 10, '<<<<<<< example of a clash'))
+  })
+
+  it('still sees a clash when a side removed the sample block the base held', () => {
+    const sample = `<<<<<<< yours\nx\n=======\ny\n>>>>>>> new version\n${BASE}`
+    const engine = edited(sample, 5, 'new')
+    cloned({ [A]: sample })
+    g(work(), 'mv', A, B)
+    userCommit({ [B]: edited(BASE, 5, 'mine') }, 'Saved: rename')
+    g(upstream(), 'mv', A, C)
+    writeFileSync(join(upstream(), C), engine)
+    commitEngine('Rename')
+    const { git } = start()
+    expect(renamesOf(git)).toMatchObject([{ contentClash: true }])
+    expect(takeSide(git, 'theirs', A)).toEqual({ kind: 'taken', left: [] })
+    expect(finishUpdate(work(), git, { run: runner().run })).toEqual({ kind: 'updated' })
+    expect(onDisk()[C]).toBe(engine)
+  })
+
   describe('when the folder no longer shows the clash that git staged', () => {
     const user = edited(BASE, 5, 'mine')
     const engine = edited(BASE, 5, 'new')

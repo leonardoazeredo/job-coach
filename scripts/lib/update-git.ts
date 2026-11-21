@@ -156,11 +156,6 @@ const movedBy = (git: Git, base: string, rev: string): Map<string, string> => {
   return moved
 }
 
-// Git lengthens its markers to 8 characters in a file held under two names, which hasClash, made
-// for the 7 of an ordinary text clash, does not see. Only the opening line is counted: a line of
-// "=" alone is a Markdown heading underline.
-const OPENING_MARKER = /^<{7,}( |$)/gm
-
 export const renamesOf = (git: Git): Rename[] => {
   if (!inMerge(git)) return []
   const base = git(['merge-base', 'HEAD', 'MERGE_HEAD']).stdout.trim()
@@ -174,15 +169,20 @@ export const renamesOf = (git: Git): Rename[] => {
     if (!other || other === ours) return []
     if (!only(held.get(from), '1') || !only(held.get(ours), '2') || !only(held.get(other), '3'))
       return []
-    // Judged from what git staged, never from the folder, so a hand edit or a deleted file
-    // cannot make a take write a blob that holds markers.
+    // Judged by merging the three committed versions, not from the folder or the text of the
+    // merged blob, so no hand edit, deleted file or marker-like line in a file changes it. Two
+    // different staged blobs count as a clash too: merge-file cannot read a binary file.
     const ids = [held.get(ours)?.[0]?.id, held.get(other)?.[0]?.id]
-    // A file that shows a clash block as ordinary text holds one in the base too; only more
-    // blocks than the base held are the merge's own.
-    const openings = (id: string | undefined) =>
-      id ? (git(['cat-file', 'blob', id]).stdout.match(OPENING_MARKER)?.length ?? 0) : 0
-    const marked = ids.some((id) => openings(id) > openings(held.get(from)?.[0]?.id))
-    return [{ base: from, ours, theirs: other, contentClash: marked || ids[0] !== ids[1] }]
+    const merged = git([
+      'merge-file',
+      '--object-id',
+      '-p',
+      blob(git, 'HEAD', ours),
+      held.get(from)?.[0]?.id ?? '',
+      blob(git, 'MERGE_HEAD', other),
+    ])
+    const clashes = merged.status !== null && merged.status > 0 && merged.status < 128
+    return [{ base: from, ours, theirs: other, contentClash: clashes || ids[0] !== ids[1] }]
   })
 }
 
