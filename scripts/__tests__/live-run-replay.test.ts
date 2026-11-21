@@ -7,6 +7,7 @@ import type { Row } from '../../examples/live-run/findings.ts'
 import {
   failRates,
   formatRates,
+  formatSize,
   parseReplayArgs,
   prepareSample,
   replayCommand,
@@ -15,7 +16,25 @@ import { EXIT } from '../lib/problem.ts'
 import { gitIn } from './live-run-git.ts'
 import { loadX, makeRun } from './live-run-replay-fixture.ts'
 
+describe('the size printed for a replay folder', () => {
+  it('counts in KB under a megabyte, then MB, then GB, and never says 0 KB', () => {
+    expect(formatSize(0)).toBe('1 KB')
+    expect(formatSize(1536)).toBe('2 KB')
+    expect(formatSize(1024 ** 2 - 1)).toBe('1024 KB')
+    expect(formatSize(1024 ** 2)).toBe('1.0 MB')
+    expect(formatSize(5.5 * 1024 ** 2)).toBe('5.5 MB')
+    expect(formatSize(1024 ** 3 - 1)).toMatch(/ MB$/)
+    expect(formatSize(1024 ** 3)).toBe('1.00 GB')
+    expect(formatSize(2.5 * 1024 ** 3)).toBe('2.50 GB')
+  })
+})
+
 describe('the replay arguments', () => {
+  it('refuses an --out followed by another flag, as it does one with nothing after it', () => {
+    expect(parseReplayArgs(['run', '3', '--out', '--n'])).toMatch(/^--out needs a folder\n/)
+    expect(parseReplayArgs(['run', '3', '--out'])).toMatch(/^--out needs a folder\n/)
+  })
+
   it('takes a run folder, a turn and a count that defaults to 5', () => {
     expect(parseReplayArgs(['run', '3'])).toEqual({ run: 'run', turn: 3, n: 5 })
     expect(parseReplayArgs(['run', '12', '8'])).toEqual({ run: 'run', turn: 12, n: 8 })

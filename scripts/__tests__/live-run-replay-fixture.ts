@@ -97,8 +97,14 @@ export const makeRun = (tmp: string, opts: RunOptions = {}): string => {
 // What turn.sh leaves in a sample folder for a turn whose running total is `total`: claude's stream
 // recorded through the run-folder module, as turn.sh records it. The one place a fake adapter
 // writes a turn's outputs.
-export const writeTurnOutputs = (sample: string, turn: number, total: number) => {
+export const writeTurnOutputs = (
+  sample: string,
+  turn: number,
+  total: number,
+  before: string[] = [],
+) => {
   const stream = [
+    ...before,
     '{"type":"assistant","message":{"content":[{"type":"text","text":"a reply"}]}}',
     `{"type":"result","session_id":"s","total_cost_usd":${total},"usage":{"cache_read_input_tokens":5,"cache_creation_input_tokens":7}}`,
   ]
@@ -106,6 +112,23 @@ export const writeTurnOutputs = (sample: string, turn: number, total: number) =>
   const recorded = recordTurn(sample, turn, join(sample, 'reply.txt'))
   if ('failure' in recorded) throw new Error(recorded.failure)
 }
+
+// The stream lines of a turn that drafts a profile file and gets the summary back, as the scorer
+// reads them from the stream.
+export const draftLines = (file: string, summary: string): string[] => [
+  JSON.stringify({
+    type: 'assistant',
+    message: {
+      content: [
+        { type: 'tool_use', id: 't1', input: { command: `node scripts/profile.ts draft ${file}` } },
+      ],
+    },
+  }),
+  JSON.stringify({
+    type: 'user',
+    message: { content: [{ type: 'tool_result', tool_use_id: 't1', content: summary }] },
+  }),
+]
 
 // What the docker adapter's npm ci leaves in a sample: the installed packages, most of its size.
 export const installPackages = (sample: string) => {

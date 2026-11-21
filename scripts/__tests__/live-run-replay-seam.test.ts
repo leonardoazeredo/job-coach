@@ -13,7 +13,14 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import type { MakeAdapter } from '../../examples/live-run/replay.ts'
 import { scoreFindings } from '../../examples/live-run/score.ts'
 import { repoRoot } from '../lib/workspace.ts'
-import { fakeAdapter, installPackages, makeRun, runReplay } from './live-run-replay-fixture.ts'
+import {
+  draftLines,
+  fakeAdapter,
+  installPackages,
+  makeRun,
+  runReplay,
+  writeTurnOutputs,
+} from './live-run-replay-fixture.ts'
 
 // The replay's own rules, with the fake adapter standing in for docker, up.sh and turn.sh.
 const tmp = mkdtempSync(join(tmpdir(), 'replay-seam-'))
@@ -116,8 +123,10 @@ const firstSample = (folder: string) => join(folder, `${folder.split('/').pop()}
 
 describe('what a replay keeps of each sample', () => {
   it('keeps what the scorer and a reader open and drops the working copy', () => {
+    run = makeRun(tmp, { engine: true })
     const r = runReplay([run, '3', '1'], {}, fakeAdapter())
     const sample = firstSample(foldersPrinted(r.out).folder)
+    // prepareReplaySample copies the update run's engine in, so only the trim can drop it.
     expect(readdirSync(sample).sort()).toEqual([
       'copy',
       'costlog.txt',
@@ -138,7 +147,7 @@ describe('what a replay keeps of each sample', () => {
       readFileSync(join(repoRoot(), 'CLAUDE.md'), 'utf8'),
     )
     expect(existsSync(join(sample, 'copy', 'node_modules'))).toBe(false)
-    for (const gone of ['snap', 'claudehome', 'cachehome', 'tmpd', 'engine'])
+    for (const gone of ['claudehome', 'cachehome', 'tmpd', 'engine'])
       expect(existsSync(join(sample, gone)), gone).toBe(false)
   })
 
@@ -162,6 +171,50 @@ describe('what a replay keeps of each sample', () => {
     )
     expect(before[0]?.length).toBeGreaterThan(0)
     expect(after).toEqual(before[0])
+  })
+
+  it('scores a kept sample that drafted a file to the rows it had before the trim', () => {
+    const before: string[][] = []
+    const summary = 'Title: Transport Planner\nCity: Leeds'
+    const adapter: MakeAdapter = () => ({
+      build: () => undefined,
+      runSample: (sample) => {
+        installPackages(sample)
+        writeTurnOutputs(sample, 3, 0.85, draftLines('profile/identity.yaml', summary))
+        before.push(scoreFindings(sample).map((x) => JSON.stringify(x)))
+        return { spend: 0.1 }
+      },
+    })
+    const r = runReplay([run, '3', '1'], {}, adapter)
+    const after = scoreFindings(firstSample(foldersPrinted(r.out).folder)).map((x) =>
+      JSON.stringify(x),
+    )
+    // The reply never relays the summary, so the row exists only if the stream's draft was read.
+    expect(before[0]?.some((x) => x.includes('Title: Transport Planner'))).toBe(true)
+    expect(after).toEqual(before[0])
+  })
+
+  it('ends a sample trimmed when an interrupt arrives mid-sample, and leaves no handler behind', () => {
+    const handlers = process.listenerCount('SIGINT')
+    let during = 0
+    const adapter: MakeAdapter = ({ turn }) => ({
+      build: () => undefined,
+      runSample: (sample) => {
+        installPackages(sample)
+        writeTurnOutputs(sample, turn, 0.85)
+        process.emit('SIGINT')
+        during = process.listenerCount('SIGINT')
+        return { spend: 0.1 }
+      },
+    })
+    const r = runReplay([run, '3', '1'], {}, adapter)
+    expect(during).toBeGreaterThan(handlers)
+    expect(r.code).toBe(0)
+    const sample = firstSample(foldersPrinted(r.out).folder)
+    expect(existsSync(join(sample, 'copy', 'node_modules'))).toBe(false)
+    expect(existsSync(join(sample, 'claudehome'))).toBe(false)
+    expect(existsSync(join(sample, 'raw', 'turn3.jsonl'))).toBe(true)
+    expect(process.listenerCount('SIGINT')).toBe(handlers)
   })
 
   it('trims a sample that failed, and one that threw, and leaves the reason it failed', () => {
@@ -225,6 +278,13 @@ describe('where the samples go', () => {
     expect(r.err.join('\n')).toContain('already holds something')
     expect(readdirSync(full)).toEqual(['old.txt'])
     expect(runReplay([run, '3', '--out'], {}, counting).code).toBe(64)
+    expect(ran).toBe(0)
+    const file = join(tmp, 'a-file')
+    writeFileSync(file, 'x')
+    const onFile = runReplay([run, '3', '1', '--out', file], {}, counting)
+    expect(onFile.code).toBe(64)
+    expect(onFile.err.join('\n')).toContain('already holds something')
+    expect(readFileSync(file, 'utf8')).toBe('x')
     expect(ran).toBe(0)
     const empty = join(tmp, 'empty')
     mkdirSync(empty)
