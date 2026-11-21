@@ -143,8 +143,8 @@ describe('what a replay keeps of each sample', () => {
       'turn2.jsonl',
       'turn3.jsonl',
     ])
-    // Kept for a person reading a sample later and for the scorer's cat check (#190); it is not
-    // dead weight to trim.
+    // Kept because a reader of a sample needs the files the coach had, and because a check may read
+    // a file the command printed; it is not dead weight to trim.
     expect(readFileSync(join(sample, 'copy', 'CLAUDE.md'), 'utf8')).toBe(
       readFileSync(join(repoRoot(), 'CLAUDE.md'), 'utf8'),
     )
