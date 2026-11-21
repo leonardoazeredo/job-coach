@@ -1,6 +1,10 @@
 // One table per template a Draft is made from: every key the template holds, plus the keys a
 // later step adds. A test holds each table and its template in step.
-import { ROCKETSHIP_EMPLOYMENT, ROCKETSHIP_SENIORITY, searchNotes } from './boards/rocketship.ts'
+import {
+  ROCKETSHIP_EMPLOYMENT,
+  ROCKETSHIP_SENIORITY,
+  searchNotes,
+} from './boards/rocketship-values.ts'
 import { CvDataSchema, HistoryFileSchema, WinsFileSchema } from './cv-schema.ts'
 import { FIGURE } from './cv-voice.ts'
 import {
