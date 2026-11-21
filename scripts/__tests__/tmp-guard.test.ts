@@ -1,10 +1,15 @@
 import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import setup, { leftovers } from './tmp-guard.global.ts'
 
 describe('the temp directory guard', () => {
+  // Dropping globalSetup from vitest.config.ts would leave every other test guarded by nothing.
+  it('is wired in: the temp directory of a test is a vitest-suite folder', () => {
+    expect(basename(tmpdir())).toMatch(/^vitest-suite-/)
+  })
+
   it('fails on a folder a test left behind, says which one, and still removes its own root', () => {
     const outer = process.env.TMPDIR
     const teardown = setup()
