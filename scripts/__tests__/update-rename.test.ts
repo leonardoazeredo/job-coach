@@ -118,6 +118,36 @@ describe('a file both sides renamed', () => {
     expect(onDisk()[C]).toBe(edited(edited(titled, 2, 'mine'), 10, 'new'))
   })
 
+  it('does not take a sample clash block in the file itself for a clash', () => {
+    const sample = `<<<<<<< yours\nx\n=======\ny\n>>>>>>> new version\n${BASE}`
+    cloned({ [A]: sample })
+    g(work(), 'mv', A, B)
+    userCommit({ [B]: edited(sample, 2, 'mine') }, 'Saved: rename')
+    g(upstream(), 'mv', A, C)
+    writeFileSync(join(upstream(), C), edited(sample, 10, 'new'))
+    commitEngine('Rename')
+    const { git } = start()
+    expect(renamesOf(git)).toMatchObject([{ contentClash: false }])
+    takeSide(git, 'theirs', A)
+    expect(finishUpdate(work(), git, { run: runner().run })).toEqual({ kind: 'updated' })
+    expect(onDisk()[C]).toBe(edited(edited(sample, 2, 'mine'), 10, 'new'))
+  })
+
+  it('leaves another clash waiting when the rename is taken', () => {
+    cloned({ [A]: BASE, 'docs/x.md': 'one\n' })
+    g(work(), 'mv', A, B)
+    userCommit({ [B]: BASE, 'docs/x.md': 'mine\n' }, 'Saved')
+    g(upstream(), 'mv', A, C)
+    writeFileSync(join(upstream(), 'docs/x.md'), 'new\n')
+    commitEngine('Rename and change')
+    const { git } = start()
+    expect(takeSide(git, 'ours', C)).toMatchObject({ kind: 'taken', left: ['docs/x.md'] })
+    expect(finishUpdate(work(), git, { run: runner().run })).toMatchObject({
+      kind: 'clashes',
+      files: ['docs/x.md'],
+    })
+  })
+
   describe('when the folder no longer shows the clash that git staged', () => {
     const user = edited(BASE, 5, 'mine')
     const engine = edited(BASE, 5, 'new')

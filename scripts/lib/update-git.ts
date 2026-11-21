@@ -157,9 +157,9 @@ const movedBy = (git: Git, base: string, rev: string): Map<string, string> => {
 }
 
 // Git lengthens its markers to 8 characters in a file held under two names, which hasClash, made
-// for the 7 of an ordinary text clash, does not see. A bare line of "=" is no marker (a Markdown
-// heading underline), so an opening and a closing marker are both required.
-const MARKER_LINE = /^<{7,}( |$)[\s\S]*^>{7,}( |$)/m
+// for the 7 of an ordinary text clash, does not see. Only the opening line is counted: a line of
+// "=" alone is a Markdown heading underline.
+const OPENING_MARKER = /^<{7,}( |$)/gm
 
 export const renamesOf = (git: Git): Rename[] => {
   if (!inMerge(git)) return []
@@ -177,7 +177,11 @@ export const renamesOf = (git: Git): Rename[] => {
     // Judged from what git staged, never from the folder, so a hand edit or a deleted file
     // cannot make a take write a blob that holds markers.
     const ids = [held.get(ours)?.[0]?.id, held.get(other)?.[0]?.id]
-    const marked = ids.some((id) => id && MARKER_LINE.test(git(['cat-file', 'blob', id]).stdout))
+    // A file that shows a clash block as ordinary text holds one in the base too; only more
+    // blocks than the base held are the merge's own.
+    const openings = (id: string | undefined) =>
+      id ? (git(['cat-file', 'blob', id]).stdout.match(OPENING_MARKER)?.length ?? 0) : 0
+    const marked = ids.some((id) => openings(id) > openings(held.get(from)?.[0]?.id))
     return [{ base: from, ours, theirs: other, contentClash: marked || ids[0] !== ids[1] }]
   })
 }
