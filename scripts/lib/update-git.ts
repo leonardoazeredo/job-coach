@@ -177,19 +177,27 @@ export const renamesOf = (git: Git): Rename[] => {
     const staged = held.get(ours)?.[0]?.id
     const same = staged === held.get(other)?.[0]?.id
     const stagedText = staged ? git(['cat-file', 'blob', staged]).stdout : undefined
+    const [oursId, theirsId] = [blob(git, 'HEAD', ours), blob(git, 'MERGE_HEAD', other)]
+    const baseId = held.get(from)?.[0]?.id
+    // Where at most one side changed the content, the merge result is that side's file, whatever
+    // its type; only two changed versions need merging again.
+    const oneSide =
+      staged === oursId
+        ? theirsId === oursId || theirsId === baseId
+        : staged === theirsId && oursId === baseId
     const reproduced = ['myers', 'histogram'].some((algorithm) => {
       const merged = git([
         'merge-file',
         '--object-id',
         '-p',
         `--diff-algorithm=${algorithm}`,
-        blob(git, 'HEAD', ours),
-        held.get(from)?.[0]?.id ?? '',
-        blob(git, 'MERGE_HEAD', other),
+        oursId,
+        baseId ?? '',
+        theirsId,
       ])
       return merged.status === 0 && merged.stdout === stagedText
     })
-    return [{ base: from, ours, theirs: other, contentClash: !same || !reproduced }]
+    return [{ base: from, ours, theirs: other, contentClash: !same || !(oneSide || reproduced) }]
   })
 }
 

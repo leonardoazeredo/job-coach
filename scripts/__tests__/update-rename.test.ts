@@ -192,6 +192,53 @@ describe('a file both sides renamed', () => {
     expect(onDisk()[C]).toBe(engine)
   })
 
+  describe('a binary file renamed on both sides', () => {
+    const bin = (tail: string) => `\0${BASE}${tail}`
+    const renamedBinary = (user: string, engine: string) => {
+      cloned({ [A]: bin('') })
+      g(work(), 'mv', A, B)
+      userCommit({ [B]: user }, 'Saved: rename')
+      g(upstream(), 'mv', A, C)
+      writeFileSync(join(upstream(), C), engine)
+      commitEngine('Rename')
+      return start().git
+    }
+
+    it('is no content clash when neither side changed it', () => {
+      const git = renamedBinary(bin(''), bin(''))
+      expect(renamesOf(git)).toMatchObject([{ contentClash: false }])
+    })
+
+    for (const [side, name] of [
+      ['ours', B],
+      ['theirs', C],
+    ] as const) {
+      it(`keeps the only change made when the ${side} name is taken`, () => {
+        const git = renamedBinary(bin(''), bin('new'))
+        expect(renamesOf(git)).toMatchObject([{ contentClash: false }])
+        takeSide(git, side, A)
+        expect(finishUpdate(work(), git, { run: runner().run })).toEqual({ kind: 'updated' })
+        expect(onDisk()[name]).toBe(bin('new'))
+      })
+    }
+  })
+
+  it('holds two renames at once and settles them one at a time', () => {
+    cloned({ [A]: BASE, 'docs/d.md': `${BASE}d\n` })
+    g(work(), 'mv', A, B)
+    g(work(), 'mv', 'docs/d.md', 'docs/e.md')
+    userCommit({}, 'Saved: renames')
+    g(upstream(), 'mv', A, C)
+    g(upstream(), 'mv', 'docs/d.md', 'docs/f.md')
+    commitEngine('Renames')
+    const { git, merged } = start()
+    expect(merged).toMatchObject({ renames: [{ base: A }, { base: 'docs/d.md' }] })
+    const taken = takeSide(git, 'ours', A)
+    expect(taken).toMatchObject({ kind: 'taken', renames: [{ base: 'docs/d.md' }] })
+    expect(takeSide(git, 'theirs', 'docs/e.md')).toEqual({ kind: 'taken', left: [] })
+    expect(finishUpdate(work(), git, { run: runner().run })).toEqual({ kind: 'updated' })
+  })
+
   describe('when the folder no longer shows the clash that git staged', () => {
     const user = edited(BASE, 5, 'mine')
     const engine = edited(BASE, 5, 'new')
