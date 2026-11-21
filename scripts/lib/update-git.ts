@@ -95,7 +95,7 @@ const mergeState = (git: Git, settled: Settled[] = []): MergeResult => {
   const files = unmerged(git)
   const told = settled.length ? { settled } : {}
   return files.length
-    ? { kind: 'clashes', files, ...told, ...pending(git, topOf(git)) }
+    ? { kind: 'clashes', files, ...told, ...pending(git) }
     : { kind: 'merged', ...told }
 }
 
@@ -157,10 +157,11 @@ const movedBy = (git: Git, base: string, rev: string): Map<string, string> => {
 }
 
 // Git lengthens its markers to 8 characters in a file held under two names, which hasClash, made
-// for the 7 of an ordinary text clash, does not see.
-const MARKER_LINE = /^(<{7,}|>{7,})( |$)|^={7,}$/m
+// for the 7 of an ordinary text clash, does not see. A bare line of "=" is no marker (a Markdown
+// heading underline), so an opening and a closing marker are both required.
+const MARKER_LINE = /^<{7,}( |$)[\s\S]*^>{7,}( |$)/m
 
-export const renamesOf = (git: Git, dir: string): Rename[] => {
+export const renamesOf = (git: Git): Rename[] => {
   if (!inMerge(git)) return []
   const base = git(['merge-base', 'HEAD', 'MERGE_HEAD']).stdout.trim()
   if (!base) return []
@@ -173,12 +174,11 @@ export const renamesOf = (git: Git, dir: string): Rename[] => {
     if (!other || other === ours) return []
     if (!only(held.get(from), '1') || !only(held.get(ours), '2') || !only(held.get(other), '3'))
       return []
-    const blobs = [held.get(ours)?.[0]?.id, held.get(other)?.[0]?.id]
-    const marked = [ours, other].some((path) => {
-      const file = join(dir, path)
-      return existsSync(file) && MARKER_LINE.test(readFileSync(file, 'utf8'))
-    })
-    return [{ base: from, ours, theirs: other, contentClash: marked || blobs[0] !== blobs[1] }]
+    // Judged from what git staged, never from the folder, so a hand edit or a deleted file
+    // cannot make a take write a blob that holds markers.
+    const ids = [held.get(ours)?.[0]?.id, held.get(other)?.[0]?.id]
+    const marked = ids.some((id) => id && MARKER_LINE.test(git(['cat-file', 'blob', id]).stdout))
+    return [{ base: from, ours, theirs: other, contentClash: marked || ids[0] !== ids[1] }]
   })
 }
 
@@ -237,27 +237,32 @@ const REGULAR = new Set(['100644', '100755'])
 
 // The one judgement of what a clashing file is; take, finish and the start-version view each
 // act on the kind. The binary test needs both sides, so it runs only when both hold the file.
-export const clashKind = (git: Git, dir: string, file: string, entries: Entry[]): ClashKind => {
-  if (renamesOf(git, dir).some((rename) => inRename(rename, file))) return 'renamed'
-  if (entries.some((e) => !REGULAR.has(e.mode)) || parked(git, file, entries)) return 'other'
-  if (only(entries, '1')) return 'other'
-  if (!holds(entries, '2') || !holds(entries, '3')) return 'one-sided'
-  if (binary(git, file)) return 'binary'
-  const path = join(dir, file)
-  return existsSync(path) && hasClash(readFileSync(path, 'utf8')) ? 'text-open' : 'text-settled'
-}
+const judge =
+  (git: Git, dir: string, renames: Rename[]) =>
+  (file: string, entries: Entry[]): ClashKind => {
+    if (renames.some((rename) => inRename(rename, file))) return 'renamed'
+    if (entries.some((e) => !REGULAR.has(e.mode)) || parked(git, file, entries)) return 'other'
+    if (only(entries, '1')) return 'other'
+    if (!holds(entries, '2') || !holds(entries, '3')) return 'one-sided'
+    if (binary(git, file)) return 'binary'
+    const path = join(dir, file)
+    return existsSync(path) && hasClash(readFileSync(path, 'utf8')) ? 'text-open' : 'text-settled'
+  }
+
+export const clashKind = (git: Git, dir: string, file: string, entries: Entry[]): ClashKind =>
+  judge(git, dir, renamesOf(git))(file, entries)
 
 // Every unmerged path with its kind, as the steps act on them.
-export const clashKinds = (git: Git, dir: string): Map<string, ClashKind> =>
-  new Map(
-    [...stages(git)].map(([file, entries]) => [file, clashKind(git, dir, file, entries)] as const),
-  )
+export const clashKinds = (git: Git, dir: string): Map<string, ClashKind> => {
+  const kindOf = judge(git, dir, renamesOf(git))
+  return new Map([...stages(git)].map(([file, entries]) => [file, kindOf(file, entries)] as const))
+}
 
 const topOf = (git: Git) => git(['rev-parse', '--show-toplevel']).stdout.trim()
 
 // The renames still unsettled, in the shape a result carries them: left out when there are none.
-const pending = (git: Git, dir: string): { renames?: Rename[] } => {
-  const renames = renamesOf(git, dir)
+const pending = (git: Git): { renames?: Rename[] } => {
+  const renames = renamesOf(git)
   return renames.length ? { renames } : {}
 }
 
@@ -385,7 +390,7 @@ export const takeSide = (git: Git, side: 'ours' | 'theirs', file: string): TakeR
   if (!unmerged(git).includes(file)) return { kind: 'not-clashing' }
   const top = topOf(git)
   const path = join(top, file)
-  const rename = renamesOf(git, top).find((r) => inRename(r, file))
+  const rename = renamesOf(git).find((r) => inRename(r, file))
   // Only the clash blocks are the user's choice; the rest of the file already holds both sides'
   // changes. Any other kind has no blocks and is taken whole.
   if (rename) {
@@ -397,7 +402,7 @@ export const takeSide = (git: Git, side: 'ours' | 'theirs', file: string): TakeR
     const inTheWay = resolve(git, side, file)
     if (inTheWay.length) return { kind: 'in-the-way', files: inTheWay }
   }
-  return { kind: 'taken', left: unmerged(git), ...pending(git, top) }
+  return { kind: 'taken', left: unmerged(git), ...pending(git) }
 }
 
 export type FinishResult =
@@ -420,7 +425,7 @@ export const finishUpdate = (root: string, git: Git, opts: FinishOptions = {}): 
   // Only a text file settled by hand can be finished as it stands; any other kind carries no
   // markers to read a choice from, so finishing would choose for the user. Only take settles it.
   const left = files.filter((file) => kinds.get(file) !== 'text-settled')
-  if (left.length) return { kind: 'clashes', files: left, ...pending(git, root) }
+  if (left.length) return { kind: 'clashes', files: left, ...pending(git) }
   // Each clash still listed now holds both sides merged into one file, or is gone.
   for (const file of files) git(['add', '-A', '--', file])
   const commit = git([...fallbackCommitter(git), 'commit', '-q', '-m', 'Updated the coach'])

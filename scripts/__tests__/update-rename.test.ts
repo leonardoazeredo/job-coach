@@ -1,8 +1,8 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { EXIT } from '../lib/problem.ts'
-import { clashKinds, finishUpdate, takeSide } from '../lib/update-git.ts'
+import { clashKinds, finishUpdate, renamesOf, takeSide } from '../lib/update-git.ts'
 import { updateCommand } from '../update.ts'
 import { commitEngine, start } from './update-clash-helpers.ts'
 import { cloned, g, runner, upstream, userCommit, work } from './update-helpers.ts'
@@ -101,6 +101,82 @@ describe('a file both sides renamed', () => {
         expect(onDisk()).toEqual({ [A]: null, [B]: null, [C]: null, [name]: content })
       })
     }
+  })
+
+  it('does not take a Markdown heading underline for a clash marker', () => {
+    const titled = `Title\n=======\n\n${BASE}`
+    cloned({ [A]: titled })
+    g(work(), 'mv', A, B)
+    userCommit({ [B]: edited(titled, 2, 'mine') }, 'Saved: rename')
+    g(upstream(), 'mv', A, C)
+    writeFileSync(join(upstream(), C), edited(titled, 10, 'new'))
+    commitEngine('Rename')
+    const { git } = start()
+    expect(renamesOf(git)).toMatchObject([{ contentClash: false }])
+    takeSide(git, 'theirs', A)
+    expect(finishUpdate(work(), git, { run: runner().run })).toEqual({ kind: 'updated' })
+    expect(onDisk()[C]).toBe(edited(edited(titled, 2, 'mine'), 10, 'new'))
+  })
+
+  describe('when the folder no longer shows the clash that git staged', () => {
+    const user = edited(BASE, 5, 'mine')
+    const engine = edited(BASE, 5, 'new')
+    const settled = {
+      'hand-edited': () => {
+        writeFileSync(join(work(), B), BASE)
+        writeFileSync(join(work(), C), BASE)
+      },
+      deleted: () => {
+        rmSync(join(work(), B))
+        rmSync(join(work(), C))
+      },
+    }
+    for (const [how, change] of Object.entries(settled)) {
+      for (const [side, name, content] of [
+        ['ours', B, user],
+        ['theirs', C, engine],
+      ] as const) {
+        it(`still judges the content as clashing and keeps the ${side} file whole when the files were ${how}`, () => {
+          renamedOnBothSides(user, engine)
+          const { git } = start()
+          change()
+          expect(renamesOf(git)).toMatchObject([{ contentClash: true }])
+          expect(takeSide(git, side, B)).toEqual({ kind: 'taken', left: [] })
+          expect(finishUpdate(work(), git, { run: runner().run })).toEqual({ kind: 'updated' })
+          expect(onDisk()).toEqual({ [A]: null, [B]: null, [C]: null, [name]: content })
+        })
+      }
+    }
+  })
+
+  it('says in the rename line when the content clashes too', async () => {
+    renamedOnBothSides(edited(BASE, 5, 'mine'), edited(BASE, 5, 'new'))
+    const lines: unknown[] = []
+    const log = vi.spyOn(console, 'log').mockImplementation((line) => void lines.push(line))
+    const deps = { engineUrl: upstream(), run: runner().run }
+    await updateCommand(['changes'], work(), deps)
+    lines.length = 0
+    await updateCommand(['merge'], work(), deps)
+    log.mockRestore()
+    expect(lines).toEqual([
+      `clashes: ${A}, ${B}, ${C}`,
+      `- renamed ${A}: yours ${B}, new version ${C}; the content clashes too`,
+    ])
+  })
+
+  it('keeps one side whole when a binary file renamed on both sides was also changed', () => {
+    const bin = (tail: string) => `\0${BASE}${tail}\n`
+    cloned({ [A]: bin('base') })
+    g(work(), 'mv', A, B)
+    userCommit({ [B]: bin('mine') }, 'Saved: rename')
+    g(upstream(), 'mv', A, C)
+    writeFileSync(join(upstream(), C), bin('new'))
+    commitEngine('Rename')
+    const { git } = start()
+    expect(renamesOf(git)).toMatchObject([{ contentClash: true }])
+    expect(takeSide(git, 'theirs', B)).toEqual({ kind: 'taken', left: [] })
+    expect(finishUpdate(work(), git, { run: runner().run })).toEqual({ kind: 'updated' })
+    expect(onDisk()).toEqual({ [A]: null, [B]: null, [C]: bin('new') })
   })
 
   it('names both new paths in the merge, take and finish lines', async () => {
