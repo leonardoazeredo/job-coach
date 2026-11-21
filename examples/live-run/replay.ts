@@ -2,17 +2,27 @@
 // without a whole run. Each sample starts from the run's state before the turn (the snapshot
 // turn.sh took: the copy and the coach's session), with this checkout's CLAUDE.md and skills put
 // in (the skills the coach had loaded are swapped in its saved session too), sends the persona's
-// original message for that turn, and is marked by the scorer. The run folder is only read; samples
-// live in a new folder under the system's temporary folder.
-// Usage: node examples/live-run/replay.ts <run-dir> <turn> [n]
+// original message for that turn, and is marked by the scorer. The run folder is only read, except that
+// samples go in a new folder under it (replays/) unless --out names one. A sample keeps only what
+// the scorer and a reader open; the working copy that ran the turn is removed, also when it failed.
+// Usage: node examples/live-run/replay.ts <run-dir> <turn> [n] [--out <folder>]
 // Needs Docker and CLAUDE_CODE_OAUTH_TOKEN in the environment: the token goes to each sample's
 // container through up.sh and is never printed. The stop (LIVE_RUN_BUDGET_USD, default 5) applies
 // to the sum of the samples' spend.
 // Exit codes: 64 usage, 66 the run folder lacks what a replay of that turn needs, 1 the image did not
 // build or a sample failed (the samples done before it are still printed).
 import { spawnSync } from 'node:child_process'
-import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import {
+  cpSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+} from 'node:fs'
 import { basename, join } from 'node:path'
 import { EXIT } from '../../scripts/lib/problem.ts'
 import { repoRoot } from '../../scripts/lib/workspace.ts'
@@ -25,27 +35,34 @@ import {
   prepareReplaySample,
   snapshotHadPackages,
   totalAfter,
+  trimReplaySample,
 } from './run-folder.ts'
 import { scoreFindings } from './score.ts'
 import { describeSwap, swapSkillsInSample } from './swap.ts'
 
-const USAGE = 'usage: node examples/live-run/replay.ts <run-dir> <turn> [n]'
+const USAGE = 'usage: node examples/live-run/replay.ts <run-dir> <turn> [n] [--out <folder>]'
 const HERE = import.meta.dirname
 
 export { failRates, formatRates } from './rates.ts'
 
-export type ReplayArgs = { run: string; turn: number; n: number }
+export type ReplayArgs = { run: string; turn: number; n: number; out?: string }
 
 const wholeNumber = (s: string) => /^[1-9]\d*$/.test(s)
 
-export const parseReplayArgs = (args: string[]): ReplayArgs | string => {
+export const parseReplayArgs = (argv: string[]): ReplayArgs | string => {
+  const flag = argv.indexOf('--out')
+  const out = flag >= 0 ? argv[flag + 1] : undefined
+  if (flag >= 0 && (out === undefined || out.startsWith('--')))
+    return `--out needs a folder\n${USAGE}`
+  const args = flag >= 0 ? argv.filter((_, i) => i !== flag && i !== flag + 1) : argv
   const [run, turn, n, ...extra] = args
   if (run === undefined || turn === undefined || extra.length > 0 || run.startsWith('--'))
     return USAGE
   if (!wholeNumber(turn)) return `the turn must be a whole number from 1: "${turn}"\n${USAGE}`
   if (n !== undefined && !wholeNumber(n))
     return `the count must be a whole number from 1: "${n}"\n${USAGE}`
-  return { run, turn: Number(turn), n: n === undefined ? 5 : Number(n) }
+  const parsed = { run, turn: Number(turn), n: n === undefined ? 5 : Number(n) }
+  return out === undefined ? parsed : { ...parsed, out }
 }
 
 // A hook that runs this (pre-push) sets GIT_DIR and friends, which would send a git call here to
@@ -131,6 +148,33 @@ const stopMessage = (spent: number, budget: number, i: number, n: number): strin
   `STOP: ${spent.toFixed(3)} spent, the stop is ${budget}. ${n - i + 1} samples were not run.`
 
 const sampleFolder = (out: string, i: number): string => join(out, `${basename(out)}-s${i}`)
+
+// Where the samples go: the folder the caller named, which must not hold anything yet (a sample
+// unpacked over an old one would mix the two), or a new one under the run folder, which the
+// maintainer already keeps and cleans, never the system's temporary folder, where a replay's samples piled up unseen.
+export const outputFolder = (run: string, turn: number, named?: string): string => {
+  if (named === undefined) {
+    mkdirSync(join(run, 'replays'), { recursive: true })
+    return mkdtempSync(join(run, 'replays', `replay-t${turn}-`))
+  }
+  if (existsSync(named) && (!statSync(named).isDirectory() || readdirSync(named).length > 0))
+    throw new Error(`${named} already holds something; name a new or empty folder`)
+  mkdirSync(named, { recursive: true })
+  return named
+}
+
+const bytesIn = (path: string): number => {
+  const st = lstatSync(path)
+  return st.isDirectory()
+    ? readdirSync(path).reduce((sum, f) => sum + bytesIn(join(path, f)), 0)
+    : st.size
+}
+
+export const formatSize = (bytes: number): string => {
+  if (bytes < 1024 ** 2) return `${Math.max(1, Math.round(bytes / 1024))} KB`
+  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`
+  return `${(bytes / 1024 ** 3).toFixed(2)} GB`
+}
 
 // This checkout's CLAUDE.md and skills go into the sample's copy. They are committed there, as
 // start.sh's copy of a commit has them, dated like the copy's last commit so the order of a
@@ -310,12 +354,40 @@ const printResults = (turn: number, done: string[], spent: number) => {
   })
 }
 
+// A sample that failed or was cut short is trimmed the same way as a finished one: its working
+// copy is what fills the disk, and the stream and cost log that say why it failed stay.
+const trimKept = (sample: string) => {
+  try {
+    trimReplaySample(sample)
+  } catch (e) {
+    console.error(`could not trim ${sample}: ${e instanceof Error ? e.message : e}`)
+  }
+}
+
 export const replayCommand = (args: string[], makeAdapter: MakeAdapter = dockerAdapter): number => {
   const checked = checkInputs(args)
   if (typeof checked === 'number') return checked
+  // Ctrl-C reaches the running step too (up.sh, turn.sh) and fails the sample, so the replay ends
+  // through the trim above instead of the default signal death that skips it.
+  const ignoreInterrupt = () => undefined
+  process.on('SIGINT', ignoreInterrupt)
+  try {
+    return replay(checked, makeAdapter)
+  } finally {
+    process.off('SIGINT', ignoreInterrupt)
+  }
+}
+
+const replay = (checked: ReplayArgs & { budget: number }, makeAdapter: MakeAdapter): number => {
   const { run, turn, n, budget } = checked
   const root = repoRoot()
-  const out = mkdtempSync(join(tmpdir(), `replay-${basename(run)}-t${turn}-`))
+  let out: string
+  try {
+    out = outputFolder(run, turn, checked.out)
+  } catch (e) {
+    console.error(e instanceof Error ? e.message : String(e))
+    return EXIT.usage
+  }
   const hasPackages = snapshotHadPackages(run, turn)
   const adapter = makeAdapter({ run, turn, hasPackages, budget, root })
 
@@ -334,15 +406,19 @@ export const replayCommand = (args: string[], makeAdapter: MakeAdapter = dockerA
       console.log(
         `${stamp()} sample ${i} of ${n} (expected 1-3 min); folder ${sample}, tail -f ${sample}/raw/turn${turn}.jsonl`,
       )
-      const swapped = prepareSample(run, turn, sample, root)
-      console.log(`${stamp()} sample ${i}: ${describeSwap(swapped)}`)
-      return { sample, ...adapter.runSample(sample) }
+      try {
+        const swapped = prepareSample(run, turn, sample, root)
+        console.log(`${stamp()} sample ${i}: ${describeSwap(swapped)}`)
+        return { sample, ...adapter.runSample(sample) }
+      } finally {
+        trimKept(sample)
+      }
     },
   })
   if (stop) console.log(stop)
   if (error) console.error(error)
   if (done.length > 0) printResults(turn, done, spent)
-  console.log(`\nSamples are in ${out}`)
+  console.log(`\nSamples are in ${out} (${formatSize(bytesIn(out))})`)
   return error ? EXIT.problems : 0
 }
 

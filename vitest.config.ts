@@ -2,6 +2,7 @@ import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   test: {
+    globalSetup: ['scripts/__tests__/tmp-guard.global.ts'],
     include: ['scripts/**/__tests__/**/*.test.ts'],
     // Several suites spawn node or poppler as subprocesses; under a full parallel run they
     // pass alone in seconds but can exceed the 5s default.

@@ -40,7 +40,10 @@ const everyStartedIsRemoved = () => {
 }
 const sampleFolders = (out: string[]) => {
   const line = out.find((l) => l.trim().startsWith('Samples are in ')) ?? ''
-  return line.trim().replace('Samples are in ', '')
+  return line
+    .trim()
+    .replace('Samples are in ', '')
+    .replace(/ \([^()]*\)$/, '')
 }
 
 describe('the real sample runner', () => {

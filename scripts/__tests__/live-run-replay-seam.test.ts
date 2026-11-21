@@ -1,9 +1,19 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import type { MakeAdapter } from '../../examples/live-run/replay.ts'
-import { fakeAdapter, makeRun, runReplay } from './live-run-replay-fixture.ts'
+import { scoreFindings } from '../../examples/live-run/score.ts'
+import { repoRoot } from '../lib/workspace.ts'
+import { fakeAdapter, installPackages, makeRun, runReplay } from './live-run-replay-fixture.ts'
 
 // The replay's own rules, with the fake adapter standing in for docker, up.sh and turn.sh.
 const tmp = mkdtempSync(join(tmpdir(), 'replay-seam-'))
@@ -93,5 +103,131 @@ describe('the replay loop', () => {
     expect(r.code).toBe(1)
     expect(r.err).toContain('the image did not build; is Docker running? no daemon')
     expect(ran).toBe(0)
+  })
+})
+
+const foldersPrinted = (out: string[]) => {
+  const line = out.find((l) => l.trim().startsWith('Samples are in '))?.trim() ?? ''
+  const m = /^Samples are in (.+) \((\d+(?:\.\d)? (?:KB|MB|GB)|\d+ KB)\)$/.exec(line)
+  if (!m) throw new Error(`no folder line in: ${line}`)
+  return { folder: m[1] as string, size: m[2] as string }
+}
+const firstSample = (folder: string) => join(folder, `${folder.split('/').pop()}-s1`)
+
+describe('what a replay keeps of each sample', () => {
+  it('keeps what the scorer and a reader open and drops the working copy', () => {
+    const r = runReplay([run, '3', '1'], {}, fakeAdapter())
+    const sample = firstSample(foldersPrinted(r.out).folder)
+    expect(readdirSync(sample).sort()).toEqual([
+      'copy',
+      'costlog.txt',
+      'kind',
+      'last.txt',
+      'raw',
+      'reply.txt',
+      'session.id',
+      'transcript.md',
+    ])
+    expect(readdirSync(join(sample, 'raw')).sort()).toEqual([
+      'reply3.txt',
+      'turn1.jsonl',
+      'turn2.jsonl',
+      'turn3.jsonl',
+    ])
+    expect(readFileSync(join(sample, 'copy', 'CLAUDE.md'), 'utf8')).toBe(
+      readFileSync(join(repoRoot(), 'CLAUDE.md'), 'utf8'),
+    )
+    expect(existsSync(join(sample, 'copy', 'node_modules'))).toBe(false)
+    for (const gone of ['snap', 'claudehome', 'cachehome', 'tmpd', 'engine'])
+      expect(existsSync(join(sample, gone)), gone).toBe(false)
+  })
+
+  it('scores a kept sample to the rows it had before it was trimmed', () => {
+    const before: string[][] = []
+    const inner = fakeAdapter()
+    const adapter: MakeAdapter = (job) => {
+      const a = inner(job)
+      return {
+        ...a,
+        runSample: (sample) => {
+          const r = a.runSample(sample)
+          before.push(scoreFindings(sample).map((x) => JSON.stringify(x)))
+          return r
+        },
+      }
+    }
+    const r = runReplay([run, '3', '1'], {}, adapter)
+    const after = scoreFindings(firstSample(foldersPrinted(r.out).folder)).map((x) =>
+      JSON.stringify(x),
+    )
+    expect(before[0]?.length).toBeGreaterThan(0)
+    expect(after).toEqual(before[0])
+  })
+
+  it('trims a sample that failed, and one that threw, and leaves the reason it failed', () => {
+    const failed = runReplay(
+      [run, '3', '1'],
+      {},
+      fakeAdapter({ failAt: { sample: 1, spend: 0, failure: 'no container' } }),
+    )
+    const sample = firstSample(foldersPrinted(failed.out).folder)
+    expect(existsSync(join(sample, 'copy', 'node_modules'))).toBe(false)
+    expect(existsSync(join(sample, 'claudehome'))).toBe(false)
+    expect(existsSync(join(sample, 'raw', 'turn2.jsonl'))).toBe(true)
+
+    const thrown = runReplay([run, '3', '1'], {}, () => ({
+      build: () => undefined,
+      runSample: (s) => {
+        installPackages(s)
+        throw new Error('boom')
+      },
+    }))
+    expect(thrown.err).toContain('sample 1 failed: boom')
+    const kept = firstSample(foldersPrinted(thrown.out).folder)
+    expect(existsSync(join(kept, 'copy', 'node_modules'))).toBe(false)
+  })
+})
+
+describe('where the samples go', () => {
+  it('puts them under the run folder when no place is named, and prints the folder and its size', () => {
+    const r = runReplay([run, '3', '1'], {}, fakeAdapter())
+    const { folder, size } = foldersPrinted(r.out)
+    expect(folder.startsWith(join(run, 'replays', 'replay-t3-'))).toBe(true)
+    expect(size).toMatch(/^\d+ KB$/)
+    expect(r.out.at(-1)).toBe(`\nSamples are in ${folder} (${size})`)
+  })
+
+  it('puts them where --out names, before or after the other arguments', () => {
+    const named = join(tmp, 'named', 'here')
+    const r = runReplay([run, '3', '1', '--out', named], {}, fakeAdapter())
+    expect(foldersPrinted(r.out).folder).toBe(named)
+    expect(existsSync(join(named, 'here-s1', 'raw', 'turn3.jsonl'))).toBe(true)
+    expect(existsSync(join(run, 'replays'))).toBe(false)
+    const second = join(tmp, 'named2')
+    const r2 = runReplay(['--out', second, run, '3', '1'], {}, fakeAdapter())
+    expect(foldersPrinted(r2.out).folder).toBe(second)
+  })
+
+  it('refuses a folder that already holds something, and an --out with no folder, before any sample', () => {
+    const full = join(tmp, 'full')
+    mkdirSync(full)
+    writeFileSync(join(full, 'old.txt'), 'x')
+    let ran = 0
+    const counting = () => ({
+      build: () => undefined,
+      runSample: () => {
+        ran++
+        return { spend: 0 }
+      },
+    })
+    const r = runReplay([run, '3', '1', '--out', full], {}, counting)
+    expect(r.code).toBe(64)
+    expect(r.err.join('\n')).toContain('already holds something')
+    expect(readdirSync(full)).toEqual(['old.txt'])
+    expect(runReplay([run, '3', '--out'], {}, counting).code).toBe(64)
+    expect(ran).toBe(0)
+    const empty = join(tmp, 'empty')
+    mkdirSync(empty)
+    expect(runReplay([run, '3', '1', '--out', empty], {}, fakeAdapter()).code).toBe(0)
   })
 })

@@ -3,7 +3,7 @@
 // raw/reply<n>.txt (the persona's message), session.id, costlog.txt, last.txt, transcript.md and,
 // from a run's start, kind; snap/before<n>.tgz is what a replay of turn n starts from, and cost.txt
 // marks a run finished. This module also takes the snapshot before a turn, says whether a replay
-// has what it needs, lays out a replay sample's folder from a snapshot, and writes and reads a
+// has what it needs, lays out a replay sample's folder from a snapshot and trims it afterwards, and writes and reads a
 // finished run's cost. turn.sh and the finish scripts call the command line at the bottom for
 // everything they record or read here; no other shell script parses these files.
 import { spawnSync } from 'node:child_process'
@@ -344,6 +344,16 @@ export const prepareReplaySample = (run: string, turn: number, sample: string): 
     // Only the line for the turn before: the sample's own turn.sh adds the replayed turn's line.
     writeFileSync(join(sample, 'costlog.txt'), costLine(turn - 1, costAfter(run, turn - 1)))
   }
+}
+
+// What a replay sample keeps once its turn is done or has failed: what the scorer, a rescore and a
+// reader open (the stream, the replies, the cost log, the transcript, the kind and the copy for the
+// drafts' paths). The rest was only there to run the turn: the snapshot, the coach's session and
+// caches, the engine an update run reads, and the installed packages, which are most of a sample.
+export const trimReplaySample = (sample: string): void => {
+  const { copy, claudehome, cachehome, tmpd, snap } = LAYOUT
+  for (const gone of [snap, claudehome, cachehome, tmpd, 'engine', join(copy, 'node_modules')])
+    rmSync(join(sample, gone), { recursive: true, force: true })
 }
 
 // ---- a finished run's cost ----

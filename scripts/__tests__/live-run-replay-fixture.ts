@@ -107,6 +107,12 @@ export const writeTurnOutputs = (sample: string, turn: number, total: number) =>
   if ('failure' in recorded) throw new Error(recorded.failure)
 }
 
+// What the docker adapter's npm ci leaves in a sample: the installed packages, most of its size.
+export const installPackages = (sample: string) => {
+  mkdirSync(join(sample, 'copy', 'node_modules', 'pkg'), { recursive: true })
+  writeFileSync(join(sample, 'copy', 'node_modules', 'pkg', 'index.js'), 'x'.repeat(2000))
+}
+
 // Spends 0.1 per sample on top of the run's 0.75; `failAt` is the sample that fails, with what it
 // had spent by then.
 export const fakeAdapter =
@@ -117,8 +123,11 @@ export const fakeAdapter =
       build: () => undefined,
       runSample: (sample): SampleOutcome => {
         n++
-        if (opts.failAt?.sample === n)
+        if (opts.failAt?.sample === n) {
+          installPackages(sample)
           return { spend: opts.failAt.spend, failure: opts.failAt.failure }
+        }
+        installPackages(sample)
         writeTurnOutputs(sample, turn, 0.85)
         return { spend: 0.1 }
       },
