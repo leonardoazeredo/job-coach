@@ -222,6 +222,50 @@ describe('what a replay keeps of each sample', () => {
     },
   )
 
+  it.each(['kill -INT $$', 'exit 130'])(
+    'runs no turn when unpacking the snapshot dies of Ctrl-C (%s), and trims the sample',
+    (death) => {
+      const bin = fakeBin(tmp, 'tar', death)
+      let started = 0
+      const adapter: MakeAdapter = () => ({
+        build: () => undefined,
+        runSample: () => {
+          started++
+          return { spend: 0.1 }
+        },
+      })
+      const r = runReplay([run, '3', '3'], { PATH: `${bin}:${process.env.PATH}` }, adapter)
+      expect(r.code).toBe(130)
+      expect(started).toBe(0)
+      const { folder } = foldersPrinted(r.out)
+      expect(readdirSync(folder)).toEqual([`${folder.split('/').pop()}-s1`])
+      expect(existsSync(join(firstSample(folder), 'claudehome'))).toBe(false)
+    },
+  )
+
+  it.each(['kill -INT $$', 'exit 130'])(
+    'runs no turn when the commit of the wording dies of Ctrl-C (%s)',
+    (death) => {
+      const git = spawnSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).stdout.trim()
+      const bin = fakeBin(
+        tmp,
+        'git',
+        `case "$*" in *' commit '*) ${death};; esac\nexec ${git} "$@"`,
+      )
+      let started = 0
+      const adapter: MakeAdapter = () => ({
+        build: () => undefined,
+        runSample: () => {
+          started++
+          return { spend: 0.1 }
+        },
+      })
+      const r = runReplay([run, '3', '3'], { PATH: `${bin}:${process.env.PATH}` }, adapter)
+      expect(r.code).toBe(130)
+      expect(started).toBe(0)
+    },
+  )
+
   it('trims a sample whose preparation throws after the unpack', () => {
     const git = spawnSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).stdout.trim()
     const bin = fakeBin(

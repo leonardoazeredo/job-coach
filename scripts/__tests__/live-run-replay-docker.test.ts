@@ -126,6 +126,41 @@ describe('the real sample runner', () => {
     const r = runReplay([run, '3', '3'], env({ FAKE_BUILD: 'fail' }))
     expect(r.code).toBe(1)
     expect(r.err.join('\n')).toContain('Cannot connect to the Docker daemon')
+    expect(readdirSync(join(run, 'replays'))).toEqual([])
+  })
+
+  it('leaves a folder that --out named and that already held nothing, when the image does not build', () => {
+    const named = join(tmp, 'named-out')
+    rmSync(named, { recursive: true, force: true })
+    mkdirSync(named)
+    const r = runReplay([run, '3', '1', '--out', named], env({ FAKE_BUILD: 'fail' }))
+    expect(r.code).toBe(1)
+    expect(existsSync(named)).toBe(true)
+  })
+
+  it.each([
+    ['exits 130', 'exit'],
+    ['dies of SIGINT', 'signal'],
+  ])('dies of SIGINT itself, as a script, when a step %s', (_, how) => {
+    // An exit code of 130 would not stop a caller's shell loop; only the signal does.
+    const r = spawnSync(
+      process.execPath,
+      [join(import.meta.dirname, '../../examples/live-run/replay.ts'), run, '3', '1'],
+      {
+        encoding: 'utf8',
+        env: {
+          ...withoutGitVariables(process.env),
+          ...env({
+            CLAUDE_CODE_OAUTH_TOKEN: 'not-a-real-token',
+            LIVE_RUN_BUDGET_USD: '5',
+            FAKE_SIGINT_ON: 'exec',
+            FAKE_SIGINT_AS: how,
+          }),
+        },
+      },
+    )
+    expect(r.signal, r.stderr).toBe('SIGINT')
+    expect(r.status).toBeNull()
   })
 
   it('installs the packages the coach needs before the turn when the snapshot had them', () => {
@@ -156,7 +191,11 @@ describe('the real sample runner', () => {
       )
       expect(r.code).toBe(130)
       expect(dockerLines('run')).toHaveLength(verb === 'build' ? 0 : 1)
-      if (verb === 'build') return
+      if (verb === 'build') {
+        // No sample started, so the output folder this run made is removed rather than left empty.
+        expect(readdirSync(join(run, 'replays'))).toEqual([])
+        return
+      }
       // up.sh dying is not followed by a removal, as when the container does not start.
       if (verb !== 'run') everyStartedIsRemoved()
       const out = sampleFolders(r.out)

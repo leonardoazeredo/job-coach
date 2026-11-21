@@ -21,6 +21,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  rmdirSync,
   rmSync,
   statSync,
 } from 'node:fs'
@@ -422,6 +423,8 @@ const replay = (
   const { run, turn, n, budget } = checked
   const root = repoRoot()
   let out: string
+  // A named folder that was already there (empty) is the caller's, so only a folder this run made is removed.
+  const named = checked.out !== undefined && existsSync(checked.out)
   try {
     out = outputFolder(run, turn, checked.out)
   } catch (e) {
@@ -435,6 +438,8 @@ const replay = (
   const notBuilt = adapter.build()
   if (notBuilt !== undefined) {
     console.error(`the image did not build; is Docker running? ${notBuilt}`)
+    // No sample started, so the folder is empty and would only clutter replays/.
+    if (!named) rmdirSync(out)
     return EXIT.problems
   }
 

@@ -319,10 +319,6 @@ export const sessionAfter = (run: string, turn: number): string => {
   return id
 }
 
-// A replay sample has a run folder's shape, so turn.sh and the scorer work on it unchanged: the
-// snapshot unpacked, the transcript and raw streams up to the turn (which is how the scorer knows
-// what came earlier), the persona's message as reply.txt and, after turn 1, the session and the
-// one cost line a resumed turn starts from. Reads `run`, writes only `sample`.
 // A step that Ctrl-C ended: killed by the signal, or a shell that reports it as exit 130. The replay
 // runs its steps synchronously, so this is the only way it learns of a Ctrl-C.
 export const interruptedBy = (r: { status: number | null; signal: string | null }): boolean =>
@@ -334,6 +330,10 @@ export class Interrupted extends Error {
   }
 }
 
+// A replay sample has a run folder's shape, so turn.sh and the scorer work on it unchanged: the
+// snapshot unpacked, the transcript and raw streams up to the turn (which is how the scorer knows
+// what came earlier), the persona's message as reply.txt and, after turn 1, the session and the
+// one cost line a resumed turn starts from. Reads `run`, writes only `sample`.
 export const prepareReplaySample = (run: string, turn: number, sample: string): void => {
   const { raw, snap, cachehome, tmpd } = LAYOUT
   mkdirSync(sample, { recursive: true })
