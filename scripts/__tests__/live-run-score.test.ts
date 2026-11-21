@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSyn
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it, vi } from 'vitest'
+import { anchorPresent, NOTES } from '../../examples/live-run/notes.ts'
 import { transcriptBlock } from '../../examples/live-run/run-folder.ts'
 import { scoreCommand, scoreRun } from '../../examples/live-run/score.ts'
 import { EXIT } from '../lib/problem.ts'
@@ -392,5 +393,87 @@ describe('a write or a drop chained with a draft', () => {
     )
     expect(scoreRun(dir).filter((l) => l.startsWith('line 4'))).toEqual(['line 4 PASS'])
     rmSync(dir, { recursive: true })
+  })
+})
+
+describe('the notes a skill asks for beside a summary', () => {
+  const framed = (reply: string) =>
+    makeRun((d) => {
+      mkdirSync(join(d, 'raw'))
+      mkdirSync(join(d, 'written'))
+      writeFileSync(join(d, 'transcript.md'), turn(1, reply))
+      writeFileSync(
+        join(d, 'raw/turn1.jsonl'),
+        `${draftRaw('a', 'profile/standard-answers.yaml', 'Answers: three')}\n`,
+      )
+    })
+  const line5 = (reply: string) => {
+    const dir = framed(reply)
+    try {
+      return scoreRun(dir).filter((l) => l.startsWith('line 5 '))
+    } finally {
+      rmSync(dir, { recursive: true })
+    }
+  }
+  const SUMMARY = 'Answers: three'
+
+  it('does not count a left-out career gaps note beside one framing sentence', () => {
+    const out = line5(
+      `Here is how I'd save it.\n${SUMMARY}\nI've left out the career gaps entry.\nIs it right?`,
+    )
+    expect(out).toEqual([
+      'line 5 PASS',
+      'line 5 EXCUSED T1 "I\'ve left out the career gaps entry." by career-gaps-left-out',
+    ])
+  })
+
+  it('does not count a where-it-went note for a condition on a title', () => {
+    const out = line5(
+      `Here is how I'd save it.\n${SUMMARY}\nThe small-firm condition went into what a good role has.`,
+    )
+    expect(out.map((l) => l.split(' ')[2])).toEqual(['PASS', 'EXCUSED'])
+    expect(out[1]).toContain('by title-condition-placed-or-left-out')
+  })
+
+  it('counts two framing sentences and lists them without the note', () => {
+    const out = line5(
+      `Here is how I'd save it. Take your time.\n${SUMMARY}\nI've left out the career gaps entry.`,
+    )
+    expect(out.filter((l) => l.includes('FAIL'))).toEqual([
+      'line 5 FAIL T1 "Here is how I\'d save it."',
+      'line 5 FAIL T1 "Take your time."',
+    ])
+    expect(out.some((l) => l.includes('EXCUSED'))).toBe(true)
+  })
+
+  it('excuses one sentence per note and counts a second of the same kind', () => {
+    const out = line5(
+      `Here is how I'd save it.\n${SUMMARY}\nI've left out the career gaps entry. The gaps entry is also left out of the links.`,
+    )
+    expect(out.filter((l) => l.includes('EXCUSED'))).toHaveLength(1)
+    expect(out.filter((l) => l.includes('FAIL'))).toHaveLength(2)
+  })
+
+  it('does not excuse a note that names a file or a command', () => {
+    const out = line5(
+      `Here is how I'd save it.\n${SUMMARY}\nI've left out the career gaps entry from the file.`,
+    )
+    expect(out.filter((l) => l.includes('FAIL'))).toHaveLength(2)
+  })
+
+  it('recognises each entry on its own example, and no entry on plain framing', () => {
+    for (const e of NOTES) {
+      expect(e.matches.test(e.example), e.id).toBe(true)
+      expect(
+        NOTES.some((o) => o.matches.test("Here's your standard answers as I'd save them.")),
+      ).toBe(false)
+    }
+  })
+
+  it('points every entry at a line the skill still holds', () => {
+    for (const e of NOTES) expect(anchorPresent(e), e.id).toBe(true)
+    expect(
+      anchorPresent({ ...NOTES[0], anchor: 'a line no skill holds' } as (typeof NOTES)[0]),
+    ).toBe(false)
   })
 })

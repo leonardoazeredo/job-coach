@@ -4,7 +4,7 @@
 
 export type Row = {
   line: number
-  status: 'FAIL' | 'PASS' | 'SKIPPED' | 'INFO'
+  status: 'FAIL' | 'PASS' | 'SKIPPED' | 'INFO' | 'EXCUSED'
   // The turn a FAIL is about; none for a finding about a written file or for a row that is no
   // finding.
   turn?: number | undefined
@@ -12,11 +12,14 @@ export type Row = {
   where?: string | undefined
   // The quoted text of a FAIL, why a line was SKIPPED, or what an INFO row says.
   text?: string | undefined
+  // The note entry that excused an EXCUSED row's sentence.
+  by?: string | undefined
 }
 
 export const formatRow = (r: Row): string => {
   if (r.status === 'FAIL')
     return `line ${r.line} FAIL ${r.turn === undefined ? r.where : `T${r.turn}`} "${r.text}"`
+  if (r.status === 'EXCUSED') return `line ${r.line} EXCUSED T${r.turn} "${r.text}" by ${r.by}`
   if (r.status === 'PASS') return `line ${r.line} PASS`
   return `line ${r.line} ${r.status} ${r.text}`
 }
