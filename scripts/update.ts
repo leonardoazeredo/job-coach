@@ -47,6 +47,7 @@ import {
   engineChanges,
   finishUpdate,
   mergeEngine,
+  type Rename,
   type Settled,
   takeSide,
 } from './lib/update-git.ts'
@@ -126,6 +127,15 @@ const printSettled = (settled: Settled[] = []): number => {
   return 0
 }
 
+// One line per file both sides renamed, with both new paths: its three paths are one clash.
+const printRenames = (renames: Rename[] = []): number => {
+  for (const r of renames)
+    console.log(
+      `- renamed ${r.base}: yours ${r.ours}, new version ${r.theirs}${r.contentClash ? '; the content clashes too' : ''}`,
+    )
+  return 0
+}
+
 const mergeStep: Step = (git, root, _args, deps) => {
   const result = mergeEngine(root, git, { url: deps.engineUrl, run: deps.run })
   switch (result.kind) {
@@ -136,6 +146,7 @@ const mergeStep: Step = (git, root, _args, deps) => {
       return printSettled(result.settled)
     case 'clashes':
       say(0, `clashes: ${result.files.join(', ')}`)
+      printRenames(result.renames)
       return printSettled(result.settled)
     case 'not-started':
       return say(
@@ -169,7 +180,8 @@ const takeStep: Step = (git, _root, args) => {
       `not taken: these files are in the way: ${result.files.join(', ')}; nothing was changed`,
     )
   const left = result.left.length ? `clashes left: ${result.left.join(', ')}` : 'no clashes left'
-  return say(0, `taken: ${file}; ${left}`)
+  say(0, `taken: ${file}; ${left}`)
+  return printRenames(result.renames)
 }
 
 const finishStep: Step = (git, root, _args, deps) => {
@@ -180,7 +192,9 @@ const finishStep: Step = (git, root, _args, deps) => {
     case 'no-merge':
       return refuse('no update is in progress')
     case 'clashes':
-      return say(EXIT.problems, `clashes left: ${result.files.join(', ')}`)
+      say(EXIT.problems, `clashes left: ${result.files.join(', ')}`)
+      printRenames(result.renames)
+      return EXIT.problems
     case 'not-committed':
       return say(
         EXIT.problems,

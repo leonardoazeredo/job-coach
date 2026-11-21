@@ -45,6 +45,8 @@ After `merged` or `clashes:` may come `- settled <file>, from yours: <line>` or 
 
   A file one side removed holds no markers. Describe it as "you changed it, and the new version removes it" (or the other way round) and offer only the first two choices. So does a file that is not text, such as an image: say "you changed it, and so did the new version", and offer the same two.
 
+  A line `- renamed <old>: yours <name>, new version <name>` after `clashes:` (or after `clashes left:`) means the user renamed a file and the new version renamed the same file to another name. The three paths listed for it are one clash, not three: ask one question, "you renamed it to <their name> and the new version renamed it to <engine's name>: which name do you want?", and offer only **Keep yours** and **Take the new one**. Either command, run on any of the three paths, settles all of them, so run it once. The old name is never kept. When the line ends `; the content clashes too`, both sides also changed the same lines of it: say so, and say that the choice keeps that side's whole file, name and content together. Do not offer to keep both names.
+
   `not taken: these files are in the way: <files>; nothing was changed`: taking that side would replace a folder that holds files of the user's own that were never saved or have edits not yet saved (a PDF they exported, a note). Say in plain words which of the user's files are in the way and that nothing was touched, and ask them to move those files elsewhere, or to say yes to you moving them out of this folder, before you take that side again. Never delete them.
 
   Each `take` prints the clashes still left. Once every file is settled, go to step 4.
@@ -58,7 +60,7 @@ If the user wants to stop at any point before step 4, run `node scripts/update.t
 Run `node scripts/update.ts finish`. It saves the update, installs the coach's tools when they changed, and checks the records.
 
 - `updated`: go to step 5.
-- `clashes left: <files>`: a file is still unsettled, because it holds clash markers, or is not text, is not a plain file (a link, or a file against a folder), or was removed by one side, and no choice was taken. Settle it as in step 3 and run `finish` again.
+- `clashes left: <files>`: a file is still unsettled, because it holds clash markers, or is not text, is not a plain file (a link, or a file against a folder), or was removed by one side, or was renamed differently by both (a `- renamed` line follows), and no choice was taken. Settle it as in step 3 and run `finish` again.
 - `not committed: …`: the update was cancelled and nothing changed. Say so in one line.
 - `undone: …`: the new version did not work with this folder, so everything was put back. Say so in one line and offer to write a short problem report for the coach's authors from the check's output.
 - `not undone: …`: the new version did not work with this folder and could not be taken back out. Say so in one line, say their information is safe in this folder's history, and offer to write a problem report for the coach's authors from the output. Change no file until the user answers.
