@@ -388,8 +388,13 @@ describe('the drafts in a stream', () => {
       expect(draftsIn(call(command) + '\n' + out('c', 'Name: A')).winsDrafted).toBe(true)
     })
 
-    it('does not flag the achievements file when only an echo names it', () => {
+    it('flags an unknown call whose command holds the achievements file (a false check, accepted)', () => {
       const command = 'node scripts/profile.ts draft profile/identity.yaml; echo wins.yaml'
+      expect(draftsIn(call(command) + '\n' + out('c', 'Name: A')).winsDrafted).toBe(true)
+    })
+
+    it('does not flag the achievements file when a call with a plain name only has an echo naming it', () => {
+      const command = 'node scripts/profile.ts draft profile/identity.yaml\necho wins.yaml'
       expect(draftsIn(call(command) + '\n' + out('c', 'Name: A')).winsDrafted).toBe(false)
     })
 
@@ -619,6 +624,85 @@ describe('the drafts in a stream', () => {
         ].join('\n'),
       )
       expect(d.summaries).toEqual(['Search city: Leeds', 'cat: nope'])
+    })
+
+    const wins = (command: string) =>
+      draftsIn(callAs('a', command) + '\n' + out('a', 'Name: A')).winsDrafted
+    const draft = (f: string) => `node scripts/profile.ts draft ${f}`
+
+    it('keeps a line of an error entry whose draft is followed by a semicolon, after a later good call', () => {
+      const d = draftsIn(
+        [
+          callAs(
+            'a',
+            `${draft('profile/search.yaml')} < a.json; ${draft('profile/identity.yaml')} < b.json; cat nope`,
+          ),
+          out('a', 'Search city: Leeds\nName: Hannah\ncat: nope', true),
+          callAs('b', `${draft('profile/search.yaml')} < c.json`),
+          out('b', 'Search city: York'),
+        ].join('\n'),
+      )
+      expect(d.summaries).toEqual([
+        'Search city: Leeds',
+        'Name: Hannah',
+        'cat: nope',
+        'Search city: York',
+      ])
+    })
+
+    it('pins a name with a trailing semicolon as unknown, so the error entry stays', () => {
+      const d = draftsIn(
+        [
+          callAs('a', `${draft('profile/search.yaml')}; cat nope`),
+          out('a', 'Search city: Leeds\ncat: nope', true),
+          use('b', 'profile/search.yaml'),
+          out('b', 'Search city: York'),
+        ].join('\n'),
+      )
+      expect(d.summaries).toEqual(['Search city: Leeds', 'cat: nope', 'Search city: York'])
+    })
+
+    it('drops an error entry for a plain redraft of the same file', () => {
+      const d = draftsIn(
+        [
+          callAs('a', `${draft('profile/search.yaml')} && cat nope`),
+          out('a', 'Search city: Leeds\ncat: nope', true),
+          use('b', 'profile/search.yaml'),
+          out('b', 'Search city: York'),
+        ].join('\n'),
+      )
+      expect(d.summaries).toEqual(['Search city: York'])
+    })
+
+    it('keeps the lines of an error entry when the call has a line continuation after draft', () => {
+      const d = draftsIn(
+        [
+          callAs('a', 'node scripts/profile.ts draft \\\nprofile/search.yaml && cat nope'),
+          out('a', 'Search city: Leeds\ncat: nope', true),
+          callAs('b', 'node scripts/profile.ts draft \\\nprofile/identity.yaml'),
+          out('b', 'Name: B'),
+        ].join('\n'),
+      )
+      expect(d.summaries).toEqual(['Search city: Leeds', 'cat: nope', 'Name: B'])
+    })
+
+    it('counts and flags a call whose continuation sits between profile.ts and draft', () => {
+      const command = 'node scripts/profile.ts \\\ndraft profile/wins.yaml'
+      expect(draftsIn(callAs('a', command) + '\n' + out('a', 'Win: A'))).toEqual({
+        summaries: ['Win: A'],
+        winsDrafted: true,
+      })
+    })
+
+    it.each([
+      ['after a semicolon', `${draft('profile/identity.yaml')}; ${draft('profile/wins.yaml')}`],
+      [
+        'after && with no spaces',
+        `${draft('profile/identity.yaml')}&&${draft('profile/wins.yaml')}`,
+      ],
+      ['after a subshell', `(${draft('profile/identity.yaml')}); ${draft('profile/wins.yaml')}`],
+    ])('flags the achievements file as a second draft %s', (_n, command) => {
+      expect(wins(command)).toBe(true)
     })
   })
 
