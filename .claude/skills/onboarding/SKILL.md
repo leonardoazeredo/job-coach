@@ -127,7 +127,7 @@ This step is required: do not finish onboarding until `competency_pack` is set. 
 
 ### 7. Optional sensitive sections
 
-Offer each in one sentence on why it exists, and draft it only if the user opts in. The summary of the last section the user opts into carries the lessons list (step 8):
+Offer each in one sentence on why it exists, and draft it only if the user opts in. Each time you are about to show one of these summaries, check whether `profile/lessons.md` is missing and no other section the user opted into is still waiting; if so, draft the lessons list in the same command, so the one yes covers both (step 8):
 
 - `profile/history-private.yaml`: facts about past roles that must never reach outward material, such as a payroll title that differs from the public one or a background-check risk. Only interview-prep and offer-review read it. After the opt-in, go through each role in `history.yaml`, one question per reply: whether the contract title differs from the public one, why the role ended, and each other value the refusal names. A title that differs goes in that role's `payroll_title`; the user's "none" for any of them is `null`.
 - `profile/standard-answers.yaml`: answers to the questions every application form asks, so application-writer reuses the user's wording. An entry left out is said as "I've left out links and the gaps entry", with no "because", "since" or "as" after it. `earliest_start` is the answer to step 3 item 14; ask it again only if that step was skipped. Salary answers come from `identity.yaml` levels.
