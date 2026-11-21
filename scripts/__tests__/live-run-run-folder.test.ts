@@ -401,6 +401,32 @@ describe('the drafts in a stream', () => {
       expect(d.summaries).toEqual(['Name: A', 'cat: missing-file: No such file'])
     })
 
+    it('adds an error result of a redraft to the earlier summary of the same file', () => {
+      const d = draftsIn(
+        [
+          use('a', 'profile/search.yaml'),
+          out('a', 'Search city: Leeds'),
+          use('b', 'profile/search.yaml'),
+          out('b', 'boom: search.yaml failed', true),
+        ].join('\n'),
+      )
+      expect(d.summaries).toEqual(['Search city: Leeds', 'boom: search.yaml failed'])
+    })
+
+    it('lets a good redraft replace an earlier summary and an earlier error of the same file', () => {
+      const d = draftsIn(
+        [
+          use('a', 'profile/search.yaml'),
+          out('a', 'Search city: Leeds'),
+          use('b', 'profile/search.yaml'),
+          out('b', 'boom: search.yaml failed', true),
+          use('c', 'profile/search.yaml'),
+          out('c', 'Search city: York'),
+        ].join('\n'),
+      )
+      expect(d.summaries).toEqual(['Search city: York'])
+    })
+
     it('flags the achievements file when the command failed after its draft', () => {
       const command = draft('profile/wins.yaml') + '; grep x file'
       expect(draftsIn(call(command) + '\n' + out('c', 'Name: A', true)).winsDrafted).toBe(true)

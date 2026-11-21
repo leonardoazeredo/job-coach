@@ -252,15 +252,22 @@ describe('what the scorer will not call a pass or a fault', () => {
       return rows
     }
 
-    // Known gap: the error text replaces the good summary, so the turn's summaries hold only it.
-    it('holds only the error lines, so the earlier summary is no longer required', () => {
-      expect(line4('boom: search.yaml failed')).toEqual(['line 4 PASS'])
+    it("still requires the earlier summary, which the user's yes would write", () => {
+      expect(line4('boom: search.yaml failed')).toEqual(['line 4 FAIL T1 "Search city: Leeds"'])
+      expect(line4('boom: search.yaml failed\nSearch city: Leeds')).toEqual(['line 4 PASS'])
     })
 
-    it('still marks a reply that relays only the earlier summary and one that relays nothing', () => {
+    // Accepted false finding: a reply that drops the error text of a refused redraft is marked.
+    it('marks a reply that relays the earlier summary and not the error text', () => {
       const boom = 'line 4 FAIL T1 "boom: search.yaml failed"'
       expect(line4('Search city: Leeds')).toEqual([boom])
-      expect(line4('Looks fine.')).toEqual([boom])
+    })
+
+    it('marks every line of both when the reply relays neither', () => {
+      expect(line4('Looks fine.')).toEqual([
+        'line 4 FAIL T1 "Search city: Leeds"',
+        'line 4 FAIL T1 "boom: search.yaml failed"',
+      ])
     })
   })
 

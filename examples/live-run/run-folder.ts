@@ -143,8 +143,9 @@ export const draftsIn = (text: string): { summaries: string[]; winsDrafted: bool
   const commands = new Map<string, { command: string; files: string[] }>()
   // A call that printed something replaces an earlier one only when it drafts every file the
   // earlier one did, so a summary is never dropped on a guess about which of a command's lines were
-  // whose. An empty result or "No change." leaves what is waiting alone; an error's text is shown, so it
-  // replaces the earlier summary of the same file.
+  // whose. An empty result or "No change." leaves what is waiting alone. An error result never
+  // replaces: a refused redraft leaves the earlier draft waiting and the user's yes still writes it,
+  // so the reply must relay that summary as well as the error text.
   let latest: { files: string[]; lines: string[] }[] = []
   const blocks: Block[] = parseStream(text).events.flatMap((e) =>
     Array.isArray(e.message?.content) ? e.message.content : [],
@@ -162,7 +163,8 @@ export const draftsIn = (text: string): { summaries: string[]; winsDrafted: bool
         (l) => l.trim() !== '' && !isWriteOrDropLine(l) && !echoedSeparator(drafted.command, l),
       )
     if (shown.length === 0 || shown.join('\n').trim() === 'No change.') continue
-    latest = latest.filter((e) => !e.files.every((f) => drafted.files.includes(f)))
+    if (block.is_error !== true)
+      latest = latest.filter((e) => !e.files.every((f) => drafted.files.includes(f)))
     latest.push({ files: drafted.files, lines: shown })
     winsDrafted ||= WINS_DRAFT.test(drafted.command)
   }
