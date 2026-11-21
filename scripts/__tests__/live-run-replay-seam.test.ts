@@ -143,8 +143,8 @@ describe('what a replay keeps of each sample', () => {
       'turn2.jsonl',
       'turn3.jsonl',
     ])
-    // Kept because a reader of a sample needs the files the coach had, and because a check may read
-    // a file the command printed; it is not dead weight to trim.
+    // Kept for a person reading a sample later, who wants the files the coach had; the scorer does
+    // not open it.
     expect(readFileSync(join(sample, 'copy', 'CLAUDE.md'), 'utf8')).toBe(
       readFileSync(join(repoRoot(), 'CLAUDE.md'), 'utf8'),
     )
@@ -196,12 +196,14 @@ describe('what a replay keeps of each sample', () => {
     expect(after).toEqual(before[0])
   })
 
-  it('ends a sample trimmed when an interrupt arrives mid-sample, and leaves no handler behind', () => {
+  it('starts no sample after an interrupt, trims the one it arrived in, and leaves no handler behind', () => {
     const handlers = process.listenerCount('SIGINT')
     let during = 0
+    let started = 0
     const adapter: MakeAdapter = ({ turn }) => ({
       build: () => undefined,
       runSample: (sample) => {
+        started++
         installPackages(sample)
         writeTurnOutputs(sample, turn, 0.85)
         process.emit('SIGINT')
@@ -209,14 +211,40 @@ describe('what a replay keeps of each sample', () => {
         return { spend: 0.1 }
       },
     })
-    const r = runReplay([run, '3', '1'], {}, adapter)
+    const r = runReplay([run, '3', '3'], {}, adapter)
     expect(during).toBeGreaterThan(handlers)
-    expect(r.code).toBe(0)
-    const sample = firstSample(foldersPrinted(r.out).folder)
+    expect(started).toBe(1)
+    expect(r.code).toBe(130)
+    const { folder } = foldersPrinted(r.out)
+    expect(readdirSync(folder)).toEqual([`${folder.split('/').pop()}-s1`])
+    const sample = firstSample(folder)
     expect(existsSync(join(sample, 'copy', 'node_modules'))).toBe(false)
     expect(existsSync(join(sample, 'claudehome'))).toBe(false)
     expect(existsSync(join(sample, 'raw', 'turn3.jsonl'))).toBe(true)
     expect(process.listenerCount('SIGINT')).toBe(handlers)
+  })
+
+  it('refuses an --out whose last part Docker would not take as a container name, before any sample', () => {
+    const refused = ['t38 try', '.hidden', '_x', '-x', 'a/b c', 'x:y']
+    for (const name of refused) {
+      let built = 0
+      const adapter: MakeAdapter = () => ({
+        build: () => {
+          built++
+        },
+        runSample: () => ({ spend: 0 }),
+      })
+      const out = join(tmp, 'outs', name)
+      const r = runReplay([run, '3', '1', '--out', out], {}, adapter)
+      expect(r.code, name).toBe(64)
+      expect(built, name).toBe(0)
+      expect(existsSync(out), name).toBe(false)
+      expect(r.err.join('\n'), name).toContain('letters, digits, _, . and -')
+    }
+    for (const name of ['t38', 'T38_try.2', '9-a', 'a']) {
+      const r = runReplay([run, '3', '1', '--out', join(tmp, 'outs', name)], {}, fakeAdapter())
+      expect(r.code, name).toBe(0)
+    }
   })
 
   it('trims a sample that failed, and one that threw, and leaves the reason it failed', () => {

@@ -347,8 +347,8 @@ export const prepareReplaySample = (run: string, turn: number, sample: string): 
 }
 
 // What a replay sample keeps once its turn is done or has failed: what the scorer, a rescore and a
-// reader open (the stream, the replies, the cost log, the transcript, the kind and the copy for the
-// drafts' paths). The rest was only there to run the turn: the snapshot, the coach's session and
+// reader open (the stream, the replies, the cost log, the transcript and the kind). The copy is kept
+// for a person reading a sample later, not for the scorer. The rest was only there to run the turn: the snapshot, the coach's session and
 // caches, the engine an update run reads, and the installed packages, which are most of a sample.
 export const trimReplaySample = (sample: string): void => {
   const { copy, claudehome, cachehome, tmpd, snap } = LAYOUT

@@ -10,7 +10,8 @@
 // container through up.sh and is never printed. The stop (LIVE_RUN_BUDGET_USD, default 5) applies
 // to the sum of the samples' spend.
 // Exit codes: 64 usage, 66 the run folder lacks what a replay of that turn needs, 1 the image did not
-// build or a sample failed (the samples done before it are still printed).
+// build or a sample failed (the samples done before it are still printed), 130 interrupted with
+// Ctrl-C (run as a script, the process then dies of the signal itself).
 import { spawnSync } from 'node:child_process'
 import {
   cpSync,
@@ -40,6 +41,7 @@ import {
 import { scoreFindings } from './score.ts'
 import { describeSwap, swapSkillsInSample } from './swap.ts'
 
+const INTERRUPTED = 130
 const USAGE = 'usage: node examples/live-run/replay.ts <run-dir> <turn> [n] [--out <folder>]'
 const HERE = import.meta.dirname
 
@@ -113,10 +115,13 @@ const replaySamples = (opts: {
   n: number
   budget: number
   runOne: (i: number) => Sample
+  interrupted: () => boolean
 }): { done: string[]; spent: number; stop?: string; error?: string } => {
   const done: string[] = []
   let spent = 0
   for (let i = 1; i <= opts.n; i++) {
+    // A Ctrl-C that a child step swallowed must still end the replay: the next sample is paid for.
+    if (opts.interrupted()) return { done, spent }
     if (spent >= opts.budget)
       return { done, spent, stop: stopMessage(spent, opts.budget, i, opts.n) }
     let r: Sample
@@ -147,6 +152,10 @@ export const parseBudget = (raw: string | undefined): number | string => {
 const stopMessage = (spent: number, budget: number, i: number, n: number): string =>
   `STOP: ${spent.toFixed(3)} spent, the stop is ${budget}. ${n - i + 1} samples were not run.`
 
+// The last part of --out names each sample's Docker container (up.sh), so it must be a name Docker
+// accepts; a part up.sh would reject is refused here, before a sample is paid for.
+const CONTAINER_NAME = /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/
+
 const sampleFolder = (out: string, i: number): string => join(out, `${basename(out)}-s${i}`)
 
 // Where the samples go: the folder the caller named, which must not hold anything yet (a sample
@@ -157,6 +166,10 @@ export const outputFolder = (run: string, turn: number, named?: string): string 
     mkdirSync(join(run, 'replays'), { recursive: true })
     return mkdtempSync(join(run, 'replays', `replay-t${turn}-`))
   }
+  if (!CONTAINER_NAME.test(basename(named)))
+    throw new Error(
+      `the last part of --out, "${basename(named)}", becomes a Docker container name: start it with a letter or digit and use only letters, digits, _, . and -`,
+    )
   if (existsSync(named) && (!statSync(named).isDirectory() || readdirSync(named).length > 0))
     throw new Error(`${named} already holds something; name a new or empty folder`)
   mkdirSync(named, { recursive: true })
@@ -186,7 +199,11 @@ export const applyTree = (copy: string, root: string) => {
   cpSync(join(root, '.claude', 'skills'), join(copy, '.claude', 'skills'), { recursive: true })
   const git = (...a: string[]) => sh('git', ['-C', copy, ...a])
   if (git('rev-parse', '-q', '--verify', 'MERGE_HEAD').status === 0) return
-  if (git('status', '--short', '--', 'CLAUDE.md', '.claude/skills').stdout.trim() === '') return
+  const changed = git('status', '--short', '--', 'CLAUDE.md', '.claude/skills')
+  // A status cut short by Ctrl-C prints nothing, which would read as no change and skip the commit.
+  if (changed.status !== 0)
+    throw new Error(`could not read the wording under test: ${changed.stderr}`)
+  if (changed.stdout.trim() === '') return
   const date = git('log', '-1', '--format=%cI').stdout.trim()
   const added = git('add', '--', 'CLAUDE.md', '.claude/skills')
   if (added.status !== 0) throw new Error(`could not stage the wording under test: ${added.stderr}`)
@@ -368,17 +385,26 @@ export const replayCommand = (args: string[], makeAdapter: MakeAdapter = dockerA
   const checked = checkInputs(args)
   if (typeof checked === 'number') return checked
   // Ctrl-C reaches the running step too (up.sh, turn.sh) and fails the sample, so the replay ends
-  // through the trim above instead of the default signal death that skips it.
-  const ignoreInterrupt = () => undefined
-  process.on('SIGINT', ignoreInterrupt)
+  // through the trim above instead of the default signal death that skips it. The handler only
+  // records it: some steps' status is not checked, so the loop looks at the flag before each sample.
+  let interrupted = false
+  const onInterrupt = () => {
+    interrupted = true
+  }
+  process.on('SIGINT', onInterrupt)
   try {
-    return replay(checked, makeAdapter)
+    const code = replay(checked, makeAdapter, () => interrupted)
+    return interrupted ? INTERRUPTED : code
   } finally {
-    process.off('SIGINT', ignoreInterrupt)
+    process.off('SIGINT', onInterrupt)
   }
 }
 
-const replay = (checked: ReplayArgs & { budget: number }, makeAdapter: MakeAdapter): number => {
+const replay = (
+  checked: ReplayArgs & { budget: number },
+  makeAdapter: MakeAdapter,
+  interrupted: () => boolean,
+): number => {
   const { run, turn, n, budget } = checked
   const root = repoRoot()
   let out: string
@@ -401,6 +427,7 @@ const replay = (checked: ReplayArgs & { budget: number }, makeAdapter: MakeAdapt
   const { done, spent, stop, error } = replaySamples({
     n,
     budget,
+    interrupted,
     runOne: (i) => {
       const sample = sampleFolder(out, i)
       console.log(
@@ -409,6 +436,8 @@ const replay = (checked: ReplayArgs & { budget: number }, makeAdapter: MakeAdapt
       try {
         const swapped = prepareSample(run, turn, sample, root)
         console.log(`${stamp()} sample ${i}: ${describeSwap(swapped)}`)
+        // The unchecked steps of the preparation (chmod, git) may have been cut short.
+        if (interrupted()) throw new Error('interrupted before the turn ran')
         return { sample, ...adapter.runSample(sample) }
       } finally {
         trimKept(sample)
@@ -422,4 +451,12 @@ const replay = (checked: ReplayArgs & { budget: number }, makeAdapter: MakeAdapt
   return error ? EXIT.problems : 0
 }
 
-if (import.meta.main) process.exitCode = replayCommand(process.argv.slice(2))
+// The signal is re-raised here, not in replayCommand, because a test calls replayCommand in its own
+// process and must get a return value instead of being killed: a caller's
+// loop (`for t in 38 72; do node replay.ts RUN $t; done`) only stops when the process dies of
+// SIGINT, which a plain exit 130 does not do.
+if (import.meta.main) {
+  const code = replayCommand(process.argv.slice(2))
+  process.exitCode = code
+  if (code === INTERRUPTED) process.kill(process.pid, 'SIGINT')
+}
