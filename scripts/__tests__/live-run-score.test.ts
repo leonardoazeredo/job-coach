@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import { anchorPresent, NOTES } from '../../examples/live-run/notes.ts'
+import { printResults } from '../../examples/live-run/replay.ts'
 import { transcriptBlock } from '../../examples/live-run/run-folder.ts'
 import { scoreCommand, scoreRun } from '../../examples/live-run/score.ts'
 import { EXIT } from '../lib/problem.ts'
@@ -524,12 +525,43 @@ describe('the notes a skill asks for beside a summary', () => {
     "Nothing here is a deal-breaker yet, so let's look.",
     'Here is the condition I went with.',
     'Your gaps are not included in this list, which is fine.',
+    "I've put together your search preferences as I'd save them.",
+    "I've put your answers together below, gaps and all.",
   ]
 
   it.each(ONE_SENTENCE_OVER)('counts a sentence that only presents or mentions: %s', (s) => {
     const out = line5(`${FRAMING}\n${SUMMARY}\n${s}`)
     expect(out.some((l) => l.includes('EXCUSED'))).toBe(false)
     expect(out.filter((l) => l.includes('FAIL'))).toHaveLength(2)
+  })
+
+  describe('a replay of the turn', () => {
+    const replayed = (note: string) => {
+      const dir = framed(`Here is how I'd save it.\n${SUMMARY}\n${note}`, true)
+      writeFileSync(join(dir, 'last.txt'), 'the reply\n')
+      const out = vi.spyOn(console, 'log').mockImplementation(() => undefined)
+      try {
+        printResults(1, [dir], 0.1)
+        return out.mock.calls.map((c) => String(c[0])).join('\n')
+      } finally {
+        out.mockRestore()
+        rmSync(dir, { recursive: true })
+      }
+    }
+
+    it('prints the EXCUSED row of a note and still counts the reply as a pass', () => {
+      const printed = replayed("I've left out the career gaps entry.")
+      expect(printed).toContain(
+        'line 5 EXCUSED T1 "I\'ve left out the career gaps entry." by career-gaps-left-out',
+      )
+      expect(printed).toContain('line 5: 0 of 1 replies failed (0%)')
+    })
+
+    it('prints no EXCUSED row, and counts a fail, for a sentence that is no note', () => {
+      const printed = replayed('Take your time going through it.')
+      expect(printed).not.toContain('EXCUSED')
+      expect(printed).toContain('line 5: 1 of 1 replies failed (100%)')
+    })
   })
 
   it.each([

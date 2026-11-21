@@ -29,7 +29,7 @@ import {
 import { basename, join } from 'node:path'
 import { EXIT } from '../../scripts/lib/problem.ts'
 import { repoRoot } from '../../scripts/lib/workspace.ts'
-import { failedAt, formatRow } from './findings.ts'
+import { excusedAt, failedAt, formatRow } from './findings.ts'
 import { failRates, formatRates } from './rates.ts'
 import {
   cacheSummary,
@@ -377,7 +377,7 @@ const checkInputs = (args: string[]): (ReplayArgs & { budget: number }) | number
   return { ...parsed, budget }
 }
 
-const printResults = (turn: number, done: string[], spent: number) => {
+export const printResults = (turn: number, done: string[], spent: number) => {
   const scored = done.map((s) => scoreFindings(s))
   const cache = done.map((s) => readFileSync(join(s, 'raw', `turn${turn}.jsonl`), 'utf8'))
   console.log(
@@ -386,7 +386,8 @@ const printResults = (turn: number, done: string[], spent: number) => {
   console.log(formatRates(failRates(turn, scored)) || 'no line was marked')
   done.forEach((s, i) => {
     console.log(`\n--- reply ${i + 1}`)
-    for (const r of failedAt(scored[i] ?? [], turn)) console.log(formatRow(r))
+    const rows = scored[i] ?? []
+    for (const r of [...failedAt(rows, turn), ...excusedAt(rows, turn)]) console.log(formatRow(r))
     console.log(readFileSync(join(s, 'last.txt'), 'utf8'))
   })
 }

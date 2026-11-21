@@ -29,8 +29,8 @@ const FIRST = String.raw`\bI(?:'ve| have|'ll| will)?\s+`
 const PLACE = String.raw`(?:sits?|goes|go|went|(?:is|are|was|were)\s+(?:put|placed))\s+(?:under|into|in)\b`
 const OUT = String.raw`(?:stays?\s+out|(?:is|are|was|were)\s+(?:(?!not\b|never\b)\w+\s+)?left\s+(?:out|off))\b`
 // The coach's own statement that it put an item somewhere or left it out; "left out nothing" says
-// no item was left out.
-const I_PLACED = String.raw`${FIRST}(?:put|placed|left\s+(?:out|off)|kept\s+out)\b(?!\s+nothing)`
+// no item was left out. "Put together" and "put ... below" present the summary instead.
+const I_PLACED = String.raw`${FIRST}(?:put(?![^.]*\b(?:together|below|here)\b)|placed|left\s+(?:out|off)|kept\s+out)\b(?!\s+nothing)`
 
 // Builds a recogniser from alternatives that are each a verb assertion about an item; the opener
 // guard sits in front of all of them.

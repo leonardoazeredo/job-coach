@@ -29,6 +29,11 @@ export const formatRow = (r: Row): string => {
 export const failedAt = (rows: Row[], turn: number): Row[] =>
   rows.filter((r) => r.status === 'FAIL' && r.turn === turn)
 
+// The sentences the scorer let through at the replayed turn, so a replay shows what a pass rests
+// on as well as what failed.
+export const excusedAt = (rows: Row[], turn: number): Row[] =>
+  rows.filter((r) => r.status === 'EXCUSED' && r.turn === turn)
+
 // Each checklist line that has a finding, in the order first found.
 export const failedLines = (rows: Row[]): number[] => [
   ...new Set(rows.filter((r) => r.status === 'FAIL').map((r) => r.line)),
