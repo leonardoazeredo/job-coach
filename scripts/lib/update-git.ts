@@ -97,17 +97,95 @@ const mergeState = (git: Git, settled: Settled[] = []): MergeResult => {
   return files.length ? { kind: 'clashes', files, ...told } : { kind: 'merged', ...told }
 }
 
+type Entry = { stage: string; mode: string; id: string }
+
+// Unmerged paths with what each git stage holds (1 base, 2 ours, 3 theirs).
+const stages = (git: Git): Map<string, Entry[]> => {
+  const held = new Map<string, Entry[]>()
+  for (const line of lines(git(['ls-files', '-u', '-z']).stdout.replaceAll('\0', '\n'))) {
+    const match = line.match(/^(\d+) ([0-9a-f]+) (\d)\t(.+)$/)
+    if (!match?.[1] || !match[2] || !match[3] || !match[4]) continue
+    const entry = { mode: match[1], id: match[2], stage: match[3] }
+    held.set(match[4], [...(held.get(match[4]) ?? []), entry])
+  }
+  return held
+}
+const holds = (entries: Entry[] | undefined, stage: string) =>
+  entries?.some((e) => e.stage === stage) ?? false
+
 const blob = (git: Git, rev: string, file: string) =>
   git(['rev-parse', '-q', '--verify', `${rev}:${file}`]).stdout.trim()
 
-const resolve = (git: Git, side: 'ours' | 'theirs', file: string) => {
-  // A side that deleted the file is taken by deleting it.
-  if (!blob(git, side === 'ours' ? 'HEAD' : 'MERGE_HEAD', file)) git(['rm', '-q', '--', file])
-  else {
-    git(['checkout', `--${side}`, '--', file])
-    git(['add', '--', file])
-  }
+// Git parks a file that cannot sit at its own path (the other side holds a directory there, or
+// each side made it a link) at "x~HEAD" or "x~<branch>", which neither commit holds. Such a path
+// is part of the clash over "x", not a file of its own.
+const suffixed = (git: Git, file: string) =>
+  !blob(git, 'HEAD', file) && !blob(git, 'MERGE_HEAD', file)
+const realPath = (git: Git, file: string) =>
+  suffixed(git, file) && file.includes('~') ? file.slice(0, file.lastIndexOf('~')) : file
+
+// Takes a whole side over one path. The index stages say what each side holds, because the
+// commits cannot for a parked path; the other side's parked copy goes with it.
+// Returns the files in the chosen file's way when it would replace a directory holding any that
+// are not saved (untracked, ignored such as an exported PDF, or edited since the update began);
+// then nothing is changed.
+const resolve = (git: Git, side: 'ours' | 'theirs', file: string): string[] => {
+  const held = stages(git)
+  const real = realPath(git, file)
+  const group = [...held.keys()].filter((path) => realPath(git, path) === real)
+  const wanted = side === 'ours' ? '2' : '3'
+  const mine = group.flatMap((path) => held.get(path) ?? []).find((e) => e.stage === wanted)
+  // Without --exclude-standard, ignored files are listed too.
+  // Only what sits under the path counts: a hand edit to the clashing file itself is what a take
+  // discards.
+  const notSaved = (args: string[]) =>
+    lines(git(args).stdout.replaceAll('\0', '\n')).filter((path) => path.startsWith(`${real}/`))
+  const inTheWay = mine
+    ? [
+        ...new Set([
+          ...notSaved(['ls-files', '--others', '-z', '--', real]),
+          ...notSaved(['diff', '--name-only', '--diff-filter=MT', '-z', '--', real]),
+        ]),
+      ].sort()
+    : []
+  if (inTheWay.length) return inTheWay
+  for (const path of group) git(['rm', '-q', '-f', '--', path])
+  if (!mine) return []
+  // The chosen side's file replaces whatever else stands there, such as the other side's directory.
+  git(['rm', '-r', '-q', '-f', '--ignore-unmatch', '--', real])
+  git(['update-index', '--add', '--cacheinfo', `${mine.mode},${mine.id},${real}`])
+  git(['checkout-index', '-f', '--', real])
+  return []
 }
+
+export type ClashKind =
+  // Only one side holds the file: the other removed it.
+  | 'one-sided'
+  | 'binary'
+  // Both sides changed a text file and clash markers are still in it.
+  | 'text-open'
+  // Both sides changed a text file and no marker is left, so it was settled by hand.
+  | 'text-settled'
+  // Not a plain file (a link, a file against a directory, a parked path): taken whole.
+  | 'other'
+
+const REGULAR = new Set(['100644', '100755'])
+
+// The one judgement of what a clashing file is; take, finish and the start-version view each
+// act on the kind. The binary test needs both sides, so it runs only when both hold the file.
+export const clashKind = (git: Git, dir: string, file: string, entries: Entry[]): ClashKind => {
+  if (entries.some((e) => !REGULAR.has(e.mode)) || suffixed(git, file)) return 'other'
+  if (!holds(entries, '2') || !holds(entries, '3')) return 'one-sided'
+  if (binary(git, file)) return 'binary'
+  const path = join(dir, file)
+  return existsSync(path) && hasClash(readFileSync(path, 'utf8')) ? 'text-open' : 'text-settled'
+}
+
+// Every unmerged path with its kind, as the steps act on them.
+export const clashKinds = (git: Git, dir: string): Map<string, ClashKind> =>
+  new Map(
+    [...stages(git)].map(([file, entries]) => [file, clashKind(git, dir, file, entries)] as const),
+  )
 
 // With no shared commit, git sees every file the two sides hold differently as a clash, even
 // when only one side changed it. The copy's first commit shows which: a file the user never
@@ -124,8 +202,8 @@ const settleOneSided = (git: Git) => {
 
 // Where a clashing file started: the shared version when git found one, else on a first update
 // the copy's first commit, else nothing to show.
-const startOf = (git: Git, file: string, stagesHeld: Set<string>, first: boolean): string => {
-  if (stagesHeld.has('1')) return `:1:${file}`
+const startOf = (git: Git, file: string, stagesHeld: Entry[], first: boolean): string => {
+  if (holds(stagesHeld, '1')) return `:1:${file}`
   const root = rootCommit(git)
   return first && root && blob(git, root, file) ? `${root}:${file}` : ''
 }
@@ -157,16 +235,22 @@ const showStart = (git: Git, first: boolean): Settled[] => {
   const settled: Settled[] = []
   const top = git(['rev-parse', '--show-toplevel']).stdout.trim()
   const held = stages(git)
+  const kinds = clashKinds(git, top)
   const scratch = mkdtempSync(join(tmpdir(), 'coach-clash-'))
   try {
     for (const file of unmerged(git)) {
-      const at = held.get(file) ?? new Set()
-      const start = at.has('2') && at.has('3') ? startOf(git, file, at, first) : ''
+      // Markers go only into a plain text file both sides hold: a link would pass them on to its
+      // target, and a binary file cannot take them.
+      const kind = kinds.get(file)
+      const start =
+        kind === 'text-open' || kind === 'text-settled'
+          ? startOf(git, file, held.get(file) ?? [], first)
+          : ''
       const narrowed = start ? showOne(git, file, start, scratch) : undefined
       if (!narrowed) continue
       writeFileSync(join(top, file), narrowed.text)
       for (const line of narrowed.settled) settled.push({ file, ...line })
-      // Every line was changed on one side only, so nothing is left to ask about.
+      // Each line differs on one side only, so nothing is left to ask about.
       if (!hasClash(narrowed.text)) git(['add', '--', file])
     }
   } finally {
@@ -202,32 +286,24 @@ export type TakeResult =
   | { kind: 'taken'; left: string[] }
   | { kind: 'no-merge' }
   | { kind: 'not-clashing' }
+  // The chosen file would replace a folder that holds files of the user's that are not saved.
+  | { kind: 'in-the-way'; files: string[] }
 
 export const takeSide = (git: Git, side: 'ours' | 'theirs', file: string): TakeResult => {
   if (!inMerge(git)) return { kind: 'no-merge' }
   if (!unmerged(git).includes(file)) return { kind: 'not-clashing' }
-  const path = join(git(['rev-parse', '--show-toplevel']).stdout.trim(), file)
-  const held = stages(git).get(file)
-  const both = held?.has('2') && held.has('3')
-  const text = both && existsSync(path) && !binary(git, file) ? readFileSync(path, 'utf8') : ''
+  const top = git(['rev-parse', '--show-toplevel']).stdout.trim()
+  const path = join(top, file)
   // Only the clash blocks are the user's choice; the rest of the file already holds both sides'
-  // changes. A file one side removed, or a binary one, has no blocks and is taken whole.
-  if (hasClash(text)) {
-    writeFileSync(path, settle(text, side))
+  // changes. Any other kind has no blocks and is taken whole.
+  if (clashKinds(git, top).get(file) === 'text-open') {
+    writeFileSync(path, settle(readFileSync(path, 'utf8'), side))
     git(['add', '--', file])
-  } else resolve(git, side, file)
-  return { kind: 'taken', left: unmerged(git) }
-}
-
-// Unmerged paths with the git stage numbers each still holds (1 base, 2 ours, 3 theirs).
-const stages = (git: Git): Map<string, Set<string>> => {
-  const held = new Map<string, Set<string>>()
-  for (const line of lines(git(['ls-files', '-u', '-z']).stdout.replaceAll('\0', '\n'))) {
-    const match = line.match(/^\d+ [0-9a-f]+ (\d)\t(.+)$/)
-    if (!match?.[1] || !match[2]) continue
-    held.set(match[2], (held.get(match[2]) ?? new Set()).add(match[1]))
+  } else {
+    const inTheWay = resolve(git, side, file)
+    if (inTheWay.length) return { kind: 'in-the-way', files: inTheWay }
   }
-  return held
+  return { kind: 'taken', left: unmerged(git) }
 }
 
 export type FinishResult =
@@ -246,15 +322,10 @@ export type FinishOptions = { run?: Run | undefined }
 export const finishUpdate = (root: string, git: Git, opts: FinishOptions = {}): FinishResult => {
   if (!inMerge(git)) return { kind: 'no-merge' }
   const files = unmerged(git)
-  const held = stages(git)
-  // A file one side removed, or a binary file, carries no markers, so finishing on what is left
-  // in the folder would choose for the user. Only take settles it.
-  const left = files.filter(
-    (file) =>
-      !(held.get(file)?.has('2') && held.get(file)?.has('3')) ||
-      binary(git, file) ||
-      (existsSync(join(root, file)) && hasClash(readFileSync(join(root, file), 'utf8'))),
-  )
+  const kinds = clashKinds(git, root)
+  // Only a text file settled by hand can be finished as it stands; any other kind carries no
+  // markers to read a choice from, so finishing would choose for the user. Only take settles it.
+  const left = files.filter((file) => kinds.get(file) !== 'text-settled')
   if (left.length) return { kind: 'clashes', files: left }
   // Each clash still listed now holds both sides merged into one file, or is gone.
   for (const file of files) git(['add', '-A', '--', file])
