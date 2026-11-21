@@ -251,6 +251,21 @@ describe('a file both sides renamed', () => {
     expect(finishUpdate(work(), git, { run: runner().run })).toMatchObject({ kind: 'clashes' })
   })
 
+  for (const side of ['ours', 'theirs'] as const) {
+    it(`takes ${side} when one name differs from the old one only in capitals`, () => {
+      cloned({ [A]: BASE })
+      g(work(), 'mv', A, 'docs/tmp.md')
+      g(work(), 'mv', 'docs/tmp.md', 'docs/A.md')
+      userCommit({}, 'Saved: rename')
+      g(upstream(), 'mv', A, C)
+      commitEngine('Rename')
+      const { git } = start()
+      expect(takeSide(git, side, A)).toEqual({ kind: 'taken', left: [] })
+      expect(finishUpdate(work(), git, { run: runner().run })).toEqual({ kind: 'updated' })
+      expect(g(work(), 'ls-files', 'docs').split('\n')).toEqual([side === 'ours' ? 'docs/A.md' : C])
+    })
+  }
+
   describe('when the folder no longer shows the clash that git staged', () => {
     const user = edited(BASE, 5, 'mine')
     const engine = edited(BASE, 5, 'new')
