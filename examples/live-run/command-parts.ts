@@ -2,6 +2,9 @@
 // profile.ts draft, a literal echo, a cat of a file or a heredoc. A tool result holds one stream
 // for the whole command, so the scorer needs to know what each part would have printed to pick a
 // draft's lines out of it without asking the coach to mark them.
+// Two limits are known. Drafts side by side with nothing between their output cannot be told
+// apart, so they stay one part-run. Output of other commands the text cannot give (ls and the like)
+// is taken for a draft's lines.
 export type Part =
   | { kind: 'draft'; file: string }
   // Lines the part printed, known from the command text or from a file it reads.

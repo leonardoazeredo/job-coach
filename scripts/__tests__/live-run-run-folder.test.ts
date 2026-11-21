@@ -333,7 +333,7 @@ describe('the drafts in a stream', () => {
     expect(d).toEqual({ summaries: ['Name: A', 'Achievement: B'], winsDrafted: true })
   })
 
-  it('keeps drafts that sit side by side as one entry, replaced only by a draft of all their files', () => {
+  it('shows the later draft of one file in a side-by-side pair, and a pair only for a draft of both', () => {
     const call = (id: string, command: string) =>
       JSON.stringify({
         type: 'assistant',
@@ -349,11 +349,36 @@ describe('the drafts in a stream', () => {
         out('b', 'A2'),
       ].join('\n'),
     )
+    // Keeping the outdated A1 is a known limit, not the contract: side-by-side drafts cannot be
+    // told apart, so the pair is one entry that a draft of only one file does not replace.
     expect(d.summaries).toEqual(['A1', 'B1', 'A2'])
     const e = draftsIn(
       [call('a', pair), out('a', 'A1\nB1'), call('b', pair), out('b', 'A2\nB2')].join('\n'),
     )
     expect(e.summaries).toEqual(['A2', 'B2'])
+  })
+
+  it('drops "No change." from drafts side by side, and a separated draft that printed only that', () => {
+    const call = (id: string, command: string) =>
+      JSON.stringify({
+        type: 'assistant',
+        message: { content: [{ type: 'tool_use', id, input: { command } }] },
+      })
+    const draft = (f: string) => 'node scripts/profile.ts draft ' + f
+    const side = draftsIn(
+      [
+        call('a', draft('profile/a.yaml') + '\n' + draft('profile/b.yaml')),
+        out('a', 'No change.\nB1'),
+      ].join('\n'),
+    )
+    expect(side.summaries).toEqual(['B1'])
+    const apart = draftsIn(
+      [
+        call('a', draft('profile/a.yaml') + '; echo ----; ' + draft('profile/b.yaml')),
+        out('a', 'No change.\n----\nB1'),
+      ].join('\n'),
+    )
+    expect(apart.summaries).toEqual(['B1'])
   })
 
   it('leaves out an empty result, "No change." and an error', () => {

@@ -5,6 +5,11 @@ import { join } from 'node:path'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import { anchorPresent, NOTES } from '../../examples/live-run/notes.ts'
 import { printResults } from '../../examples/live-run/replay.ts'
+  })
+})
+
+import { dirname, join } from 'node:path'
+import { describe, expect, it, vi } from 'vitest'
 import { transcriptBlock } from '../../examples/live-run/run-folder.ts'
 import { scoreCommand, scoreRun } from '../../examples/live-run/score.ts'
 import { EXIT } from '../lib/problem.ts'
@@ -676,6 +681,41 @@ describe('one command that drafts two files', () => {
       ])
     })
   }
+
+  describe('a cat path read from the run copy', () => {
+    const note = 'Note line one'
+    const command = draft('profile/identity.yaml') + '\ncat '
+    const reply = 'Here is the setup.\n' + first + '\nIs it right?'
+    const score = (path: string, place: (d: string) => void) => {
+      const dir = run(command + path, first + '\n' + note, reply)
+      place(dir)
+      return line4(dir)
+    }
+    const into = (rel: string) => (d: string) => {
+      mkdirSync(dirname(join(d, rel)), { recursive: true })
+      writeFileSync(join(d, rel), note + '\n')
+    }
+
+    it('reads the absolute path the container mounts the copy at', () => {
+      expect(score('/w/templates/note.md', into('copy/templates/note.md'))).toEqual(['line 4 PASS'])
+    })
+
+    it('does not read a path that climbs out of the copy', () => {
+      const miss = ['line 4 FAIL T1 "' + note + '"']
+      expect(score('../note.md', into('note.md'))).toEqual(miss)
+      expect(score('/w/../note.md', into('note.md'))).toEqual(miss)
+      expect(score('templates/../../note.md', into('note.md'))).toEqual(miss)
+    })
+
+    it('reads a path that climbs and comes back inside the copy', () => {
+      expect(score('templates/../note.md', into('copy/note.md'))).toEqual(['line 4 PASS'])
+    })
+
+    it('does not read a directory', () => {
+      const dir = (d: string) => mkdirSync(join(d, 'copy/templates/note.md'), { recursive: true })
+      expect(score('templates/note.md', dir)).toEqual(['line 4 FAIL T1 "' + note + '"'])
+    })
+  })
 
   it('still counts a command output it cannot read as part of the summaries', () => {
     const dir = run(
