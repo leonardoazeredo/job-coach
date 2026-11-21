@@ -1,5 +1,13 @@
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
@@ -129,6 +137,36 @@ describe('the real sample runner', () => {
     expect(execs[0]).toMatch(/ npm ci --silent$/)
     expect(execs[1]).toContain(' claude ')
   })
+
+  it.each([
+    ['build', 'signal'],
+    ['build', 'exit'],
+    ['run', 'signal'],
+    ['run', 'exit'],
+    ['exec', 'signal'],
+    ['exec', 'exit'],
+    ['rm', 'signal'],
+    ['rm', 'exit'],
+  ])(
+    'ends the replay with 130 when docker %s dies of Ctrl-C (%s), and starts no later sample',
+    (verb, how) => {
+      const r = runReplay(
+        [run, '3', '3'],
+        env({ FAKE_SIGINT_ON: verb, FAKE_SIGINT_AS: how, LIVE_RUN_BUDGET_USD: '5' }),
+      )
+      expect(r.code).toBe(130)
+      expect(dockerLines('run')).toHaveLength(verb === 'build' ? 0 : 1)
+      if (verb === 'build') return
+      // up.sh dying is not followed by a removal, as when the container does not start.
+      if (verb !== 'run') everyStartedIsRemoved()
+      const out = sampleFolders(r.out)
+      const name = out.split('/').pop()
+      expect(readdirSync(out)).toEqual([`${name}-s1`])
+      const sample = join(out, `${name}-s1`)
+      expect(existsSync(join(sample, 'claudehome'))).toBe(false)
+      expect(existsSync(join(sample, 'raw'))).toBe(true)
+    },
+  )
 
   it('says the packages did not install, runs no turn and removes the container', () => {
     writeFileSync(join(run, 'snap', 'before3.packages'), '')

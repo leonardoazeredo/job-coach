@@ -32,6 +32,8 @@ import { failRates, formatRates } from './rates.ts'
 import {
   cacheSummary,
   costAfter,
+  Interrupted,
+  interruptedBy,
   missingForReplay,
   prepareReplaySample,
   snapshotHadPackages,
@@ -72,8 +74,17 @@ export const parseReplayArgs = (argv: string[]): ReplayArgs | string => {
 export const withoutGitVariables = (env: NodeJS.ProcessEnv): NodeJS.ProcessEnv =>
   Object.fromEntries(Object.entries(env).filter(([k]) => !k.startsWith('GIT_')))
 
+// Set by any step that Ctrl-C ended. The replay never returns to the event loop, so a process
+// 'SIGINT' listener would not run until it is over; what the children report is the only signal.
+let sawInterrupt = false
+
+const noted = <T extends { status: number | null; signal: string | null }>(r: T): T => {
+  if (interruptedBy(r)) sawInterrupt = true
+  return r
+}
+
 const sh = (cmd: string, args: string[], cwd?: string) =>
-  spawnSync(cmd, args, { cwd, encoding: 'utf8', env: withoutGitVariables(process.env) })
+  noted(spawnSync(cmd, args, { cwd, encoding: 'utf8', env: withoutGitVariables(process.env) }))
 
 // What one sample spent: its running total at the turn less the run's total before the turn.
 export const sampleSpend = (costlog: string, turn: number, base: number): number => {
@@ -120,7 +131,7 @@ const replaySamples = (opts: {
   const done: string[] = []
   let spent = 0
   for (let i = 1; i <= opts.n; i++) {
-    // A Ctrl-C that a child step swallowed must still end the replay: the next sample is paid for.
+    // A Ctrl-C seen while the last sample ran must end the replay: the next sample is paid for.
     if (opts.interrupted()) return { done, spent }
     if (spent >= opts.budget)
       return { done, spent, stop: stopMessage(spent, opts.budget, i, opts.n) }
@@ -207,32 +218,34 @@ export const applyTree = (copy: string, root: string) => {
   const date = git('log', '-1', '--format=%cI').stdout.trim()
   const added = git('add', '--', 'CLAUDE.md', '.claude/skills')
   if (added.status !== 0) throw new Error(`could not stage the wording under test: ${added.stderr}`)
-  const commit = spawnSync(
-    'git',
-    [
-      '-C',
-      copy,
-      '-c',
-      'user.name=Persona',
-      '-c',
-      'user.email=persona@example.com',
-      // The copy is a throwaway; the user's signing settings must not decide whether it commits.
-      '-c',
-      'commit.gpgsign=false',
-      'commit',
-      '-q',
-      '--no-verify',
-      '-m',
-      'Wording of the coach under test',
-    ],
-    {
-      encoding: 'utf8',
-      env: {
-        ...withoutGitVariables(process.env),
-        GIT_AUTHOR_DATE: date,
-        GIT_COMMITTER_DATE: date,
+  const commit = noted(
+    spawnSync(
+      'git',
+      [
+        '-C',
+        copy,
+        '-c',
+        'user.name=Persona',
+        '-c',
+        'user.email=persona@example.com',
+        // The copy is a throwaway; the user's signing settings must not decide whether it commits.
+        '-c',
+        'commit.gpgsign=false',
+        'commit',
+        '-q',
+        '--no-verify',
+        '-m',
+        'Wording of the coach under test',
+      ],
+      {
+        encoding: 'utf8',
+        env: {
+          ...withoutGitVariables(process.env),
+          GIT_AUTHOR_DATE: date,
+          GIT_COMMITTER_DATE: date,
+        },
       },
-    },
+    ),
   )
   if (commit.status !== 0)
     throw new Error(`could not commit the wording under test: ${commit.stderr}`)
@@ -289,11 +302,13 @@ export const dockerAdapter: MakeAdapter = ({ run, turn, hasPackages, budget, roo
 
   // undefined when turn.sh succeeded; else why not, with what the sample spent before it failed.
   const runTurn = (sample: string): SampleOutcome | undefined => {
-    const t = spawnSync(join(HERE, 'turn.sh'), [sample, String(turn), join(sample, 'reply.txt')], {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'inherit'],
-      env: { ...process.env, LIVE_RUN_BUDGET_USD: String(turnBudget) },
-    })
+    const t = noted(
+      spawnSync(join(HERE, 'turn.sh'), [sample, String(turn), join(sample, 'reply.txt')], {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'inherit'],
+        env: { ...process.env, LIVE_RUN_BUDGET_USD: String(turnBudget) },
+      }),
+    )
     if (t.status === 0) return undefined
     // With a cost logged the turn ran and its result holds the cause (an error or claude's budget);
     // the last line turn.sh printed is then the running total, which explains nothing.
@@ -306,7 +321,9 @@ export const dockerAdapter: MakeAdapter = ({ run, turn, hasPackages, budget, roo
 
   const runSample = (sample: string): SampleOutcome => {
     const container = `coach-live-run-${basename(sample)}`
-    const up = spawnSync(join(HERE, 'up.sh'), [sample], { stdio: ['ignore', 'ignore', 'inherit'] })
+    const up = noted(
+      spawnSync(join(HERE, 'up.sh'), [sample], { stdio: ['ignore', 'ignore', 'inherit'] }),
+    )
     if (up.status !== 0) return { spend: 0, failure: 'the sample container did not start' }
     try {
       if (hasPackages) {
@@ -384,19 +401,16 @@ const trimKept = (sample: string) => {
 export const replayCommand = (args: string[], makeAdapter: MakeAdapter = dockerAdapter): number => {
   const checked = checkInputs(args)
   if (typeof checked === 'number') return checked
-  // Ctrl-C reaches the running step too (up.sh, turn.sh) and fails the sample, so the replay ends
-  // through the trim above instead of the default signal death that skips it. The handler only
-  // records it: some steps' status is not checked, so the loop looks at the flag before each sample.
-  let interrupted = false
-  const onInterrupt = () => {
-    interrupted = true
-  }
-  process.on('SIGINT', onInterrupt)
+  // Ctrl-C reaches the running step too. With no listener Node would die of it on the spot and
+  // skip the trims; this one does nothing but keep it alive, and the step's own death says so.
+  sawInterrupt = false
+  const keepAlive = () => undefined
+  process.on('SIGINT', keepAlive)
   try {
-    const code = replay(checked, makeAdapter, () => interrupted)
-    return interrupted ? INTERRUPTED : code
+    const code = replay(checked, makeAdapter, () => sawInterrupt)
+    return sawInterrupt ? INTERRUPTED : code
   } finally {
-    process.off('SIGINT', onInterrupt)
+    process.off('SIGINT', keepAlive)
   }
 }
 
@@ -439,6 +453,9 @@ const replay = (
         // The unchecked steps of the preparation (chmod, git) may have been cut short.
         if (interrupted()) throw new Error('interrupted before the turn ran')
         return { sample, ...adapter.runSample(sample) }
+      } catch (e) {
+        if (e instanceof Interrupted) sawInterrupt = true
+        throw e
       } finally {
         trimKept(sample)
       }

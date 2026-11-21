@@ -2,7 +2,7 @@
 // with the environment it reads and its output captured, a docker stand-in for the real adapter
 // (real up.sh and turn.sh run against it) and a fake adapter for the replay's own rules.
 
-import { appendFileSync, chmodSync, mkdirSync, writeFileSync } from 'node:fs'
+import { appendFileSync, chmodSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { vi } from 'vitest'
 import {
@@ -158,6 +158,14 @@ export const fakeAdapter =
     }
   }
 
+// A folder holding one command that runs `body` instead of the real one; put it first on PATH.
+export const fakeBin = (dir: string, name: string, body: string): string => {
+  const bin = mkdtempSync(join(dir, `fake-${name}-`))
+  writeFileSync(join(bin, name), `#!/bin/bash\n${body}\n`)
+  chmodSync(join(bin, name), 0o755)
+  return bin
+}
+
 // Calls replayCommand with `env` set for the call, and says what it returned and printed.
 export const runReplay = (args: string[], env: Record<string, string>, adapter?: MakeAdapter) => {
   // A budget from the developer's shell must not decide whether these runs pass.
@@ -186,12 +194,19 @@ export const runReplay = (args: string[], env: Record<string, string>, adapter?:
 // result whose running total is FAKE_COST_BASE plus 0.1. FAKE_DIE_ON=n makes the nth exec exit
 // with nothing; FAKE_BUDGET_ON=n makes it spend 0.2, report an error result and exit 1;
 // FAKE_EXTRA_LINES is printed before the reply, FAKE_BUILD=fail and FAKE_RUN=fail fail those commands.
+// FAKE_SIGINT_ON=verb makes that command die of SIGINT (kill -INT on itself, a real signal), or
+// with FAKE_SIGINT_AS=exit exit 130 as a shell reports one.
 export const dockerStandIn = (dir: string): { bin: string; log: string } => {
   const bin = join(dir, 'bin')
   const log = join(dir, 'docker.log')
   mkdirSync(bin, { recursive: true })
   const script = `#!/bin/bash
 echo "$*" >> "${log}"
+if [ "$1" = "$FAKE_SIGINT_ON" ]; then
+  [ "$FAKE_SIGINT_AS" = exit ] && exit 130
+  kill -INT $$
+  sleep 5
+fi
 case "$1" in
   build) [ "$FAKE_BUILD" = fail ] && { echo "Cannot connect to the Docker daemon" >&2; exit 1; }; exit 0 ;;
   run) [ "$FAKE_RUN" = fail ] && exit 125; exit 0 ;;

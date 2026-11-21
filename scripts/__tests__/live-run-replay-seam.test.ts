@@ -1,4 +1,6 @@
+import { spawnSync } from 'node:child_process'
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -16,6 +18,7 @@ import { repoRoot } from '../lib/workspace.ts'
 import {
   draftLines,
   fakeAdapter,
+  fakeBin,
   installPackages,
   makeRun,
   runReplay,
@@ -196,32 +199,96 @@ describe('what a replay keeps of each sample', () => {
     expect(after).toEqual(before[0])
   })
 
-  it('starts no sample after an interrupt, trims the one it arrived in, and leaves no handler behind', () => {
-    const handlers = process.listenerCount('SIGINT')
+  it.each(['kill -INT $$', 'exit 130'])(
+    'runs no turn when a preparation step dies of Ctrl-C (%s), and trims the sample',
+    (death) => {
+      const bin = fakeBin(tmp, 'chmod', death)
+      let started = 0
+      const adapter: MakeAdapter = () => ({
+        build: () => undefined,
+        runSample: () => {
+          started++
+          return { spend: 0.1 }
+        },
+      })
+      const r = runReplay([run, '3', '3'], { PATH: `${bin}:${process.env.PATH}` }, adapter)
+      expect(r.code).toBe(130)
+      expect(started).toBe(0)
+      expect(r.err).toContain('sample 1 failed: interrupted before the turn ran')
+      const { folder } = foldersPrinted(r.out)
+      expect(readdirSync(folder)).toEqual([`${folder.split('/').pop()}-s1`])
+      expect(existsSync(join(firstSample(folder), 'claudehome'))).toBe(false)
+      expect(existsSync(join(firstSample(folder), 'raw'))).toBe(true)
+    },
+  )
+
+  it('trims a sample whose preparation throws after the unpack', () => {
+    const git = spawnSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).stdout.trim()
+    const bin = fakeBin(
+      tmp,
+      'git',
+      `case "$*" in *' status '*) mkdir -p "$2/node_modules/pkg"; echo boom >&2; exit 1;; esac\nexec ${git} "$@"`,
+    )
+    const r = runReplay([run, '3', '1'], { PATH: `${bin}:${process.env.PATH}` }, fakeAdapter())
+    expect(r.code).toBe(1)
+    expect(r.err.join('\n')).toContain('could not read the wording under test: boom')
+    const sample = firstSample(foldersPrinted(r.out).folder)
+    for (const gone of ['claudehome', 'snap', 'tmpd', join('copy', 'node_modules')])
+      expect(existsSync(join(sample, gone)), gone).toBe(false)
+    expect(existsSync(join(sample, 'raw'))).toBe(true)
+  })
+
+  it('holds a handler during the replay and removes it after, also when the replay throws', () => {
+    const before = process.listenerCount('SIGINT')
     let during = 0
-    let started = 0
+    runReplay([run, '3', '1'], {}, () => ({
+      build: () => undefined,
+      runSample: (sample) => {
+        during = process.listenerCount('SIGINT')
+        installPackages(sample)
+        writeTurnOutputs(sample, 3, 0.85)
+        return { spend: 0.1 }
+      },
+    }))
+    expect(during).toBe(before + 1)
+    expect(process.listenerCount('SIGINT')).toBe(before)
+    expect(() =>
+      runReplay([run, '3', '1'], {}, () => {
+        throw new Error('no adapter')
+      }),
+    ).toThrow('no adapter')
+    expect(process.listenerCount('SIGINT')).toBe(before)
+    expect(() =>
+      runReplay([run, '3', '1'], {}, () => ({
+        build: () => {
+          throw new Error('no build')
+        },
+        runSample: () => ({ spend: 0 }),
+      })),
+    ).toThrow('no build')
+    expect(process.listenerCount('SIGINT')).toBe(before)
+  })
+
+  it('says it could not trim and still counts a good sample as good', () => {
+    let kept = ''
     const adapter: MakeAdapter = ({ turn }) => ({
       build: () => undefined,
       runSample: (sample) => {
-        started++
         installPackages(sample)
         writeTurnOutputs(sample, turn, 0.85)
-        process.emit('SIGINT')
-        during = process.listenerCount('SIGINT')
+        kept = join(sample, 'copy', 'node_modules')
+        chmodSync(kept, 0o500)
         return { spend: 0.1 }
       },
     })
-    const r = runReplay([run, '3', '3'], {}, adapter)
-    expect(during).toBeGreaterThan(handlers)
-    expect(started).toBe(1)
-    expect(r.code).toBe(130)
-    const { folder } = foldersPrinted(r.out)
-    expect(readdirSync(folder)).toEqual([`${folder.split('/').pop()}-s1`])
-    const sample = firstSample(folder)
-    expect(existsSync(join(sample, 'copy', 'node_modules'))).toBe(false)
-    expect(existsSync(join(sample, 'claudehome'))).toBe(false)
-    expect(existsSync(join(sample, 'raw', 'turn3.jsonl'))).toBe(true)
-    expect(process.listenerCount('SIGINT')).toBe(handlers)
+    try {
+      const r = runReplay([run, '3', '1'], {}, adapter)
+      expect(r.code).toBe(0)
+      expect(r.err.some((l) => l.startsWith('could not trim '))).toBe(true)
+      expect(r.out.some((l) => l.includes('over 1 replies'))).toBe(true)
+    } finally {
+      chmodSync(kept, 0o700)
+    }
   })
 
   it('refuses an --out whose last part Docker would not take as a container name, before any sample', () => {
