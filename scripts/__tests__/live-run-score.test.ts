@@ -193,7 +193,9 @@ describe('what the scorer will not call a pass or a fault', () => {
     rmSync(dir, { recursive: true })
   })
 
-  it('keeps only the last summary of a file drafted twice in a turn', () => {
+  // A file drafted twice with both results good is a false finding, accepted: the scorer cannot tell
+  // a replaced summary from one the second call printed nothing for.
+  it('marks the first summary of a file drafted twice when both results were good', () => {
     const dir = makeRun((d) => {
       mkdirSync(join(d, 'raw'))
       mkdirSync(join(d, 'written'))
@@ -203,8 +205,50 @@ describe('what the scorer will not call a pass or a fault', () => {
         `${draftRaw('a', 'profile/identity.yaml', 'Name: Hanna Pruitt')}\n${draftRaw('b', 'profile/identity.yaml', 'Name: Hannah Pruitt')}\n`,
       )
     })
-    expect(scoreRun(dir)).toContain('line 4 PASS')
+    expect(scoreRun(dir).filter((l) => l.startsWith('line 4'))).toEqual([
+      'line 4 FAIL T1 "Name: Hanna Pruitt"',
+    ])
     rmSync(dir, { recursive: true })
+  })
+
+  describe('a good summary followed by a call that names the same file again', () => {
+    const line4 = (second: { command: string; out: string; isError?: boolean }, reply: string) => {
+      const dir = makeRun((d) => {
+        mkdirSync(join(d, 'raw'))
+        mkdirSync(join(d, 'written'))
+        writeFileSync(join(d, 'transcript.md'), turn(1, reply))
+        writeFileSync(
+          join(d, 'raw/turn1.jsonl'),
+          `${draftRaw('a', 'profile/search.yaml', 'Search city: Leeds')}\n${draftRaw('b', 'x', second.out, { command: second.command, isError: second.isError })}\n`,
+        )
+      })
+      const rows = scoreRun(dir).filter((l) => l.startsWith('line 4'))
+      rmSync(dir, { recursive: true })
+      return rows
+    }
+    const search = 'node scripts/profile.ts draft profile/search.yaml < a.json'
+    const identity = 'node scripts/profile.ts draft profile/identity.yaml < b.json'
+    const leeds = ['line 4 FAIL T1 "Search city: Leeds"']
+
+    it('still requires the first summary when a newline-separated command refused the redraft', () => {
+      const second = { command: `${search}\necho ----\n${identity}`, out: 'Name: A' }
+      expect(line4(second, 'Name: A')).toEqual(leeds)
+      expect(line4(second, 'Name: A\nSearch city: Leeds')).toEqual(['line 4 PASS'])
+    })
+
+    it('still requires the first summary when a ; chain refused the redraft', () => {
+      const second = { command: `${search}; echo ----; ${identity}`, out: 'Name: A' }
+      expect(line4(second, 'Name: A')).toEqual(leeds)
+    })
+
+    // Limit: a refusal whose command exits 0 is not an error result, so the scorer takes its text
+    // for a summary line and requires it.
+    it('counts the text of a refusal that exited 0 as a line of its own', () => {
+      const second = { command: search, out: 'refused: search.yaml has no city' }
+      expect(line4(second, 'Search city: Leeds')).toEqual([
+        'line 4 FAIL T1 "refused: search.yaml has no city"',
+      ])
+    })
   })
 
   describe('two files drafted in separate calls of one turn', () => {

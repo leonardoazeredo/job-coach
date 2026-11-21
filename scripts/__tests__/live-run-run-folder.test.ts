@@ -287,7 +287,7 @@ describe('the drafts in a stream', () => {
       },
     })
 
-  it('pairs a call with its result, keeps the last summary of a file and flags the wins file', () => {
+  it('pairs a call with its result, keeps both summaries of a file drafted twice and flags the wins file', () => {
     const d = draftsIn(
       [
         use('a', 'profile/wins.yaml'),
@@ -297,7 +297,8 @@ describe('the drafts in a stream', () => {
         'junk',
       ].join('\n'),
     )
-    expect(d).toEqual({ summaries: ['new one', 'new two'], winsDrafted: true })
+    // The false finding on the first summary is accepted, see the comment in draftsIn.
+    expect(d).toEqual({ summaries: ['old', 'line', 'new one', 'new two'], winsDrafted: true })
   })
 
   describe('a command that drafts and echoes', () => {
@@ -311,6 +312,11 @@ describe('the drafts in a stream', () => {
       draft('profile/identity.yaml') + '\n' + sep + '\n' + draft('profile/search.yaml')
     const summaries = (command: string, result: string) =>
       draftsIn(call(command) + '\n' + out('c', result)).summaries
+    const callAs = (id: string, command: string) =>
+      JSON.stringify({
+        type: 'assistant',
+        message: { content: [{ type: 'tool_use', id, input: { command } }] },
+      })
 
     it('leaves out a separator the command echoed between two drafts', () => {
       expect(summaries(both('echo ----'), 'Name: A\n----\nCity: B')).toEqual(['Name: A', 'City: B'])
@@ -413,7 +419,7 @@ describe('the drafts in a stream', () => {
       expect(d.summaries).toEqual(['Search city: Leeds', 'boom: search.yaml failed'])
     })
 
-    it('lets a good redraft replace an earlier summary and an earlier error of the same file', () => {
+    it('drops an earlier error result of a file when a good redraft follows, and keeps the good summary', () => {
       const d = draftsIn(
         [
           use('a', 'profile/search.yaml'),
@@ -424,7 +430,56 @@ describe('the drafts in a stream', () => {
           out('c', 'Search city: York'),
         ].join('\n'),
       )
-      expect(d.summaries).toEqual(['Search city: York'])
+      expect(d.summaries).toEqual(['Search city: Leeds', 'Search city: York'])
+    })
+
+    it('drops an error result when a good call drafts every file its command named', () => {
+      const d = draftsIn(
+        [
+          call(both('echo ----')),
+          out('c', 'Name: A\nboom: search.yaml failed', true),
+          callAs('d', both('echo ----')),
+          out('d', 'Name: B\n----\nCity: B2'),
+        ].join('\n'),
+      )
+      expect(d.summaries).toEqual(['Name: B', 'City: B2'])
+    })
+
+    it('keeps an error result when the good redraft covers only some of its files', () => {
+      const d = draftsIn(
+        [
+          call(both('echo ----')),
+          out('c', 'Name: A\nboom: search.yaml failed', true),
+          use('d', 'profile/search.yaml'),
+          out('d', 'City: B2'),
+        ].join('\n'),
+      )
+      expect(d.summaries).toEqual(['Name: A', 'boom: search.yaml failed', 'City: B2'])
+    })
+
+    it('keeps an error result when a later error result drafts all of its files', () => {
+      const d = draftsIn(
+        [
+          use('a', 'profile/search.yaml'),
+          out('a', 'boom: one', true),
+          use('b', 'profile/search.yaml'),
+          out('b', 'boom: two', true),
+        ].join('\n'),
+      )
+      expect(d.summaries).toEqual(['boom: one', 'boom: two'])
+    })
+
+    // Limit: a refusal whose command exits 0 is not an error result, so it is never dropped.
+    it('keeps the lines of a refusal that exited 0 next to a good redraft of the same file', () => {
+      const d = draftsIn(
+        [
+          use('a', 'profile/search.yaml'),
+          out('a', 'refused: search.yaml has no city'),
+          use('b', 'profile/search.yaml'),
+          out('b', 'Search city: York'),
+        ].join('\n'),
+      )
+      expect(d.summaries).toEqual(['refused: search.yaml has no city', 'Search city: York'])
     })
 
     it('flags the achievements file when the command failed after its draft', () => {
@@ -478,7 +533,7 @@ describe('the drafts in a stream', () => {
       ).toEqual(['Name: A', 'City: B', 'City: B2'])
     })
 
-    it('replaces an earlier call when the later one drafts every file it did', () => {
+    it('never replaces a good result, even when the later call drafts every file it did', () => {
       expect(
         shown(
           use('a', search),
@@ -486,8 +541,33 @@ describe('the drafts in a stream', () => {
           callAs('b', twoFiles),
           out('b', 'Name: B\n----\nCity: B2'),
         ),
-      ).toEqual(['Name: B', 'City: B2'])
+      ).toEqual(['City: B', 'Name: B', 'City: B2'])
     })
+
+    it('keeps the summary of a two-draft result where one draft printed "No change."', () => {
+      // The "No change." line stays with the summary: only a result that is that alone is skipped.
+      expect(shown(callAs('a', twoFiles), out('a', 'Name: A\n----\nNo change.'))).toEqual([
+        'Name: A',
+        'No change.',
+      ])
+      expect(shown(callAs('a', twoFiles), out('a', 'No change.\n----\nCity: B'))).toEqual([
+        'No change.',
+        'City: B',
+      ])
+    })
+
+    it('leaves out a result that is "No change." alone, however it is padded', () => {
+      expect(shown(use('a', search), out('a', '\n No change. \n'))).toEqual([])
+    })
+  })
+
+  it.each([
+    ['"No change."', 'No change.'],
+    ['only write lines', 'written: profile/wins.yaml\ndropped: profile/voice.md'],
+    ['an empty result', ''],
+  ])('flags the achievements file when its result is %s', (_name, result) => {
+    const d = draftsIn([use('a', 'profile/wins.yaml'), out('a', result)].join('\n'))
+    expect(d).toEqual({ summaries: [], winsDrafted: true })
   })
 
   it('leaves out an empty result and "No change."', () => {

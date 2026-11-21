@@ -141,12 +141,18 @@ const echoedSeparator = (command: string, line: string): boolean =>
 export const draftsIn = (text: string): { summaries: string[]; winsDrafted: boolean } => {
   let winsDrafted = false
   const commands = new Map<string, { command: string; files: string[] }>()
-  // A call that printed something replaces an earlier one only when it drafts every file the
-  // earlier one did, so a summary is never dropped on a guess about which of a command's lines were
-  // whose. An empty result or "No change." leaves what is waiting alone. An error result never
-  // replaces: a refused redraft leaves the earlier draft waiting and the user's yes still writes it,
-  // so the reply must relay that summary as well as the error text.
-  let latest: { files: string[]; lines: string[] }[] = []
+  // A non-error result is never replaced: a later call that names the same file may have printed
+  // nothing for it (a refused redraft, "No change."), and the lines of the first summary are then
+  // still the draft the user's yes would write. When both drafts of a file were good, the first
+  // summary's lines that differ are a false finding, accepted over dropping a real summary on a
+  // guess about which of a command's lines were whose.
+  // An error result is counted too, since its command may have printed a summary before failing.
+  // It is dropped only when a later non-error call drafts every file the error call's command
+  // named, which is what a redraft after a refusal looks like.
+  // One silent pass remains: a draft that printed its summary inside a command whose later part
+  // failed, then a call that exits 0, names that file, and whose redraft of it was refused or
+  // unchanged. Only the Draft command recording what it printed could close it.
+  let latest: { files: string[]; lines: string[]; error: boolean }[] = []
   const blocks: Block[] = parseStream(text).events.flatMap((e) =>
     Array.isArray(e.message?.content) ? e.message.content : [],
   )
@@ -162,11 +168,14 @@ export const draftsIn = (text: string): { summaries: string[]; winsDrafted: bool
       .filter(
         (l) => l.trim() !== '' && !isWriteOrDropLine(l) && !echoedSeparator(drafted.command, l),
       )
-    if (shown.length === 0 || shown.join('\n').trim() === 'No change.') continue
-    if (block.is_error !== true)
-      latest = latest.filter((e) => !e.files.every((f) => drafted.files.includes(f)))
-    latest.push({ files: drafted.files, lines: shown })
+    // Set before the skip below: it only widens the check of a wins.yaml draft, and a draft whose
+    // result printed nothing new is still a draft of that file.
     winsDrafted ||= WINS_DRAFT.test(drafted.command)
+    if (shown.length === 0 || shown.join('\n').trim() === 'No change.') continue
+    const error = block.is_error === true
+    if (!error)
+      latest = latest.filter((e) => !(e.error && e.files.every((f) => drafted.files.includes(f))))
+    latest.push({ files: drafted.files, lines: shown, error })
   }
   return { summaries: latest.flatMap((e) => e.lines), winsDrafted }
 }
