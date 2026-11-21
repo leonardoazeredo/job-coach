@@ -253,6 +253,24 @@ _Avoid_: conflict (in anything the user reads)
 A folder made from the engine template that holds one person's User data and takes Coach updates.
 _Avoid_: template (the GitHub button), repo (in anything the user reads), workspace (the folders a command reads)
 
+## Live runs
+
+**Live run**:
+One pass of the coach against an invented persona in a container, turn by turn, whose recorded folder the scorer and the judge then mark. It costs money, so it is run on purpose and never by CI.
+_Avoid_: simulation, e2e run
+
+**Run folder**:
+The folder one live run keeps: the copy the coach works in, its session, the raw streams, the transcript, the cost log and the snapshots. `run-folder.ts` owns its format.
+_Avoid_: role folder (the `pipeline/<slug>/` folder of one tracked role), run directory, session folder
+
+**Snapshot**:
+What `turn.sh` saves before each turn so that turn can be redone: the copy without its installed packages and the coach's session, as `snap/before<n>.tgz`.
+_Avoid_: backup, checkpoint
+
+**Replay sample**:
+One redo of a saved turn, in a folder of its own with a run folder's shape, started from the turn's snapshot with this checkout's wording put in. A replay makes several and marks each.
+_Avoid_: sample (alone; it is also the template's value under Placeholder), rerun
+
 ## Tests
 
 **Worked example**:

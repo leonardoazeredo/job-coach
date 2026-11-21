@@ -1,14 +1,5 @@
-import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it, vi } from 'vitest'
@@ -16,13 +7,13 @@ import type { Row } from '../../examples/live-run/findings.ts'
 import {
   failRates,
   formatRates,
-  missingForReplay,
   parseReplayArgs,
   prepareSample,
   replayCommand,
 } from '../../examples/live-run/replay.ts'
 import { EXIT } from '../lib/problem.ts'
 import { gitIn } from './live-run-git.ts'
+import { loadX, makeRun } from './live-run-replay-fixture.ts'
 
 describe('the replay arguments', () => {
   it('takes a run folder, a turn and a count that defaults to 5', () => {
@@ -98,74 +89,8 @@ describe('the fail rate', () => {
   })
 })
 
-// A small invented run: three turns, a snapshot before turn 3, and an engine for an update run.
 const tmp = mkdtempSync(join(tmpdir(), 'replay-test-'))
 afterAll(() => rmSync(tmp, { recursive: true, force: true }))
-
-const X_OLD = 'x old body\n'
-const loadX = (body: string) =>
-  JSON.stringify({
-    type: 'user',
-    isMeta: true,
-    message: {
-      content: [
-        { type: 'text', text: `Base directory for this skill: /w/.claude/skills/x\n\n${body}` },
-      ],
-    },
-  })
-
-const makeRunFolder = (name: string, opts: { turn1?: boolean; loadedSkill?: boolean } = {}) => {
-  const run = join(tmp, name)
-  const stage = join(tmp, `${name}-stage`)
-  mkdirSync(join(stage, 'copy', '.claude', 'skills', 'old'), { recursive: true })
-  mkdirSync(join(stage, 'claudehome', 'projects'), { recursive: true })
-  writeFileSync(join(stage, 'copy', 'CLAUDE.md'), 'old rules\n')
-  writeFileSync(join(stage, 'copy', '.claude', 'skills', 'old', 'SKILL.md'), 'old skill\n')
-  writeFileSync(join(stage, 'claudehome', 'projects', 's.jsonl'), '{}\n')
-  if (opts.loadedSkill) {
-    mkdirSync(join(stage, 'copy', '.claude', 'skills', 'x'), { recursive: true })
-    writeFileSync(join(stage, 'copy', '.claude', 'skills', 'x', 'SKILL.md'), X_OLD)
-    mkdirSync(join(stage, 'claudehome', 'projects', '-w'), { recursive: true })
-    writeFileSync(join(stage, 'claudehome', 'projects', '-w', 's.jsonl'), `${loadX(X_OLD)}\n`)
-  }
-  gitIn(join(stage, 'copy'), 'init', '-q', '-b', 'main')
-  gitIn(join(stage, 'copy'), 'add', '-A')
-  gitIn(join(stage, 'copy'), 'commit', '-q', '-m', 'first')
-  mkdirSync(join(run, 'snap'), { recursive: true })
-  mkdirSync(join(run, 'raw'))
-  mkdirSync(join(run, 'engine'))
-  writeFileSync(join(run, 'engine', 'HEAD'), 'ref\n')
-  spawnSync('tar', [
-    '-czf',
-    join(run, 'snap', opts.turn1 ? 'before1.tgz' : 'before3.tgz'),
-    '-C',
-    stage,
-    'copy',
-    'claudehome',
-  ])
-  // A real stream: an init line that already holds a session id, a line that is not JSON, and a
-  // result line that starts with another key and carries `type` further along.
-  const stream = (sid: string) =>
-    [
-      `{"type":"system","subtype":"init","session_id":"init-${sid}"}`,
-      'not json at all',
-      `{"duration_api_ms":9,"stop_reason":"end_turn","session_id":"${sid}","total_cost_usd":1,"type":"result"}`,
-    ].join('\n')
-  for (const n of [1, 2, 3]) {
-    writeFileSync(join(run, 'raw', `turn${n}.jsonl`), `${stream(`sid-${n}`)}\n`)
-    writeFileSync(join(run, 'raw', `reply${n}.txt`), `message ${n}\n`)
-  }
-  writeFileSync(
-    join(run, 'transcript.md'),
-    [1, 2, 3]
-      .map(
-        (n) => `## Turn ${n}\n\n**Persona:**\n\n> message ${n}\n\n**Coach:**\n\n> reply ${n}\n\n`,
-      )
-      .join(''),
-  )
-  writeFileSync(join(run, 'costlog.txt'), 'turn 1 0.5\nturn 2 0.75\nturn 3 1.5\n')
-  return run
-}
 
 // Every file's path and content, so a change, an addition or a removal shows.
 const fingerprint = (dir: string): string[] =>
@@ -176,87 +101,35 @@ const fingerprint = (dir: string): string[] =>
       : [`${p} ${createHash('sha1').update(readFileSync(p)).digest('hex')}`]
   })
 
+// What the snapshot-to-sample round trip checks lives in live-run-snapshot.test.ts; these are the
+// parts replay.ts adds on top: this checkout’s wording, put in after the swap.
 describe('preparing a sample', () => {
-  const run = makeRunFolder('run')
-  const root = join(tmp, 'tree')
-  mkdirSync(join(root, '.claude', 'skills', 'new'), { recursive: true })
-  writeFileSync(join(root, 'CLAUDE.md'), 'new rules\n')
-  writeFileSync(join(root, '.claude', 'skills', 'new', 'SKILL.md'), 'new skill\n')
-  const before = fingerprint(run)
-  const sample = join(tmp, 'sample')
-  prepareSample(run, 3, sample, root)
-
-  it('leaves the run folder as it was', () => {
-    expect(missingForReplay(run, 3)).toEqual([])
-    expect(fingerprint(run)).toEqual(before)
-  })
+  const tree = (name: string, skill: string, body: string) => {
+    const root = join(tmp, name)
+    mkdirSync(join(root, '.claude', 'skills', skill), { recursive: true })
+    writeFileSync(join(root, 'CLAUDE.md'), 'new rules\n')
+    writeFileSync(join(root, '.claude', 'skills', skill, 'SKILL.md'), body)
+    return root
+  }
 
   it('starts from the snapshot with this checkout’s rules and skills, committed', () => {
+    const sample = join(tmp, 'sample')
+    prepareSample(makeRun(tmp), 3, sample, tree('tree', 'new', 'new skill\n'))
     expect(readFileSync(join(sample, 'copy', 'CLAUDE.md'), 'utf8')).toBe('new rules\n')
     expect(readdirSync(join(sample, 'copy', '.claude', 'skills'))).toEqual(['new'])
     expect(gitIn(join(sample, 'copy'), 'status', '--short').stdout).toBe('')
     expect(gitIn(join(sample, 'copy'), 'log', '--format=%s').stdout).toContain('first')
   })
 
-  it('resumes the session the previous turn ended with, and sends the persona’s message', () => {
-    expect(readFileSync(join(sample, 'session.id'), 'utf8')).toBe('sid-2')
-    expect(readFileSync(join(sample, 'reply.txt'), 'utf8')).toBe('message 3\n')
-    expect(readFileSync(join(sample, 'costlog.txt'), 'utf8')).toBe('turn 2 0.75\n')
-  })
-
-  it('says what kind of run it is, and has no written folder of its own', () => {
-    expect(readFileSync(join(sample, 'kind'), 'utf8')).toBe('update\n')
-    expect(existsSync(join(sample, 'written'))).toBe(false)
-  })
-
-  it('copies the kind a run names, and tells an old run with no kind file by what it holds', () => {
-    const named = makeRunFolder('named-kind')
-    writeFileSync(join(named, 'kind'), 'onboarding\n')
-    prepareSample(named, 3, join(tmp, 'sample-named'), join(tmp, 'tree'))
-    expect(readFileSync(join(tmp, 'sample-named', 'kind'), 'utf8')).toBe('onboarding\n')
-    const plain = makeRunFolder('plain-old')
-    rmSync(join(plain, 'engine'), { recursive: true })
-    prepareSample(plain, 3, join(tmp, 'sample-plain'), join(tmp, 'tree'))
-    expect(readFileSync(join(tmp, 'sample-plain', 'kind'), 'utf8')).toBe('onboarding\n')
-    const finished = makeRunFolder('finished-old')
-    rmSync(join(finished, 'engine'), { recursive: true })
-    mkdirSync(join(finished, 'written'))
-    writeFileSync(join(finished, 'written', 'log.txt'), '')
-    prepareSample(finished, 3, join(tmp, 'sample-finished'), join(tmp, 'tree'))
-    expect(readFileSync(join(tmp, 'sample-finished', 'kind'), 'utf8')).toBe('update\n')
-  })
-
-  it('keeps the turns before the replayed one for the scorer, and the engine of an update run', () => {
-    const transcript = readFileSync(join(sample, 'transcript.md'), 'utf8')
-    expect(transcript).toContain('## Turn 2')
-    expect(transcript).not.toContain('## Turn 3')
-    expect(readFileSync(join(sample, 'engine', 'HEAD'), 'utf8')).toBe('ref\n')
-  })
-
-  it('refuses a stream with no result line in one plain line', () => {
-    const bare = makeRunFolder('no-result')
-    writeFileSync(join(bare, 'raw', 'turn2.jsonl'), '{"type":"system","session_id":"x"}\n')
-    expect(() => prepareSample(bare, 3, join(tmp, 'sample-no-result'), join(tmp, 'tree'))).toThrow(
-      'raw/turn2.jsonl holds no result with a session id',
-    )
-  })
-
-  it('swaps a loaded skill in the sample\u2019s session only, before the tree\u2019s skills go in', () => {
-    const swapRun = makeRunFolder('swap-run', { loadedSkill: true })
-    const swapRoot = join(tmp, 'swap-tree')
-    mkdirSync(join(swapRoot, '.claude', 'skills', 'x'), { recursive: true })
-    writeFileSync(join(swapRoot, 'CLAUDE.md'), 'new rules\n')
-    writeFileSync(join(swapRoot, '.claude', 'skills', 'x', 'SKILL.md'), 'x new body\n')
+  it('swaps a loaded skill in the sample’s session only, before the tree’s skills go in', () => {
+    const swapRun = makeRun(tmp, { name: 'swap-run', loadedSkill: true })
+    const swapRoot = tree('swap-tree', 'x', 'x new body\n')
     const untouched = fingerprint(swapRun)
     const swapSample = join(tmp, 'swap-sample')
     expect(prepareSample(swapRun, 3, swapSample, swapRoot)).toEqual(['x'])
     const session = join(swapSample, 'claudehome', 'projects', '-w', 's.jsonl')
     expect(readFileSync(session, 'utf8')).toBe(`${loadX('x new body\n')}\n`)
     expect(fingerprint(swapRun)).toEqual(untouched)
-  })
-
-  it('names what a run lacks for a replay', () => {
-    expect(missingForReplay(run, 2)).toContain('snap/before2.tgz')
   })
 })
 
@@ -281,7 +154,7 @@ describe('the replay command before any live call', () => {
   })
 
   it('refuses a missing token before any Docker call, and never prints a token', () => {
-    const run = makeRunFolder('tokenless')
+    const run = makeRun(tmp, { name: 'tokenless' })
     const out: string[] = []
     const spy = vi.spyOn(console, 'error').mockImplementation((m) => void out.push(String(m)))
     withToken(undefined, () => expect(replayCommand([run, '3'])).toBe(EXIT.usage))
@@ -296,22 +169,5 @@ describe('the replay command before any live call', () => {
     spy.mockRestore()
     expect(out.join('\n')).not.toContain(secret)
     expect(out.join('\n')).toMatch(/LIVE_RUN_BUDGET_USD/)
-  })
-})
-
-describe('a turn-1 sample', () => {
-  it('has no session or cost log to resume and reads no turn 0', () => {
-    const run = makeRunFolder('t1', { turn1: true })
-    const root = join(tmp, 'tree1')
-    mkdirSync(join(root, '.claude', 'skills', 'new'), { recursive: true })
-    writeFileSync(join(root, 'CLAUDE.md'), 'new rules\n')
-    writeFileSync(join(root, '.claude', 'skills', 'new', 'SKILL.md'), 's\n')
-    const sample = join(tmp, 'sample-t1')
-    prepareSample(run, 1, sample, root)
-    expect(missingForReplay(run, 1)).toEqual([])
-    expect(existsSync(join(sample, 'session.id'))).toBe(false)
-    expect(existsSync(join(sample, 'costlog.txt'))).toBe(false)
-    expect(readFileSync(join(sample, 'transcript.md'), 'utf8')).toBe('')
-    expect(readFileSync(join(sample, 'copy', 'CLAUDE.md'), 'utf8')).toBe('new rules\n')
   })
 })

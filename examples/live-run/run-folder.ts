@@ -1,11 +1,34 @@
 // The format of a live-run folder, in one place: what turn.sh records after a turn and what the
 // scorer, the replay and the comment read back. A folder holds raw/turn<n>.jsonl (claude's stream),
 // raw/reply<n>.txt (the persona's message), session.id, costlog.txt, last.txt, transcript.md and,
-// from a run's start, kind. turn.sh calls the command line at the bottom for everything it
-// records or reads here; no other shell script parses these files.
-import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
+// from a run's start, kind; snap/before<n>.tgz is what a replay of turn n starts from, and cost.txt
+// marks a run finished. This module also takes the snapshot before a turn, says whether a replay
+// has what it needs, lays out a replay sample's folder from a snapshot, and writes and reads a
+// finished run's cost. turn.sh and the finish scripts call the command line at the bottom for
+// everything they record or read here; no other shell script parses these files.
+import { spawnSync } from 'node:child_process'
+import {
+  appendFileSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { join } from 'node:path'
 import { EXIT } from '../../scripts/lib/problem.ts'
+
+// The folders of a run. start.sh and start-update.sh create all but snap by these names in shell,
+// and up.sh mounts most of them, so a rename has to reach those scripts too; snap is made here.
+export const LAYOUT = {
+  copy: 'copy',
+  raw: 'raw',
+  claudehome: 'claudehome',
+  cachehome: 'cachehome',
+  tmpd: 'tmpd',
+  snap: 'snap',
+} as const
 
 // ---- the stream ----
 
@@ -143,6 +166,10 @@ const readIf = (path: string): string => (existsSync(path) ? readFileSync(path, 
 export const readCostLog = (run: string): string => readIf(join(run, 'costlog.txt'))
 export const readSession = (run: string): string => readIf(join(run, 'session.id'))
 
+// The running total a run had after `turn`; 0 when the log has no line for it.
+export const costAfter = (run: string, turn: number): number =>
+  totalAfter(readCostLog(run), turn) ?? 0
+
 // ---- the transcript ----
 
 // Each line of a text gets the "> " prefix, and the text keeps its own ending: a trailing newline
@@ -217,11 +244,11 @@ const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`
 // records nothing, so the last cost line stays the running total and a retry of the turn leaves one
 // block in the transcript.
 export const recordTurn = (run: string, n: number, replyFile: string): Recorded => {
-  const stream = join(run, 'raw', `turn${n}.jsonl`)
+  const stream = join(run, LAYOUT.raw, `turn${n}.jsonl`)
   const read = readStream(readIf(stream))
   if (read.sessionId === undefined)
     return {
-      failure: `turn ${n} left no result; ${join(run, 'raw', `turn${n}.err`)} and ${stream} hold why`,
+      failure: `turn ${n} left no result; ${join(run, LAYOUT.raw, `turn${n}.err`)} and ${stream} hold why`,
     }
   const notes: string[] = []
   if (read.skipped > 0)
@@ -238,14 +265,140 @@ export const recordTurn = (run: string, n: number, replyFile: string): Recorded 
   writeFileSync(join(run, 'session.id'), read.sessionId)
   appendFileSync(join(run, 'costlog.txt'), costLine(n, cost))
   writeFileSync(join(run, 'last.txt'), coach)
-  writeFileSync(join(run, 'raw', `reply${n}.txt`), persona)
+  writeFileSync(join(run, LAYOUT.raw, `reply${n}.txt`), persona)
   appendFileSync(join(run, 'transcript.md'), transcriptBlock(n, persona, coach))
   return notes.length === 0 ? {} : { note: notes.join('\n') }
 }
 
+// ---- the snapshot and the replay ----
+
+// What a replay of turn `n` starts from, taken before the turn: the copy without its installed
+// packages, which are large and come back with npm ci, and the coach's session, which lives in
+// claudehome. The .packages marker says whether npm ci is needed, so it is reset on every call, as
+// a stale one would make a replay install packages the snapshot never had. A failed tar leaves a
+// partial archive that missingForReplay would accept, so it is removed and no marker is set: a
+// failure leaves neither. Returns why the snapshot failed, or undefined.
+export const snapshot = (run: string, n: number): string | undefined => {
+  const { copy, claudehome, snap } = LAYOUT
+  mkdirSync(join(run, snap), { recursive: true })
+  const tar = spawnSync(
+    'tar',
+    [
+      '-czf',
+      join(run, snap, `before${n}.tgz`),
+      '-C',
+      run,
+      `--exclude=${copy}/node_modules`,
+      copy,
+      claudehome,
+    ],
+    { encoding: 'utf8' },
+  )
+  if (tar.status !== 0) rmSync(join(run, snap, `before${n}.tgz`), { force: true })
+  const marker = join(run, snap, `before${n}.packages`)
+  rmSync(marker, { force: true })
+  if (tar.status === 0 && existsSync(join(run, copy, 'node_modules'))) writeFileSync(marker, '')
+  return tar.status === 0 ? undefined : `could not snapshot before turn ${n}: ${tar.stderr.trim()}`
+}
+
+// Whether the copy had installed packages when the snapshot was taken, so a replay sample of the
+// turn needs npm ci before it runs.
+export const snapshotHadPackages = (run: string, n: number): boolean =>
+  existsSync(join(run, LAYOUT.snap, `before${n}.packages`))
+
+// What a replay of the turn needs from the run folder, or what is missing.
+export const missingForReplay = (run: string, turn: number): string[] =>
+  [`snap/before${turn}.tgz`, `raw/reply${turn}.txt`, `raw/turn${turn}.jsonl`, 'costlog.txt']
+    .concat(turn > 1 ? [`raw/turn${turn - 1}.jsonl`] : [])
+    .filter((f) => !existsSync(join(run, f)))
+
+// The session id a turn ended with is in the result of its raw stream.
+export const sessionAfter = (run: string, turn: number): string => {
+  const id = readStream(readFileSync(join(run, LAYOUT.raw, `turn${turn}.jsonl`), 'utf8')).sessionId
+  if (id === undefined) throw new Error(`raw/turn${turn}.jsonl holds no result with a session id`)
+  return id
+}
+
+// A replay sample has a run folder's shape, so turn.sh and the scorer work on it unchanged: the
+// snapshot unpacked, the transcript and raw streams up to the turn (which is how the scorer knows
+// what came earlier), the persona's message as reply.txt and, after turn 1, the session and the
+// one cost line a resumed turn starts from. Reads `run`, writes only `sample`.
+export const prepareReplaySample = (run: string, turn: number, sample: string): void => {
+  const { raw, snap, cachehome, tmpd } = LAYOUT
+  mkdirSync(sample, { recursive: true })
+  const tar = spawnSync('tar', ['-xzf', join(run, snap, `before${turn}.tgz`), '-C', sample], {
+    encoding: 'utf8',
+  })
+  if (tar.status !== 0) throw new Error(`could not unpack the snapshot: ${tar.stderr}`)
+  for (const d of [raw, cachehome, tmpd]) mkdirSync(join(sample, d), { recursive: true })
+  if (existsSync(join(run, 'engine')))
+    cpSync(join(run, 'engine'), join(sample, 'engine'), { recursive: true })
+  writeKind(sample, runKind(run))
+  writeFileSync(join(sample, 'transcript.md'), transcriptBefore(run, turn))
+  for (let k = 1; k < turn; k++)
+    if (existsSync(join(run, raw, `turn${k}.jsonl`)))
+      cpSync(join(run, raw, `turn${k}.jsonl`), join(sample, raw, `turn${k}.jsonl`))
+  cpSync(join(run, raw, `reply${turn}.txt`), join(sample, 'reply.txt'))
+  if (turn > 1) {
+    writeFileSync(join(sample, 'session.id'), sessionAfter(run, turn - 1))
+    // Only the line for the turn before: the sample's own turn.sh adds the replayed turn's line.
+    writeFileSync(join(sample, 'costlog.txt'), costLine(turn - 1, costAfter(run, turn - 1)))
+  }
+}
+
+// ---- a finished run's cost ----
+
+// cost.txt is what tells comment.ts a run is finished. total_cost_usd is already a running total,
+// so the file holds the cost log's last total and is never a sum.
+export const writeCost = (run: string): string => {
+  const line = `total_usd ${runningTotal(readCostLog(run))}\n`
+  writeFileSync(join(run, 'cost.txt'), line)
+  return line
+}
+
+// The cost as a number, or as read when the file holds something else; a stray backtick is dropped
+// because the comment prints it in a code span.
+export const readCost = (run: string): number | string => {
+  const raw = readFileSync(join(run, 'cost.txt'), 'utf8')
+    .trim()
+    .replace(/^total_usd(\s+|$)/, '')
+    .replace(/`/g, '')
+  return Number.isFinite(Number(raw)) && raw !== '' ? Number(raw) : raw
+}
+
 // ---- the command line turn.sh and the finish scripts call ----
 
-const USAGE = `usage: node run-folder.ts record <run> <n> <reply-file> | total <run> | session <run> | turns <run>`
+const USAGE = `usage: node run-folder.ts record <run> <n> <reply-file> | snapshot <run> <n> | total <run> | session <run> | turns <run> | cost <run>`
+
+const snapshotCommand = (run: string, n: number): number => {
+  const failure = snapshot(run, n)
+  if (failure === undefined) return 0
+  console.error(failure)
+  return EXIT.data
+}
+
+// A cost log that exists but cannot be read stops here with nothing written, so cost.txt never
+// holds a 0 the log did not give; a missing log is a real 0, as for the running total.
+const costCommand = (run: string): number => {
+  try {
+    process.stdout.write(writeCost(run))
+    return 0
+  } catch (e) {
+    const why = (e instanceof Error ? e.message : String(e)).split('\n')[0]
+    console.error(`could not write cost.txt in ${run}: ${why}`)
+    return EXIT.data
+  }
+}
+
+const recordCommand = (run: string, n: number, replyFile: string): number => {
+  const r = recordTurn(run, n, replyFile)
+  if ('failure' in r) {
+    console.log(r.failure)
+    return EXIT.data
+  }
+  if (r.note) console.log(r.note)
+  return 0
+}
 
 export const runFolderCommand = (args: string[]): number => {
   const [verb, run, n, replyFile] = args
@@ -256,14 +409,11 @@ export const runFolderCommand = (args: string[]): number => {
   if (verb === 'total') console.log(runningTotal(readCostLog(run)))
   else if (verb === 'session') console.log(readSession(run))
   else if (verb === 'turns') console.log(turnCount(run))
-  else if (verb === 'record' && n !== undefined && replyFile !== undefined) {
-    const r = recordTurn(run, Number(n), replyFile)
-    if ('failure' in r) {
-      console.log(r.failure)
-      return EXIT.data
-    }
-    if (r.note) console.log(r.note)
-  } else {
+  else if (verb === 'cost') return costCommand(run)
+  else if (verb === 'snapshot' && n !== undefined) return snapshotCommand(run, Number(n))
+  else if (verb === 'record' && n !== undefined && replyFile !== undefined)
+    return recordCommand(run, Number(n), replyFile)
+  else {
     console.error(USAGE)
     return EXIT.usage
   }

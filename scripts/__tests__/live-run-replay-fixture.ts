@@ -2,8 +2,7 @@
 // with the environment it reads and its output captured, a docker stand-in for the real adapter
 // (real up.sh and turn.sh run against it) and a fake adapter for the replay's own rules.
 
-import { spawnSync } from 'node:child_process'
-import { chmodSync, mkdirSync, writeFileSync } from 'node:fs'
+import { appendFileSync, chmodSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { vi } from 'vitest'
 import {
@@ -11,24 +10,87 @@ import {
   replayCommand,
   type SampleOutcome,
 } from '../../examples/live-run/replay.ts'
-import { costLine, recordTurn, transcriptBlock } from '../../examples/live-run/run-folder.ts'
+import { LAYOUT, recordTurn, snapshot } from '../../examples/live-run/run-folder.ts'
+import { gitIn } from './live-run-git.ts'
 
-// A run whose turn 3 can be replayed; its total before turn 3 is 0.75.
-export const makeRun = (tmp: string): string => {
-  const run = join(tmp, 'run')
-  const stage = join(tmp, 'stage')
-  mkdirSync(join(stage, 'copy', '.claude', 'skills'), { recursive: true })
-  mkdirSync(join(stage, 'claudehome', 'projects'), { recursive: true })
-  writeFileSync(join(stage, 'copy', 'CLAUDE.md'), 'rules\n')
-  mkdirSync(join(run, 'snap'), { recursive: true })
-  mkdirSync(join(run, 'raw'))
-  spawnSync('tar', ['-czf', join(run, 'snap', 'before3.tgz'), '-C', stage, 'copy', 'claudehome'])
-  const result = '{"type":"result","session_id":"sid-2","total_cost_usd":0.75}\n'
-  writeFileSync(join(run, 'raw', 'turn2.jsonl'), result)
-  writeFileSync(join(run, 'raw', 'turn3.jsonl'), result)
-  writeFileSync(join(run, 'raw', 'reply3.txt'), 'message 3\n')
-  writeFileSync(join(run, 'transcript.md'), transcriptBlock(1, 'hi', 'hello'))
-  writeFileSync(join(run, 'costlog.txt'), costLine(1, 0.5) + costLine(2, 0.75) + costLine(3, 1.5))
+const X_OLD = 'x old body\n'
+// The session line claude writes when a skill is loaded, as swap.ts finds it.
+export const loadX = (body: string) =>
+  JSON.stringify({
+    type: 'user',
+    isMeta: true,
+    message: {
+      content: [
+        { type: 'text', text: `Base directory for this skill: /w/.claude/skills/x\n\n${body}` },
+      ],
+    },
+  })
+
+export type RunOptions = {
+  name?: string
+  // Turns recorded, the last of which is the one a replay would redo; 0 leaves an empty run.
+  turns?: number
+  // An update run's engine folder.
+  engine?: boolean
+  // A skill the coach loaded, in the copy and in its saved session.
+  loadedSkill?: boolean
+}
+
+const RUNNING_TOTAL = [0.5, 0.75, 1.5]
+
+// A run built the way a real one is: turns recorded through recordTurn and the snapshot before the
+// last of them taken through snapshot. By default three turns, so turn 3 can be replayed; its
+// total before the turn is 0.75.
+export const makeRun = (tmp: string, opts: RunOptions = {}): string => {
+  const { name = 'run', turns = 3 } = opts
+  const run = join(tmp, name)
+  const { copy, claudehome, raw } = LAYOUT
+  mkdirSync(join(run, copy, '.claude', 'skills', 'old'), { recursive: true })
+  mkdirSync(join(run, claudehome, 'projects'), { recursive: true })
+  mkdirSync(join(run, raw), { recursive: true })
+  writeFileSync(join(run, copy, 'CLAUDE.md'), 'old rules\n')
+  writeFileSync(join(run, copy, '.claude', 'skills', 'old', 'SKILL.md'), 'old skill\n')
+  writeFileSync(join(run, claudehome, 'projects', 's.jsonl'), '{}\n')
+  if (opts.loadedSkill) {
+    mkdirSync(join(run, copy, '.claude', 'skills', 'x'), { recursive: true })
+    writeFileSync(join(run, copy, '.claude', 'skills', 'x', 'SKILL.md'), X_OLD)
+    mkdirSync(join(run, claudehome, 'projects', '-w'), { recursive: true })
+    writeFileSync(join(run, claudehome, 'projects', '-w', 's.jsonl'), `${loadX(X_OLD)}\n`)
+  }
+  gitIn(join(run, copy), 'init', '-q', '-b', 'main')
+  gitIn(join(run, copy), 'add', '-A')
+  gitIn(join(run, copy), 'commit', '-q', '-m', 'first')
+  if (opts.engine) {
+    mkdirSync(join(run, 'engine'))
+    writeFileSync(join(run, 'engine', 'HEAD'), 'ref\n')
+  }
+  const reply = join(tmp, `${name}-reply.txt`)
+  for (let n = 1; n <= turns; n++) {
+    // A real stream: an init line that already holds a session id, a line that is not JSON, and a
+    // result line that starts with another key and carries `type` further along.
+    writeFileSync(
+      join(run, raw, `turn${n}.jsonl`),
+      `${[
+        `{"type":"system","subtype":"init","session_id":"init-sid-${n}"}`,
+        'not json at all',
+        `{"type":"assistant","message":{"content":[{"type":"text","text":"reply ${n}"}]}}`,
+        `{"duration_api_ms":9,"session_id":"sid-${n}","total_cost_usd":${RUNNING_TOTAL[n - 1] ?? n},"type":"result"}`,
+      ].join('\n')}\n`,
+    )
+    writeFileSync(reply, `message ${n}\n`)
+    if (n === turns) {
+      const failure = snapshot(run, n)
+      if (failure !== undefined) throw new Error(failure)
+    }
+    const recorded = recordTurn(run, n, reply)
+    if ('failure' in recorded) throw new Error(recorded.failure)
+    // The turn changes the live copy and session after the snapshot, so a sample that matches the
+    // snapshot did not come from the live run.
+    if (n === turns) {
+      writeFileSync(join(run, copy, 'CLAUDE.md'), 'live rules\n')
+      appendFileSync(join(run, claudehome, 'projects', 's.jsonl'), '{"turn":"live"}\n')
+    }
+  }
   return run
 }
 
