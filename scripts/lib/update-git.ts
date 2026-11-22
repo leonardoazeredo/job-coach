@@ -145,9 +145,10 @@ export type Rename = {
   base: string
   ours: string
   theirs: string
-  // Git staged different content under the two names, or what it staged is not what merging the
-  // three committed versions again gives (it holds clash markers, a binary file both sides
-  // changed, or git has no --object-id). A text clash leaves git's marker copy at both new names.
+  // Git staged different content under the two names, or both sides changed the content and what
+  // git staged is not what merging the three committed versions again gives (it holds clash
+  // markers, the file is binary, or git has no --object-id). A content one side changed, or
+  // neither, is never a clash. A text clash leaves git's marker copy at both new names.
   contentClash: boolean
 }
 
@@ -179,11 +180,11 @@ export const renamesOf = (git: Git): Rename[] => {
     if (!other || other === ours) return []
     if (!only(held.get(from), '1') || !only(held.get(ours), '2') || !only(held.get(other), '3'))
       return []
-    // The content is clean only when merging the three committed versions again gives exactly the
-    // blob git staged, which a clash would have filled with markers. Git merges with one diff
-    // algorithm and merge-file defaults to another, so either may reproduce it. Anything else,
-    // including a binary file or a git without --object-id, counts as a clash: the take then
-    // keeps one side's whole file, which is safe.
+    // The content is clean when at most one side changed it (below), or when merging the three
+    // committed versions again gives exactly the blob git staged, which a clash would have filled
+    // with markers. Git merges with one diff algorithm and merge-file defaults to another, so either
+    // may reproduce it. Anything else, such as a binary file both sides changed or a git without
+    // --object-id, counts as a clash: the take then keeps one side's whole file, which is safe.
     const staged = held.get(ours)?.[0]?.id
     const same = staged === held.get(other)?.[0]?.id
     const stagedText = staged ? git(['cat-file', 'blob', staged]).stdout : undefined
@@ -354,8 +355,8 @@ const standsInTheWay = (top: string, path: string): { file?: string; folder: boo
 }
 
 // What a take of a rename cannot write over or remove: a file of the user's where a parent folder
-// of a new name should be, and a folder at either new name (its files when it holds any, else the
-// folder itself). Removing the name that goes would fail on a folder, and writing the kept name
+// of a new name should be, and a folder at either new name (its unsaved files when it holds any,
+// else the folder itself). Removing the name that goes would fail on a folder, and writing the kept name
 // would replace it.
 const inTheWayOfRename = (git: Git, top: string, rename: Rename): string[] => [
   ...new Set(
@@ -528,8 +529,9 @@ export type TakeResult =
   | { kind: 'taken'; left: string[]; renames?: Rename[] }
   | { kind: 'no-merge' }
   | { kind: 'not-clashing' }
-  // Something of the user's stands where the take would write or remove a file: unsaved files in
-  // a folder there, an empty folder, or a file where a parent folder should be. Nothing is changed.
+  // Something of the user's stands where the take would write or remove a file: a folder there
+  // (its unsaved files; for a rename also the folder itself when it holds none), or, for a
+  // rename, a file where a parent folder should be. Nothing is changed.
   | { kind: 'in-the-way'; files: string[] }
   // A step of the take failed after the checks passed. `restored` says whether the folder is as
   // it was before the take; when it is not, `files` are the ones to look at.
