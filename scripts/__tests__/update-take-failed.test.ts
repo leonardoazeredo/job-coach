@@ -2,10 +2,12 @@ import { spawn } from 'node:child_process'
 import {
   chmodSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs'
 import { join } from 'node:path'
@@ -102,6 +104,46 @@ describe('a take whose step fails', () => {
           expect(state(git)).toEqual(before)
           settled(git, side, text, [ours, theirs])
         })
+
+  describe('what a failed take does to the files', () => {
+    const modeOf = (rel: string) => lstatSync(join(work(), rel)).mode & 0o777
+
+    it('puts a removed file back with its mode', () => {
+      const { git } = scene(false, 'x/b.md', 'y/c.md')
+      chmodSync(join(work(), 'x/b.md'), 0o755)
+      chmodSync(join(work(), 'y'), 0o555)
+      // The executable bit counts as an edit by hand, so the take goes on only when told to.
+      const result = takeSide(git, 'theirs', A, { discardEdits: true })
+      expect(result).toMatchObject({ kind: 'failed', restored: true, files: [] })
+      expect(modeOf('x/b.md')).toBe(0o755)
+      expect(modeOf('y/c.md')).toBe(0o644)
+    })
+
+    it('leaves the file at the name that goes untouched when the index cannot change', () => {
+      const { git } = scene(false)
+      const same = (rel: string) => {
+        const stat = statSync(join(work(), rel), { bigint: true })
+        return { ino: stat.ino, mtime: stat.mtimeNs }
+      }
+      const before = { b: same('docs/b.md'), c: same('docs/c.md') }
+      writeFileSync(join(work(), '.git/index.lock'), '')
+      expect(takeSide(git, 'ours', A)).toMatchObject({ kind: 'failed', restored: true, files: [] })
+      expect({ b: same('docs/b.md'), c: same('docs/c.md') }).toEqual(before)
+    })
+
+    it('names a file that could not be put back', () => {
+      const { git } = scene(false, 'x/b.md', 'y/c.md')
+      // The removal is through, so the folder the file was in is made read-only before the restore.
+      const lockFolder = () => chmodSync(join(work(), 'x'), 0o555)
+      const result = takeSide(failing(git, steps['writing the kept name'], lockFolder), 'theirs', A)
+      expect(result).toEqual({
+        kind: 'failed',
+        output: 'injected failure',
+        restored: false,
+        files: ['x/b.md'],
+      })
+    })
+  })
 
   describe('a take whose index cannot be put back', () => {
     it('waits out a lock held for a moment and restores', () => {
