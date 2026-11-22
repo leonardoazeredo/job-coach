@@ -3,8 +3,9 @@
 // turn.sh took: the copy and the coach's session), with this checkout's CLAUDE.md and skills put
 // in (the skills the coach had loaded are swapped in its saved session too), sends the persona's
 // original message for that turn, and is marked by the scorer. The run folder is only read, except that
-// samples go in a new folder under it (replays/) unless --out names one. A sample keeps only what
-// the scorer and a reader open; the working copy that ran the turn is removed, also when it failed.
+// samples go in a new folder under it (replays/) unless --out names one. A sample keeps what the
+// scorer reads and the copy the turn left, without its installed packages; the snapshot, the coach's
+// session and cache folders, the temp folder and the engine copy are removed, also when it failed.
 // Usage: node examples/live-run/replay.ts <run-dir> <turn> [n] [--out <folder>]
 // Needs Docker and CLAUDE_CODE_OAUTH_TOKEN in the environment: the token goes to each sample's
 // container through up.sh and is never printed. The stop (LIVE_RUN_BUDGET_USD, default 5) applies
@@ -164,15 +165,16 @@ export const parseBudget = (raw: string | undefined): number | string => {
 const stopMessage = (spent: number, budget: number, i: number, n: number): string =>
   `STOP: ${spent.toFixed(3)} spent, the stop is ${budget}. ${n - i + 1} samples were not run.`
 
-// The last part of --out names each sample's Docker container (up.sh), so it must be a name Docker
-// accepts; a part up.sh would reject is refused here, before a sample is paid for.
+// Each sample's Docker container is named after its folder (up.sh), which starts with the last part
+// of --out, so that part must be a name Docker accepts; one up.sh would reject is refused here,
+// before a sample is paid for.
 const CONTAINER_NAME = /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/
 
 const sampleFolder = (out: string, i: number): string => join(out, `${basename(out)}-s${i}`)
 
 // Where the samples go: the folder the caller named, which must not hold anything yet (a sample
-// unpacked over an old one would mix the two), or a new one under the run folder, which the
-// maintainer already keeps and cleans, never the system's temporary folder, where a replay's samples piled up unseen.
+// unpacked over an old one would mix the two), or a new one in the run folder's replays/ subfolder,
+// not in the system's temporary folder, where a replay's samples piled up unseen.
 export const outputFolder = (run: string, turn: number, named?: string): string => {
   if (named === undefined) {
     mkdirSync(join(run, 'replays'), { recursive: true })
@@ -389,8 +391,8 @@ const printResults = (turn: number, done: string[], spent: number) => {
   })
 }
 
-// A sample that failed or was cut short is trimmed the same way as a finished one: its working
-// copy is what fills the disk, and the stream and cost log that say why it failed stay.
+// A sample that failed or was cut short is trimmed the same way as a finished one: the folders
+// that only ran the turn are what fill the disk, and the stream and cost log that say why it failed stay.
 const trimKept = (sample: string) => {
   try {
     trimReplaySample(sample)
@@ -438,7 +440,7 @@ const replay = (
   const notBuilt = adapter.build()
   if (notBuilt !== undefined) {
     console.error(`the image did not build; is Docker running? ${notBuilt}`)
-    // No sample started, so the folder is empty and would only clutter replays/.
+    // No sample started, so a folder this run made is empty and would only clutter its parent.
     if (!named) rmdirSync(out)
     return EXIT.problems
   }
