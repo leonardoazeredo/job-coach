@@ -29,7 +29,7 @@ Run `node scripts/update.ts changes`.
 
 - `latest`: say "You're on the latest version of the coach." and stop.
 - `not fetched: …`: say the coach could not reach the internet to look for a new version, and stop.
-- `available`, then one `- ` line per change: summarise those lines in two to five plain bullets of what the user will notice (new abilities, fixed problems, changed defaults), then ask: "Update now?" A no ends the skill with nothing changed. Word a changed default as the new version's usual value ("the usual wait before a role with no reply counts as stale goes from 14 to 21 days"), because a setting the user changed stays theirs until step 3 settles it.
+- `available`, then one `- ` line per change: when the user said yes to the start-of-session offer, that yes already answers "Update now?", so do not announce the new version again or ask again: summarise the lines as below and go on to step 3. Otherwise summarise those lines in two to five plain bullets of what the user will notice (new abilities, fixed problems, changed defaults), then ask: "Update now?" A no ends the skill with nothing changed. Word a changed default as the new version's usual value ("the usual wait before a role with no reply counts as stale goes from 14 to 21 days"), because a setting the user changed stays theirs until step 3 settles it.
 
 ### 3. Merge
 
