@@ -24,18 +24,22 @@
 //   take     settles one clashing file with the user's version (ours) or the new one (theirs);
 //            for a file both sides renamed it settles all three of its paths, and --text picks
 //            whose content it ends with when that clashes too. It prints taken: <file>; clashes
-//            left: <files> or no clashes left, then the "- renamed" lines, or not taken: <why>.
+//            left: <files> or no clashes left, then the "- renamed" lines; or not taken: <why>, followed by
+//            the file's "- renamed" line when whose text it ends with is still to choose.
 //   finish   commits, installs, runs the record check and prints updated, or clashes left while a
 //            file holds a clash marker, is binary, is not a plain file (a link, or a file against
-//            a folder), one side removed it or both renamed it (with its "- renamed" lines), or not
-//            committed when the commit failed, or undone when the install or check failed and the
+//            a folder), one side removed it, both renamed it (with its "- renamed" lines), or only
+//            the old version holds it, or not committed when the commit failed, or undone when the install or check failed and the
 //            folder went back to how it was, or not undone when that putting back failed too.
 //   cancel   abandons a merge in progress; nothing changes.
-// Exit 64 on a usage error, zip in a folder that keeps history, or a history step in one without.
+// Exit 64 on a usage error (including take or finish with no update in progress, take on a file
+// that is not clashing, and --text or --discard-edits where they do not apply), zip in a folder
+// that keeps history, or a history step in one without.
 // Exit 1 when an update did not start, could not fetch or merge the new version, was not committed,
 // was undone or not undone, could not be cancelled, when finish finds clashes left, and when
-// take stops (not taken: ...): the line is on stdout, with git's or the check's words on stderr
-// when there are any. Otherwise 0, including a check that got no answer.
+// take stops (not taken: ...). The line is on stdout and the reason on stderr when there is one:
+// git's words, the install's or the record check's (merge and finish), or the system's.
+// Otherwise 0, including a check that got no answer.
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { type Git, gitIn } from './lib/history.ts'
