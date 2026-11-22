@@ -474,8 +474,8 @@ describe('the drafts in a stream', () => {
       expect(d.summaries).toEqual(['boom: one', 'boom: two'])
     })
 
-    // Limit: a refusal whose command exits 0 is not an error result, so it is never dropped.
-    it('keeps the lines of a refusal that exited 0 next to a good redraft of the same file', () => {
+    // Limit: output of another command that exited 0 is not an error result, so it is never dropped.
+    it('keeps the lines of other output that exited 0 next to a good redraft of the same file', () => {
       const d = draftsIn(
         [
           use('a', 'profile/search.yaml'),
@@ -814,5 +814,92 @@ describe('the drafts in a stream', () => {
       ].join('\n'),
     )
     expect(d).toEqual({ summaries: [], winsDrafted: false })
+  })
+
+  describe('a draft the Draft command refused', () => {
+    const refusal =
+      'error  profile/identity.yaml: "Timezone" still holds the template\'s example; give a value, or null to leave it out'
+    const identity = 'profile/identity.yaml'
+    const wins = 'profile/wins.yaml'
+    const calls = (id: string, command: string) =>
+      JSON.stringify({
+        type: 'assistant',
+        message: { content: [{ type: 'tool_use', id, input: { command } }] },
+      })
+    const shown = (...parts: string[]) => draftsIn(parts.join('\n')).summaries
+
+    it.each([
+      ['an error result', true, `Exit code 1\n${refusal}`],
+      ['a result of a command that exited 0', false, refusal],
+      [
+        'a result that could not read its input',
+        true,
+        'Exit code 65\nprofile/identity.yaml: the input could not be read as values: Unexpected token',
+      ],
+    ])('adds no summary line for %s', (_name, isError, result) => {
+      expect(shown(use('a', identity), out('a', result, isError))).toEqual([])
+    })
+
+    it('still flags the achievements file when its draft was refused', () => {
+      const d = draftsIn(
+        [use('a', wins), out('a', `Exit code 1\n${refusal.replace(identity, wins)}`, true)].join(
+          '\n',
+        ),
+      )
+      expect(d).toEqual({ summaries: [], winsDrafted: true })
+    })
+
+    it('keeps every summary line of a draft that a later draft in the same command refused', () => {
+      const command = `node scripts/profile.ts draft ${identity} <<'A'\n{}\nA\nnode scripts/profile.ts draft ${wins} <<'B'\n{}\nB`
+      expect(
+        shown(
+          calls('a', command),
+          out('a', `Exit code 1\nName: A\nCity: B\n${refusal.replace(identity, wins)}`, true),
+        ),
+      ).toEqual(['Name: A', 'City: B'])
+    })
+
+    it('keeps the earlier summary required when a redraft of the file was refused', () => {
+      expect(
+        shown(
+          use('a', identity),
+          out('a', 'Name: A\nCity: B'),
+          use('b', identity),
+          out('b', `Exit code 1\n${refusal}`, true),
+        ),
+      ).toEqual(['Name: A', 'City: B'])
+    })
+
+    it('leaves out "Exit code N" only as the first line of an error result', () => {
+      expect(
+        shown(use('a', identity), out('a', 'Exit code 1\nName: A\nExit code 2', true)),
+      ).toEqual(['Name: A', 'Exit code 2'])
+      expect(shown(use('a', identity), out('a', 'Exit code 1\nName: A', false))).toEqual([
+        'Exit code 1',
+        'Name: A',
+      ])
+    })
+
+    it('counts the line of a failing command that follows a draft', () => {
+      const command = `node scripts/profile.ts draft ${identity}; cat nope`
+      expect(
+        shown(
+          calls('a', command),
+          out('a', 'Exit code 1\nName: A\ncat: nope: No such file or directory', true),
+        ),
+      ).toEqual(['Name: A', 'cat: nope: No such file or directory'])
+    })
+
+    it.each([
+      ['an error that is not the refusal shape', 'error: the draft failed'],
+      ['a refusal naming no file extension', 'error  notapath: x'],
+      ['a refusal with one space', 'error profile/identity.yaml: x'],
+      ['an indented refusal', `  ${refusal}`],
+      ['a capitalised refusal', 'Error  profile/identity.yaml: x'],
+      ['a warning', 'warn   profile/identity.yaml: x'],
+      ['a refusal with no colon after the path', 'error  profile/identity.yaml x'],
+    ])('counts %s as a line of the result', (_name, line) => {
+      expect(shown(use('a', identity), out('a', `Exit code 1\n${line}`, true))).toEqual([line])
+    })
   })
 })

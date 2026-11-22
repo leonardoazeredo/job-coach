@@ -272,6 +272,39 @@ describe('what the scorer will not call a pass or a fault', () => {
     })
   })
 
+  describe('a draft the Draft command refused', () => {
+    const refusal =
+      'error  cv/master.json: "LinkedIn" still holds the template\'s example; give a value, or null to leave it out'
+    const rowsOf = (reply: string, result = `Exit code 1\n${refusal}`) => {
+      const dir = makeRun((d) => {
+        mkdirSync(join(d, 'raw'))
+        mkdirSync(join(d, 'written'))
+        writeFileSync(join(d, 'transcript.md'), turn(1, reply))
+        writeFileSync(
+          join(d, 'raw/turn1.jsonl'),
+          `${draftRaw('a', 'cv/master.json', result, { isError: true })}\n`,
+        )
+      })
+      const rows = scoreRun(dir).filter((l) => /^line (4|5) /.test(l))
+      rmSync(dir, { recursive: true })
+      return rows
+    }
+
+    const reply = 'Thanks. I need a few more things for the CV, one at a time.'
+
+    it('is no draft turn: a reply that does not relay the refusal passes lines 4 and 5', () => {
+      expect(rowsOf(reply)).toEqual(['line 4 PASS', 'line 5 PASS'])
+    })
+
+    it('is told from a failing command: its first line is still a summary line to relay', () => {
+      expect(rowsOf(reply, 'Exit code 1\nboom: cv/master.json failed')).toEqual([
+        'line 4 FAIL T1 "boom: cv/master.json failed"',
+        'line 5 FAIL T1 "Thanks."',
+        'line 5 FAIL T1 "I need a few more things for the CV, one at a time."',
+      ])
+    })
+  })
+
   describe('an error result of a redraft after a good summary of the same file', () => {
     const line4 = (reply: string) => {
       const dir = makeRun((d) => {
@@ -293,7 +326,7 @@ describe('what the scorer will not call a pass or a fault', () => {
       expect(line4('boom: search.yaml failed\nSearch city: Leeds')).toEqual(['line 4 PASS'])
     })
 
-    // Accepted false finding: a reply that drops the error text of a refused redraft is marked.
+    // Accepted false finding: a reply that drops the error text of a failing command is marked.
     it('marks a reply that relays the earlier summary and not the error text', () => {
       const boom = 'line 4 FAIL T1 "boom: search.yaml failed"'
       expect(line4('Search city: Leeds')).toEqual([boom])

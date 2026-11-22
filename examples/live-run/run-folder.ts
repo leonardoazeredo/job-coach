@@ -18,7 +18,7 @@ import {
 } from 'node:fs'
 import { join } from 'node:path'
 import { EXIT } from '../../scripts/lib/problem.ts'
-import { isWriteOrDropLine } from '../../scripts/lib/profile-lines.ts'
+import { isRefusalLine, isWriteOrDropLine } from '../../scripts/lib/profile-lines.ts'
 
 // The folders of a run. start.sh and start-update.sh create all but snap by these names in shell,
 // and up.sh mounts most of them, so a rename has to reach those scripts too; snap is made here.
@@ -152,10 +152,17 @@ const covers = (
 ): boolean =>
   entry.error && !entry.unknown && !call.unknown && entry.files.every((f) => call.files.includes(f))
 
-const summaryLines = (result: string, command: string): string[] =>
-  result
-    .split('\n')
-    .filter((l) => l.trim() !== '' && !isWriteOrDropLine(l) && !echoedSeparator(command, l))
+// The harness puts "Exit code N" first in an error result; it is no output of the Draft command.
+const EXIT_CODE_LINE = /^Exit code \d+$/
+
+const summaryLines = (result: string, command: string, isError: boolean): string[] => {
+  const all = result.split('\n')
+  const shown = isError && EXIT_CODE_LINE.test(all[0] ?? '') ? all.slice(1) : all
+  return shown.filter(
+    (l) =>
+      l.trim() !== '' && !isWriteOrDropLine(l) && !isRefusalLine(l) && !echoedSeparator(command, l),
+  )
+}
 
 const nothingNew = (shown: string[]): boolean =>
   shown.length === 0 || shown.join('\n').trim() === 'No change.'
@@ -171,13 +178,15 @@ const echoedSeparator = (command: string, line: string): boolean =>
 
 // A turn's stream pairs each tool call with its result; the stdout of a `profile.ts draft` call is
 // the summary the coach was to relay. A command that chains a write or a drop with the draft has
-// their lines in the same result; those are the command's own and never part of a summary. Any
-// other line of the result counts, even when another command printed it, so a fault is never
-// hidden at the price of a finding on output that is not a summary.
+// their lines in the same result; those are the command's own and never part of a summary, and
+// neither is a line the Draft command printed to refuse a draft: the user's yes writes nothing from
+// it. Any other line of the result counts, even when another command printed it, so a fault is
+// never hidden at the price of a finding on output that is not a summary.
 //
 // An error result is counted line by line, whatever the number of drafts: a later part of the
-// command can fail after a draft printed its summary, which still has to be relayed. A genuine
-// draft failure then gives a visible false finding, which is accepted over a silent pass.
+// command can fail after a draft printed its summary, which still has to be relayed. Output of a
+// failing command other than the Draft command's refusal then gives a visible false finding, which
+// is accepted over a silent pass.
 //
 // The echo check reads the whole command, heredoc bodies included, so an echo text inside a heredoc
 // can excuse a separator line; such a line carries nothing, so no summary is lost by it.
@@ -210,13 +219,13 @@ export const draftsIn = (text: string): { summaries: string[]; winsDrafted: bool
     if (block.id && call) commands.set(block.id, call)
     const drafted = commands.get(block.tool_use_id ?? '')
     if (block.type !== 'tool_result' || drafted === undefined) continue
-    const shown = summaryLines(textOf(block.content), drafted.command)
+    const error = block.is_error === true
+    const shown = summaryLines(textOf(block.content), drafted.command, error)
     // Set before the skip below: it only widens the check of a wins.yaml draft, and a draft whose
     // result printed nothing new is still a draft of that file. An unknown call is flagged when
     // wins.yaml appears anywhere in it: a false check is accepted over a missed one.
     winsDrafted ||= flagsWins(drafted)
     if (nothingNew(shown)) continue
-    const error = block.is_error === true
     if (!error) latest = latest.filter((e) => !covers(drafted, e))
     latest.push({ files: drafted.files, unknown: drafted.unknown, lines: shown, error })
   }

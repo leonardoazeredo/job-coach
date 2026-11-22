@@ -18,9 +18,13 @@ export const hasErrors = (problems: Problem[]): boolean => problems.some((p) => 
 // tool's own status passes through untouched.
 export const EXIT = { usage: 64, problems: 1, data: 65, missing: 66 } as const
 
+// The words an error line starts with, shared with the live-run scorer, which tells a refusal
+// from a summary by them.
+export const ERROR_PREFIX = 'error  '
+
 export const printProblems = (problems: Problem[], showWarnings: boolean): void => {
   for (const p of problems.filter((x) => x.level === 'error'))
-    console.error(`error  ${p.slug}: ${p.message}`)
+    console.error(`${ERROR_PREFIX}${p.slug}: ${p.message}`)
   if (!showWarnings) return
   for (const p of problems.filter((x) => x.level === 'warning'))
     console.log(`warn   ${p.slug}: ${p.message}`)

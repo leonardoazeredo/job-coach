@@ -1,10 +1,44 @@
 import { describe, expect, it } from 'vitest'
+import { ERROR_PREFIX } from '../lib/problem.ts'
 import {
   droppedLine,
+  isRefusalLine,
   isWriteOrDropLine,
+  notValuesLine,
   notWrittenLine,
   writtenLine,
 } from '../lib/profile-lines.ts'
+
+describe('isRefusalLine', () => {
+  it.each([
+    [
+      'an error line',
+      `${ERROR_PREFIX}profile/identity.yaml: "Timezone" still holds the template's example`,
+    ],
+    ['an error line of a file in the folder root', `${ERROR_PREFIX}cv/master.json: x`],
+    [
+      'a line of input that could not be read',
+      notValuesLine('profile/voice.md', 'Unexpected token'),
+    ],
+  ])('is true for %s', (_name, line) => {
+    expect(isRefusalLine(line)).toBe(true)
+  })
+
+  it.each([
+    ['a summary line', 'Name: A'],
+    ['a line that only starts with error', 'error: failed'],
+    ['an error line naming no file extension', `${ERROR_PREFIX}notapath: x`],
+    ['an error line with the path not at the start of its message', `${ERROR_PREFIX}x y.yaml: z`],
+    ['an indented refusal', `  ${ERROR_PREFIX}a.yaml: x`],
+    [
+      'a summary line that holds the words later',
+      'Notes: the input could not be read as values: a.yaml',
+    ],
+    ['a warning', 'warn   a.yaml: x'],
+  ])('is false for %s', (_name, line) => {
+    expect(isRefusalLine(line)).toBe(false)
+  })
+})
 
 describe('isWriteOrDropLine', () => {
   it.each([

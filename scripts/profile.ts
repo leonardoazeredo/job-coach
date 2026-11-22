@@ -14,7 +14,7 @@
 import { DRAFTABLE, makeDraft } from './lib/draft.ts'
 import { dropDrafts, listDrafts, type Open, writeDrafts } from './lib/draft-store.ts'
 import { EXIT, printProblems } from './lib/problem.ts'
-import { droppedLine, notWrittenLine, writtenLine } from './lib/profile-lines.ts'
+import { droppedLine, notValuesLine, notWrittenLine, writtenLine } from './lib/profile-lines.ts'
 import { openWorkspace, repoRoot } from './lib/workspace.ts'
 
 const USAGE =
@@ -51,7 +51,7 @@ const draft = async (file: string, root: string, deps: ProfileDeps, now: Date) =
   const result = makeDraft(root, file, input, { open: deps.open ?? openQuiet, now })
   switch (result.kind) {
     case 'not-values':
-      console.error(`${file}: the input could not be read as values: ${result.reason}`)
+      console.error(notValuesLine(file, result.reason))
       return EXIT.data
     case 'refused':
       printProblems(result.problems, true)
