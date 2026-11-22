@@ -14,6 +14,7 @@
 import { DRAFTABLE, makeDraft } from './lib/draft.ts'
 import { dropDrafts, listDrafts, type Open, writeDrafts } from './lib/draft-store.ts'
 import { EXIT, printProblems } from './lib/problem.ts'
+import { droppedLine, notWrittenLine, writtenLine } from './lib/profile-lines.ts'
 import { openWorkspace, repoRoot } from './lib/workspace.ts'
 
 const USAGE =
@@ -74,13 +75,11 @@ const write = (files: string[], root: string, open: Open) => {
       printProblems(result.problems, true)
       return EXIT.problems
     case 'restored':
-      console.log(
-        `not written: the record check found problems, so ${files.join(', ')} stayed as before`,
-      )
+      console.log(notWrittenLine(files))
       printProblems(result.problems, true)
       return EXIT.problems
     case 'written':
-      console.log(`written: ${result.files.join(', ')}`)
+      console.log(writtenLine(result.files))
       return 0
   }
 }
@@ -89,7 +88,7 @@ const drop = (files: string[], root: string) => {
   const problems = dropDrafts(root, files)
   printProblems(problems, true)
   if (problems.length > 0) return EXIT.missing
-  console.log(`dropped: ${files.join(', ')}`)
+  console.log(droppedLine(files))
   return 0
 }
 
