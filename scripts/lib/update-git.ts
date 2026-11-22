@@ -220,7 +220,8 @@ const inRename = (rename: Rename, file: string) =>
 // The files under a path that are not saved (untracked, ignored such as an exported PDF, or edited
 // since the update began), which a file written at that path would replace. Without
 // --exclude-standard, ignored files are listed too. Only what sits under the path counts: the file
-// at the path itself is what the take replaces (a rename take first checks it for hand edits).
+// at the path itself is what the take replaces or removes (a rename take checks it for hand edits
+// first, unless told to go on).
 const unsavedUnder = (git: Git, path: string): string[] => {
   const under = (args: string[]) =>
     lines(git(args).stdout.replaceAll('\0', '\n')).filter((p) => p.startsWith(`${path}/`))
@@ -412,8 +413,9 @@ const resolveRename = (
   }
   // The old name is dropped from the index only: what the folder shows under it is not a file the
   // update put there. On a disk that ignores capitals the name that goes can be the same file as
-  // the kept one, which removing it deletes and the checkout writes back (it can also be a new name
-  // in other capitals, which the steps below handle).
+  // the kept one, which removing it deletes and the checkout writes back; the old name can
+  // likewise be a new name in other capitals, and since it is only dropped from the index, what
+  // happens to that file is left to the steps below.
   const steps = [
     ['update-index', '--force-remove', '--', rename.base, rename.ours, rename.theirs],
     ['update-index', '--add', '--cacheinfo', `${textEntry?.mode ?? entry.mode},${id},${chosen}`],
