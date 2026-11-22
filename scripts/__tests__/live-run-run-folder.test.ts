@@ -870,6 +870,18 @@ describe('the drafts in a stream', () => {
       ).toEqual(['Name: A', 'City: B'])
     })
 
+    it('keeps the summary of an earlier failed command beside a later refusal-only redraft', () => {
+      const command = `node scripts/profile.ts draft profile/search.yaml && cat nope`
+      expect(
+        shown(
+          calls('a', command),
+          out('a', 'Search city: Leeds\ncat: nope', true),
+          use('b', 'profile/search.yaml'),
+          out('b', `Exit code 1\n${refusal.replace(identity, 'profile/search.yaml')}`, true),
+        ),
+      ).toEqual(['Search city: Leeds', 'cat: nope'])
+    })
+
     it('leaves out "Exit code N" only as the first line of an error result', () => {
       expect(
         shown(use('a', identity), out('a', 'Exit code 1\nName: A\nExit code 2', true)),
@@ -898,6 +910,7 @@ describe('the drafts in a stream', () => {
       ['a capitalised refusal', 'Error  profile/identity.yaml: x'],
       ['a warning', 'warn   profile/identity.yaml: x'],
       ['a refusal with no colon after the path', 'error  profile/identity.yaml x'],
+      ['a refusal text in the middle of a line', `Note: ${refusal}`],
     ])('counts %s as a line of the result', (_name, line) => {
       expect(shown(use('a', identity), out('a', `Exit code 1\n${line}`, true))).toEqual([line])
     })

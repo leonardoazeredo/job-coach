@@ -222,20 +222,20 @@ describe('what the scorer will not call a pass or a fault', () => {
     const identity = 'node scripts/profile.ts draft profile/identity.yaml < b.json'
     const leeds = ['line 4 FAIL T1 "Search city: Leeds"']
 
-    it('still requires the first summary when a newline-separated command refused the redraft', () => {
+    it('still requires the first summary when a newline-separated command printed only the second file', () => {
       const second = { command: `${search}\necho ----\n${identity}`, out: 'Name: A' }
       expect(line4(second, 'Name: A')).toEqual(leeds)
       expect(line4(second, 'Name: A\nSearch city: Leeds')).toEqual(['line 4 PASS'])
     })
 
-    it('still requires the first summary when a ; chain refused the redraft', () => {
+    it('still requires the first summary when a ; chain printed only the second file', () => {
       const second = { command: `${search}; echo ----; ${identity}`, out: 'Name: A' }
       expect(line4(second, 'Name: A')).toEqual(leeds)
     })
 
-    // Limit: a refusal whose command exits 0 is not an error result, so the scorer takes its text
-    // for a summary line and requires it.
-    it('counts the text of a refusal that exited 0 as a line of its own', () => {
+    // Limit: other output of a command that exited 0 is not an error result, so the scorer takes
+    // its text for a summary line and requires it.
+    it('counts the text of other output that exited 0 as a line of its own', () => {
       const second = { command: search, out: 'refused: search.yaml has no city' }
       expect(line4(second, 'Search city: Leeds')).toEqual([
         'line 4 FAIL T1 "refused: search.yaml has no city"',
