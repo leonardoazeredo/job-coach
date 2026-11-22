@@ -838,7 +838,8 @@ describe('the notes a skill asks for beside a summary', () => {
   })
 
   describe('two replies of a two-turn run', () => {
-    // Reply one excuses a note at turn 1 and fails at turn 2; reply two excuses a note at turn 2.
+    // Reply one fails at turn 1, and at turn 2 both fails and excuses a note; reply two excuses a
+    // note at turn 1 and again at turn 2.
     const sample = (turns: [string, string]) =>
       makeRun((d) => {
         mkdirSync(join(d, 'raw'))
@@ -856,10 +857,13 @@ describe('the notes a skill asks for beside a summary', () => {
 
     it('prints each reply its own rows, and only those of the replayed turn', () => {
       const one = sample([
-        `${FRAMING}\n${SUMMARY}\n${GAPS_NOTE}`,
-        `${FRAMING}\n${SUMMARY}\nTake your time going through it.`,
+        `${FRAMING}\n${SUMMARY}\nTake your time.`,
+        `${FRAMING}\n${SUMMARY}\nTake your time going through it.\n${GAPS_NOTE}`,
       ])
-      const two = sample([`${FRAMING}\n${SUMMARY}`, `${FRAMING}\n${SUMMARY}\n${PREFERENCE_NOTE}`])
+      const two = sample([
+        `${FRAMING}\n${SUMMARY}\n${GAPS_NOTE}`,
+        `${FRAMING}\n${SUMMARY}\n${PREFERENCE_NOTE}`,
+      ])
       const out = vi.spyOn(console, 'log').mockImplementation(() => undefined)
       let printed: string
       try {
@@ -870,7 +874,7 @@ describe('the notes a skill asks for beside a summary', () => {
       }
       const [, first, second] = printed.split(/\n--- reply \d+\n/)
       expect(first?.trim()).toBe(
-        `line 5 FAIL T2 "${FRAMING}"\nline 5 FAIL T2 "Take your time going through it."\nlast of ${one}`,
+        `line 5 FAIL T2 "${FRAMING}"\nline 5 FAIL T2 "Take your time going through it."\nline 5 EXCUSED T2 "${GAPS_NOTE}" by career-gaps-left-out\nlast of ${one}`,
       )
       expect(second?.trim()).toBe(
         `line 5 EXCUSED T2 "${PREFERENCE_NOTE}" by preference-placed-or-left-out\nlast of ${two}`,
@@ -922,24 +926,21 @@ describe('the notes a skill asks for beside a summary', () => {
   // negation or the pronoun: the guarded sentence is plain framing, its control is the note.
   it.each([
     [
-      'gaps entry',
       'career-gaps-left-out',
       'Your gaps are not left out of the list.',
       'Your gaps are left out of the list.',
     ],
     [
-      'gaps entry',
       'career-gaps-left-out',
       'Your gaps were never left out of the list.',
       'Your gaps were left out of the list.',
     ],
     [
-      'tool name',
       'generic-tool-name',
       'It stays generic so it reads well.',
       'The package stays generic so it reads well.',
     ],
-  ])('keeps a negation or a pronoun from making a note (%s): %s', (_, id, guarded, control) => {
+  ])('does not take %s: "%s" for a note, though its control is one', (id, guarded, control) => {
     expect(noteAt(id).test(guarded)).toBe(false)
     expect(noteAt(id).test(control)).toBe(true)
   })

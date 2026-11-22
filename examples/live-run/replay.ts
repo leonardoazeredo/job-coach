@@ -441,8 +441,9 @@ const replay = (
   const notBuilt = adapter.build()
   if (notBuilt !== undefined) {
     console.error(`the image did not build; is Docker running? ${notBuilt}`)
-    // No sample started, so a folder this run made is empty and would only clutter its parent.
-    if (!named) rmdirSync(out)
+    // No sample started, so a folder this run made holds nothing of the run's and would only
+    // clutter its parent; what the build itself wrote there is left.
+    if (!named && readdirSync(out).length === 0) rmdirSync(out)
     return EXIT.problems
   }
 
