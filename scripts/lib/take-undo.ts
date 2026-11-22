@@ -49,9 +49,26 @@ const putBack = (top: string, held: Held) => {
 
 // The index file is replaced the way git replaces it, through its lock, so a lock another program
 // holds stops the restore instead of being overwritten.
+const LOCK_TRIES = 5
+const LOCK_WAIT_MS = 250
+
+// A program that holds the lock for a moment, an editor saving, should not turn the restore into
+// a failure, so the lock is tried a few times over about a second.
+const takeLock = (lock: string, bytes: Buffer) => {
+  for (let tried = 1; ; tried++) {
+    try {
+      writeFileSync(lock, bytes, { flag: 'wx' })
+      return
+    } catch (error) {
+      if (tried === LOCK_TRIES) throw error
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, LOCK_WAIT_MS)
+    }
+  }
+}
+
 const putBackIndex = (indexFile: string, bytes: Buffer) => {
   const lock = `${indexFile}.lock`
-  writeFileSync(lock, bytes, { flag: 'wx' })
+  takeLock(lock, bytes)
   try {
     renameSync(lock, indexFile)
   } catch (error) {
@@ -59,6 +76,10 @@ const putBackIndex = (indexFile: string, bytes: Buffer) => {
     throw error
   }
 }
+
+// What `restore` names when the index could not be put back; the skill says it to the user in
+// these words.
+export const INDEX_RECORD = 'the record of which files this update has settled'
 
 export type TakeUndo = { restore: () => string[] }
 
@@ -80,7 +101,7 @@ export const holdTake = (git: Git, top: string, paths: string[]): TakeUndo => {
       try {
         if (!readFileSync(indexFile).equals(index)) putBackIndex(indexFile, index)
       } catch {
-        failed.push('the list of files git keeps')
+        failed.push(INDEX_RECORD)
       }
       for (const one of held) {
         try {

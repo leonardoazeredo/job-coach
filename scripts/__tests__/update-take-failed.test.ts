@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process'
 import {
   chmodSync,
   existsSync,
@@ -103,6 +104,30 @@ describe('a take whose step fails', () => {
         })
 
   describe('a take whose index cannot be put back', () => {
+    it('waits out a lock held for a moment and restores', () => {
+      const { git } = scene(false)
+      const lock = join(work(), '.git/index.lock')
+      const before = state(git)
+      const result = takeSide(
+        failing(git, steps['adding the kept name to the index'], () => {
+          writeFileSync(lock, '')
+          spawn('sh', ['-c', `sleep 0.4; rm -f '${lock}'`], {
+            detached: true,
+            stdio: 'ignore',
+          }).unref()
+        }),
+        'ours',
+        A,
+      )
+      expect(result).toEqual({
+        kind: 'failed',
+        output: 'injected failure',
+        restored: true,
+        files: [],
+      })
+      expect(state(git)).toEqual(before)
+    })
+
     for (const side of ['ours', 'theirs'] as const)
       it(`says what to look at when the index cannot be put back, ${side}`, () => {
         const { git } = scene(false)
@@ -116,7 +141,7 @@ describe('a take whose step fails', () => {
           kind: 'failed',
           output: 'injected failure',
           restored: false,
-          files: ['the list of files git keeps'],
+          files: ['the record of which files this update has settled'],
         })
       })
 

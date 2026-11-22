@@ -19,7 +19,7 @@ describe('the take command when the folder could not be put back', () => {
       kind: 'failed',
       output: 'unable to unlink old',
       restored: false,
-      files: ['docs/b.md', 'the list of files git keeps'],
+      files: ['docs/b.md', 'the record of which files this update has settled'],
     }
     const lines: unknown[] = []
     const errors: unknown[] = []
@@ -33,7 +33,7 @@ describe('the take command when the folder could not be put back', () => {
     error.mockRestore()
     expect(code).toBe(EXIT.problems)
     expect(lines).toEqual([
-      'not taken: the file could not be settled and the folder could not be put back as it was; look at: docs/b.md, the list of files git keeps',
+      'not taken: the file could not be settled and the folder could not be put back as it was; look at: docs/b.md, the record of which files this update has settled',
     ])
     expect(errors).toEqual(['unable to unlink old'])
   })
