@@ -4,7 +4,8 @@
 // Usage: node examples/live-run/score.ts <run-dir>
 // Prints one line per finding (`line 26 FAIL T15 "..."`), one `line N PASS` for each covered
 // line without a finding (`SKIPPED` when the folder lacks what the line reads), and, for an
-// onboarding run, the turn count. A rule names its checklist line by the `[key]` after the
+// onboarding run, the turn count. A sentence the one-framing rule lets through as a note a skill
+// asks for gets an `EXCUSED` row naming the entry in notes.ts, so a reader can overrule it. A rule names its checklist line by the `[key]` after the
 // line's number, read from the checklist when the scorer runs, so inserting a line cannot move a
 // rule. A finding is a report, not an error: the exit code says only whether the folder could be
 // scored (64 usage, 66 no run folder or transcript, 65 a rule's key missing from, or twice in,
@@ -16,6 +17,7 @@ import { join, relative } from 'node:path'
 import { EXIT } from '../../scripts/lib/problem.ts'
 import { repoRoot } from '../../scripts/lib/workspace.ts'
 import { formatRow, type Row } from './findings.ts'
+import { NOTES } from './notes.ts'
 import { draftsIn, type RunKind, readTranscript, runKind } from './run-folder.ts'
 
 const CHECKLIST_DIR = import.meta.dirname
@@ -89,6 +91,7 @@ const writtenFiles = (dir: string): string[] =>
   })
 
 type Found = { turn?: number; where?: string; text: string }
+type Excused = { turn: number; text: string; by: string }
 type Ctx = { run: string; turns: Turn[]; firstWins: number | undefined }
 
 // One checklist line: the `[key]` that names it in the checklist (its number is found there, so
@@ -100,6 +103,8 @@ export type Rule = {
   key: string
   runs: RunKind[]
   skip?: (run: string) => string | undefined
+  // Sentences the rule let through, shown beside its findings so a reader can overrule them.
+  excused?: (c: Ctx) => Excused[]
 } & ({ find: (c: Ctx) => Found[] } | { info: (c: Ctx) => string })
 
 const perTurn = (c: Ctx, f: (t: Turn, c: Ctx) => Found[]): Found[] =>
@@ -133,6 +138,23 @@ const pronounsWritten = (run: string): Found[] => {
   })
 }
 
+// The sentences outside the summary that are not a question, split into the notes a skill asks
+// for (each entry excuses at most one) and the framing that is left. A sentence naming a working
+// word is never excused: such a note is still a fault.
+const framingSplit = (t: Turn) => {
+  const open = [...NOTES]
+  const excused: { text: string; by: string }[] = []
+  const framing: string[] = []
+  for (const s of sentences(plain(outsideSummary(t).replace(/\n/g, ' ')))) {
+    if (s.endsWith('?')) continue
+    const hit =
+      WORKING_WORD.test(s) || workingNote(s) ? -1 : open.findIndex((e) => e.matches.test(s))
+    if (hit < 0) framing.push(s)
+    else excused.push({ text: s, by: (open.splice(hit, 1)[0] as (typeof NOTES)[number]).id })
+  }
+  return { framing, excused }
+}
+
 export const RULES: Rule[] = [
   {
     key: 'summary-whole',
@@ -152,11 +174,13 @@ export const RULES: Rule[] = [
     find: (c) =>
       perTurn(c, (t) => {
         // The question that asks for the yes is not framing.
-        const framing = sentences(plain(outsideSummary(t).replace(/\n/g, ' '))).filter(
-          (s) => !s.endsWith('?'),
-        )
+        const { framing } = framingSplit(t)
         return t.summaries.length > 0 && framing.length > 1 ? framing.map((text) => ({ text })) : []
       }),
+    excused: (c) =>
+      c.turns.flatMap((t) =>
+        t.summaries.length > 0 ? framingSplit(t).excused.map((e) => ({ turn: t.n, ...e })) : [],
+      ),
   },
   {
     key: 'pronouns-in-coach-md',
@@ -242,12 +266,21 @@ export const scoreFindings = (
     .flatMap((r): Row[] => {
       if ('info' in r) return [{ line: lineOf(r), status: 'INFO', text: r.info(ctx) }]
       const found = r.find(ctx)
-      if (found.length > 0) return found.map((f) => ({ line: lineOf(r), status: 'FAIL', ...f }))
+      const excused: Row[] = (r.excused?.(ctx) ?? []).map((e) => ({
+        line: lineOf(r),
+        status: 'EXCUSED',
+        turn: e.turn,
+        text: e.text,
+        by: e.by,
+      }))
+      if (found.length > 0)
+        return [...found.map((f): Row => ({ line: lineOf(r), status: 'FAIL', ...f })), ...excused]
       const why = r.skip?.(run)
       return [
         why === undefined
           ? { line: lineOf(r), status: 'PASS' }
           : { line: lineOf(r), status: 'SKIPPED', text: why },
+        ...excused,
       ]
     })
   return rows.sort((a, b) => a.line - b.line || (a.turn ?? 0) - (b.turn ?? 0))

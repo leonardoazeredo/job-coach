@@ -39,6 +39,16 @@ describe('the printed text of a finding', () => {
         'line 18 FAIL profile/voice.md:3 "She signs off."',
       ],
       [{ line: 4, status: 'PASS' }, 'line 4 PASS'],
+      [
+        {
+          line: 5,
+          status: 'EXCUSED',
+          turn: 7,
+          text: "I've left out the gaps entry.",
+          by: 'career-gaps-left-out',
+        },
+        'line 5 EXCUSED T7 "I\'ve left out the gaps entry." by career-gaps-left-out',
+      ],
       [{ line: 28, status: 'SKIPPED', text: 'no raw/ folder' }, 'line 28 SKIPPED no raw/ folder'],
       [{ line: 36, status: 'INFO', text: '9 turns' }, 'line 36 INFO 9 turns'],
     ]
@@ -53,9 +63,11 @@ describe('what counts as a failure', () => {
     { line: 18, status: 'FAIL', where: 'profile/voice.md:3', text: 'c' },
     { line: 5, status: 'PASS' },
     { line: 36, status: 'INFO', text: '9 turns' },
+    { line: 5, status: 'EXCUSED', turn: 2, text: 'note', by: 'career-gaps-left-out' },
   ]
 
   it('is a FAIL row; at a turn only when it names that turn', () => {
+    // An excused sentence at turn 2 is no failure there.
     expect(failedAt(rows, 2).map((r) => r.text)).toEqual(['a'])
     expect(failedAt(rows, 9).map((r) => r.text)).toEqual(['b'])
     expect(failedAt(rows, 3)).toEqual([])
@@ -64,6 +76,7 @@ describe('what counts as a failure', () => {
   it('lists each line that failed once, a written file included', () => {
     expect(failedLines(rows)).toEqual([4, 18])
     expect(failedLines([{ line: 5, status: 'PASS' }])).toEqual([])
+    expect(failedLines([{ line: 5, status: 'EXCUSED', turn: 2, text: 'n', by: 'x' }])).toEqual([])
   })
 })
 
