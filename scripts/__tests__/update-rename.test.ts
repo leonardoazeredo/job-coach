@@ -92,9 +92,9 @@ const handEditCases = (
   })
 }
 
-// The user's folder stood at a new name, was emptied as the skill offers and then removed: the take
-// goes on only at the name it does not keep, since the file it would keep there is gone and counts
-// as an edit by hand.
+// The user's folder stood at a new name, was emptied as the skill offers and then removed: the
+// plain take goes on at the name it does not keep; at the kept name the file it would keep is gone
+// and counts as an edit by hand, so it goes on only when told to.
 const settleAfterFolder = (
   scene: { setUp: () => void; opts: { text?: 'ours' } },
   side: 'ours' | 'theirs',

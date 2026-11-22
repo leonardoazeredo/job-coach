@@ -1,7 +1,8 @@
 // Engine updates for the update-coach skill.
 // Usage: node scripts/update.ts check [--now]
 //        node scripts/update.ts zip
-//        node scripts/update.ts changes | merge | take <ours|theirs> <file> | finish | cancel
+//        node scripts/update.ts changes | merge | take <ours|theirs> <file> [--text <ours|theirs>]
+//                               [--discard-edits] | finish | cancel
 // check asks GitHub once whether a newer engine exists. Without --now it runs at most once a
 // week (once a day after a failed try) and prints "available" or, when it got no answer, one plain
 // line saying so; with --now it always asks and prints its answer. Before onboarding has created
@@ -18,17 +19,20 @@
 //   changes  connects to the engine, fetches it, and prints latest, or available followed by one
 //            "- " line per change, or not fetched.
 //   merge    checks the records first and prints not started when they already fail; otherwise merges
-//            the new version and prints merged, clashes: <files>, latest, not fetched (run changes
-//            first) or not merged.
-//   take     settles one clashing file with the user's version (ours) or the new one (theirs).
+//            the new version and prints merged, clashes: <files> followed by one "- renamed" line
+//            per file both sides renamed, latest, not fetched (run changes first) or not merged.
+//   take     settles one clashing file with the user's version (ours) or the new one (theirs);
+//            for a file both sides renamed it settles all three of its paths, and --text picks
+//            whose content it ends with when that clashes too.
 //   finish   commits, installs, runs the record check and prints updated, or clashes left while a
-//            file holds a clash marker, is binary or one side removed it, or undone when the
+//            file holds a clash marker, is binary, one side removed it or both renamed it (with
+//            its "- renamed" lines), or undone when the
 //            install or check failed and the folder went back to how it was, or not undone when
 //            that putting back failed too.
 //   cancel   abandons a merge in progress; nothing changes.
 // Exit 64 on a usage error, zip in a folder that keeps history, or a history step in one without.
 // Exit 1 when an update did not start, was undone or not undone, could not fetch the new version or has clashes
-// left, with the reason on stderr. Otherwise 0, including a check that got no answer.
+// left, with the reason on stderr; also when take stops (not taken: ...), with that line on stdout. Otherwise 0, including a check that got no answer.
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { type Git, gitIn } from './lib/history.ts'

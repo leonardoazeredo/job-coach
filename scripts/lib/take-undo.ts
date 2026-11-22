@@ -1,6 +1,6 @@
 // Puts a take back as it was when one of its steps fails. The index is saved as the bytes of its
 // file, because git cannot list a path's unmerged stages in a form one call restores without
-// input, and each file at the paths given is saved with its bytes and mode.
+// input, and each file at the paths given is saved with its bytes and mode, a link with its target.
 import {
   chmodSync,
   closeSync,
@@ -83,7 +83,8 @@ const takeLock = (lock: string, bytes: Buffer) => {
 
 // The index file is replaced the way git replaces it, through its lock. A program that holds the
 // lock for a moment, such as an editor's git panel refreshing, is waited for over about a second;
-// a lock still held after that stops the restore instead of being overwritten.
+// a lock still held after that leaves the index unrestored, and the lock untouched, instead of
+// being overwritten; the files are still put back.
 const putBackIndex = (indexFile: string, bytes: Buffer) => {
   const lock = `${indexFile}.lock`
   takeLock(lock, bytes)
@@ -101,9 +102,9 @@ export const INDEX_RECORD = 'the record of which files this update has settled'
 
 export type TakeUndo = { restore: () => string[] }
 
-// `restore` returns what it could not put back: empty when everything is as it was. A file
-// already as it was is left alone, so a read-only folder does not fail the restore of what
-// the take never changed.
+// `restore` returns what it could not put back: empty when everything is as it was. The index or
+// a file already as it was is left alone, so a lock or a read-only folder does not fail the
+// restore of what the take never changed.
 export const holdTake = (git: Git, top: string, paths: string[]): TakeUndo => {
   const indexFile = git([
     'rev-parse',
