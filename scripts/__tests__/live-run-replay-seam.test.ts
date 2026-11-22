@@ -125,7 +125,7 @@ const foldersPrinted = (out: string[]) => {
 const firstSample = (folder: string) => join(folder, `${folder.split('/').pop()}-s1`)
 
 describe('what a replay keeps of each sample', () => {
-  it('keeps what the scorer and a reader open and drops the working copy', () => {
+  it('keeps what the scorer and a reader open, and the copy without its installed packages', () => {
     run = makeRun(tmp, { engine: true })
     const r = runReplay([run, '3', '1'], {}, fakeAdapter())
     const sample = firstSample(foldersPrinted(r.out).folder)
