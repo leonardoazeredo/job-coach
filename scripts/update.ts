@@ -194,7 +194,13 @@ const takeStep: Step = (git, _root, args) => {
   const { side, file, opts } = parsed
   const result = takeSide(git, side, file, opts)
   if (result.kind === 'failed')
-    return say(EXIT.problems, 'not taken: git stopped part of the take', result.output)
+    return say(
+      EXIT.problems,
+      result.restored
+        ? 'not taken: the file could not be settled; nothing was changed'
+        : `not taken: the file could not be settled and the folder could not be put back as it was; look at: ${result.files.join(', ')}`,
+      result.output,
+    )
   if (result.kind === 'no-discard-choice') {
     console.error(`--discard-edits applies only to a file both sides renamed: ${file} is not one`)
     return EXIT.usage

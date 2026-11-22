@@ -16,6 +16,7 @@ import { join } from 'node:path'
 import { hasClash, narrow, type SettledLine, settle } from './clash.ts'
 import { ENGINE, ENGINE_URL, type Git, gitHubRepo, output } from './history.ts'
 import { fallbackCommitter } from './save.ts'
+import { holdTake } from './take-undo.ts'
 import { checkBefore, keepOrUndo, type Run, runIn } from './verified-update.ts'
 
 export type GitUpdateOptions = { url?: string | undefined; run?: Run | undefined }
@@ -354,8 +355,8 @@ const standsInTheWay = (top: string, path: string): { file?: string; folder: boo
 
 // What a take of a rename cannot write over or remove: a file of the user's where a parent folder
 // of a new name should be, and a folder at either new name (its files when it holds any, else the
-// folder itself). `git rm` refuses to remove a folder, so a take that went on would be half done.
-// The dry run of `git rm` catches a name git could not remove for another reason.
+// folder itself). Removing the name that goes would fail on a folder, and writing the kept name
+// would replace it.
 const inTheWayOfRename = (git: Git, top: string, rename: Rename): string[] => [
   ...new Set(
     [rename.ours, rename.theirs].flatMap((path) => {
@@ -365,23 +366,29 @@ const inTheWayOfRename = (git: Git, top: string, rename: Rename): string[] => [
         const inside = unsavedUnder(git, path)
         return inside.length > 0 ? inside : [path]
       }
-      return git(['rm', '-n', '-q', '-f', '--', path]).status === 0 ? [] : [path]
+      return []
     }),
   ),
 ]
 
+// What a take of a rename could not do: git's or the system's words, whether the folder is as it
+// was before the take, and the files to look at when it is not.
+type TakeFailure = { output: string; restored: boolean; files: string[] }
+
 // Takes a rename: the chosen name stays, the other two paths go, and the file holds the version of
 // one side. Git's merged copy holds markers under a content clash, so that version is the side's
-// own committed file; without a clash the merged copy already holds both sides' changes. Returns
-// git's output when a step failed, and stops there. The two new paths go in one `git rm`, which
-// refuses before it removes anything, and the old name leaves the index last.
+// own committed file; without a clash the merged copy already holds both sides' changes. Any
+// failing step puts the index and the two files back, so the three paths are still a rename and
+// the take can be tried again.
 const resolveRename = (
   git: Git,
-  side: 'ours' | 'theirs',
-  text: 'ours' | 'theirs',
+  top: string,
+  choice: { side: 'ours' | 'theirs'; text: 'ours' | 'theirs' },
   rename: Rename,
-): string | undefined => {
+): TakeFailure | undefined => {
+  const { side, text } = choice
   const chosen = rename[side]
+  const gone = rename[side === 'ours' ? 'theirs' : 'ours']
   const entry = stages(git)
     .get(chosen)
     ?.find((e) => e.stage === (side === 'ours' ? '2' : '3'))
@@ -394,20 +401,31 @@ const resolveRename = (
   const id = rename.contentClash
     ? blob(git, text === 'ours' ? 'HEAD' : 'MERGE_HEAD', rename[text])
     : entry.id
+  const undo = holdTake(git, top, [rename.ours, rename.theirs])
+  const stop = (words: string): TakeFailure => {
+    const files = undo.restore()
+    return { output: words, restored: files.length === 0, files }
+  }
   // The old name is dropped from the index only: what the folder shows under it is not a file the
-  // update put there. On a disk that ignores capitals it can be the same file as a renamed path,
-  // which the `git rm` of the two new paths removes and the checkout writes back when that path is
-  // the chosen one.
+  // update put there. On a disk that ignores capitals the name that goes can be the same file as
+  // the kept one, which removing it deletes and the checkout writes back.
   const steps = [
-    ['rm', '-q', '-f', '--', rename.ours, rename.theirs],
+    ['update-index', '--force-remove', '--', rename.base, rename.ours, rename.theirs],
     ['update-index', '--add', '--cacheinfo', `${textEntry?.mode ?? entry.mode},${id},${chosen}`],
-    ['checkout-index', '-f', '--', chosen],
-    ['update-index', '--force-remove', '--', rename.base],
   ]
   for (const args of steps) {
     const done = git(args)
-    if (done.status !== 0) return output(done)
+    if (done.status !== 0) return stop(output(done))
   }
+  try {
+    rmSync(join(top, gone), { force: true })
+  } catch (error) {
+    return stop(error instanceof Error ? error.message : String(error))
+  }
+  const written = git(['checkout-index', '-f', '--', chosen])
+  if (written.status !== 0) return stop(output(written))
+  if (!lstatSync(join(top, chosen), { throwIfNoEntry: false }))
+    return stop(`${chosen} was not written`)
   return undefined
 }
 
@@ -513,8 +531,9 @@ export type TakeResult =
   // Something of the user's stands where the take would write or remove a file: unsaved files in
   // a folder there, an empty folder, or a file where a parent folder should be. Nothing is changed.
   | { kind: 'in-the-way'; files: string[] }
-  // A step of the take failed in git after the checks passed; the output says which.
-  | { kind: 'failed'; output: string }
+  // A step of the take failed after the checks passed. `restored` says whether the folder is as
+  // it was before the take; when it is not, `files` are the ones to look at.
+  | { kind: 'failed'; output: string; restored: boolean; files: string[] }
   // A renamed file whose content clashes too: the version of the text is a second choice, not given.
   | { kind: 'needs-text'; rename: Rename }
   // A text choice for a file that has none to make. Nothing is changed.
@@ -566,8 +585,8 @@ export const takeSide = (
   // Only the clash blocks are the user's choice; the rest of the file already holds both sides'
   // changes. Any other kind has no blocks and is taken whole.
   if (rename) {
-    const failed = resolveRename(git, side, opts.text ?? side, rename)
-    if (failed !== undefined) return { kind: 'failed', output: failed }
+    const failed = resolveRename(git, top, { side, text: opts.text ?? side }, rename)
+    if (failed !== undefined) return { kind: 'failed', ...failed }
   } else if (clashKinds(git, top).get(file) === 'text-open') {
     writeFileSync(path, settle(readFileSync(path, 'utf8'), side))
     git(['add', '--', file])

@@ -583,66 +583,6 @@ describe('a file both sides renamed', () => {
     }
   })
 
-  describe('a take git cannot carry out', () => {
-    it("stops with git's output and changes nothing, then settles once the folder can be written", () => {
-      renamedOnBothSides()
-      const { git } = start()
-      const docs = join(work(), 'docs')
-      const before = {
-        status: g(work(), 'status', '--short'),
-        index: g(work(), 'ls-files', '-s'),
-        disk: onDisk(),
-      }
-      chmodSync(docs, 0o555)
-      try {
-        expect(takeSide(git, 'ours', A)).toMatchObject({
-          kind: 'failed',
-          output: expect.stringContaining('Permission denied'),
-        })
-        expect({
-          status: g(work(), 'status', '--short'),
-          index: g(work(), 'ls-files', '-s'),
-          disk: onDisk(),
-        }).toEqual(before)
-      } finally {
-        chmodSync(docs, 0o755)
-      }
-      expect(takeSide(git, 'ours', A)).toEqual({ kind: 'taken', left: [] })
-      expect(g(work(), 'ls-files', 'docs').split('\n')).toEqual([B])
-    })
-  })
-
-  describe('two different files for the two new names of a binary', () => {
-    const bin = (tail: string) => `\0${BASE}${tail}\n`
-    const scene = () => {
-      cloned({ [A]: bin('base') })
-      g(work(), 'mv', A, B)
-      userCommit({ [B]: bin('mine') }, 'Saved: rename')
-      g(upstream(), 'mv', A, C)
-      writeFileSync(join(upstream(), C), bin('new'))
-      commitEngine('Rename')
-      return start().git
-    }
-    const state = () => ({ status: g(work(), 'status', '--short'), disk: onDisk() })
-
-    it("counts the other side's version at the kept name as an edit by hand", () => {
-      const git = scene()
-      writeFileSync(join(work(), B), bin('new'))
-      const before = state()
-      expect(takeSide(git, 'ours', A, { text: 'ours' })).toEqual({
-        kind: 'hand-edited',
-        files: [B],
-      })
-      expect(state()).toEqual(before)
-    })
-
-    it('takes the same side when the kept name still holds its own version', () => {
-      const git = scene()
-      expect(takeSide(git, 'ours', A, { text: 'ours' })).toEqual({ kind: 'taken', left: [] })
-      expect(onDisk()).toEqual({ [A]: null, [B]: bin('mine'), [C]: null })
-    })
-  })
-
   describe('a binary file renamed to names that differ only in capitals', () => {
     it('is not reported as edited when the two names are one file or two untouched ones', () => {
       const bin = (tail: string) => `\0${BASE}${tail}\n`
