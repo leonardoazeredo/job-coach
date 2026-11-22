@@ -35,9 +35,10 @@ const makeCopy = (name: string) => {
 const count = (copy: string) => git(copy, 'rev-list', '--count', 'HEAD').stdout.trim()
 
 describe('applying the wording under test', () => {
-  it('refuses to go on when git cannot say what changed', () => {
+  it('refuses to go on when git cannot say what changed, wherever the temp folder is', () => {
     const copy = join(tmp, 'no-git')
     mkdirSync(join(copy, '.claude', 'skills'), { recursive: true })
+    writeFileSync(join(copy, '.git'), 'gitdir: ./missing\n')
     expect(() => applyTree(copy, makeTree('t-no-git', 'new\n'))).toThrow(
       /could not read the wording under test/,
     )

@@ -138,6 +138,28 @@ describe('the real sample runner', () => {
     expect(existsSync(named)).toBe(true)
   })
 
+  it('does not leave a folder --out made when the image does not build', () => {
+    const made = join(tmp, 'made-out')
+    rmSync(made, { recursive: true, force: true })
+    const r = runReplay([run, '3', '1', '--out', made], env({ FAKE_BUILD: 'fail' }))
+    expect(r.code).toBe(1)
+    expect(existsSync(made)).toBe(false)
+  })
+
+  it('ends like any failed build, and leaves what the build wrote into a folder --out made', () => {
+    const made = join(tmp, 'made-with-file')
+    rmSync(made, { recursive: true, force: true })
+    const kept = join(made, 'from-the-build.txt')
+    const r = runReplay(
+      [run, '3', '1', '--out', made],
+      env({ FAKE_BUILD: 'fail', FAKE_BUILD_LEAVES: kept }),
+    )
+    expect(r.code).toBe(1)
+    expect(r.err.join('\n')).toContain('the image did not build')
+    expect(readFileSync(kept, 'utf8')).toBe('left\n')
+    expect(dockerLines('run')).toEqual([])
+  })
+
   it.each([
     ['exits 130', 'exit'],
     ['dies of SIGINT', 'signal'],

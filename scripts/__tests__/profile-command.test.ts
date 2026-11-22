@@ -50,6 +50,7 @@ describe('profile draft and write', () => {
     const written = await write('profile/history.yaml')
     expect(written.stderr).toBe('')
     expect(written.code).toBe(0)
+    expect(written.stdout).toBe('written: profile/history.yaml\n')
     expect(repo.read('profile/history.yaml')).toBe(text)
     expect(parse(text)).toEqual(values)
     expect(existsSync(repo.path('.coach/drafts/profile/history.yaml'))).toBe(false)
@@ -256,7 +257,9 @@ describe('profile write refusals', () => {
     await draft('profile/history.yaml', { roles: [{ remove: 'harbor-health' }] })
     const written = await write('profile/history.yaml')
     expect(written.code).toBe(EXIT.problems)
-    expect(written.stdout).toContain('not written')
+    expect(written.stdout).toBe(
+      'not written: the record check found problems, so profile/history.yaml stayed as before\n',
+    )
     expect(written.stderr).toContain('limit names role "harbor-health"')
     expect(repo.read('profile/history.yaml')).toBe(old)
   })
@@ -291,7 +294,9 @@ describe('profile drafts, drop and the other kinds of input', () => {
   it('lists and drops the drafts waiting', async () => {
     await draft('profile/stack.yaml', { tools: ['Make'] })
     expect((await run(['drafts'])).stdout).toBe('profile/stack.yaml, made just now\n')
-    expect((await run(['drop', 'profile/stack.yaml'])).code).toBe(0)
+    const dropped = await run(['drop', 'profile/stack.yaml'])
+    expect(dropped.code).toBe(0)
+    expect(dropped.stdout).toBe('dropped: profile/stack.yaml\n')
     expect((await run(['drafts'])).stdout).toBe('No drafts are waiting.\n')
   })
 

@@ -837,6 +837,51 @@ describe('the notes a skill asks for beside a summary', () => {
     })
   })
 
+  describe('two replies of a two-turn run', () => {
+    // Reply one fails at turn 1, and at turn 2 both fails and excuses a note; reply two excuses a
+    // note at turn 1 and again at turn 2.
+    const sample = (turns: [string, string]) =>
+      makeRun((d) => {
+        mkdirSync(join(d, 'raw'))
+        mkdirSync(join(d, 'written'))
+        writeFileSync(join(d, 'transcript.md'), `${turn(1, turns[0])}${turn(2, turns[1])}`)
+        for (const n of [1, 2])
+          writeFileSync(
+            join(d, `raw/turn${n}.jsonl`),
+            `${draftRaw(`a${n}`, 'profile/standard-answers.yaml', SUMMARY)}\n`,
+          )
+        writeFileSync(join(d, 'last.txt'), `last of ${d}\n`)
+      })
+    const GAPS_NOTE = "I've left out the career gaps entry."
+    const PREFERENCE_NOTE = 'Your preference for no night shifts sits under what a good role has.'
+
+    it('prints each reply its own rows, and only those of the replayed turn', () => {
+      const one = sample([
+        `${FRAMING}\n${SUMMARY}\nTake your time.`,
+        `${FRAMING}\n${SUMMARY}\nTake your time going through it.\n${GAPS_NOTE}`,
+      ])
+      const two = sample([
+        `${FRAMING}\n${SUMMARY}\n${GAPS_NOTE}`,
+        `${FRAMING}\n${SUMMARY}\n${PREFERENCE_NOTE}`,
+      ])
+      const out = vi.spyOn(console, 'log').mockImplementation(() => undefined)
+      let printed: string
+      try {
+        printResults(2, [one, two], 0.2)
+        printed = out.mock.calls.map((c) => String(c[0])).join('\n')
+      } finally {
+        out.mockRestore()
+      }
+      const [, first, second] = printed.split(/\n--- reply \d+\n/)
+      expect(first?.trim()).toBe(
+        `line 5 FAIL T2 "${FRAMING}"\nline 5 FAIL T2 "Take your time going through it."\nline 5 EXCUSED T2 "${GAPS_NOTE}" by career-gaps-left-out\nlast of ${one}`,
+      )
+      expect(second?.trim()).toBe(
+        `line 5 EXCUSED T2 "${PREFERENCE_NOTE}" by preference-placed-or-left-out\nlast of ${two}`,
+      )
+    })
+  })
+
   it.each([
     [
       'The "rather not" parcel carriers line and the Transport Manager condition both sit under what a good role has, in your words.',
@@ -873,6 +918,41 @@ describe('the notes a skill asks for beside a summary', () => {
     const out = line5(`${FRAMING}\n${SUMMARY}\n${s}`)
     expect(out.some((l) => l.includes('EXCUSED'))).toBe(false)
     expect(out.filter((l) => l.includes('FAIL'))).toHaveLength(2)
+  })
+
+  const noteAt = (id: string) => (NOTES.find((e) => e.id === id) as (typeof NOTES)[number]).matches
+
+  // Each row pairs a sentence a guard keeps out with a control that has the same shape without the
+  // negation or the pronoun: the guarded sentence is plain framing, its control is the note.
+  it.each([
+    [
+      'career-gaps-left-out',
+      'Your gaps are not left out of the list.',
+      'Your gaps are left out of the list.',
+    ],
+    [
+      'career-gaps-left-out',
+      'Your gaps were never left out of the list.',
+      'Your gaps were left out of the list.',
+    ],
+    [
+      'generic-tool-name',
+      'It stays generic so it reads well.',
+      'The package stays generic so it reads well.',
+    ],
+  ])('does not take %s: "%s" for a note, though its control is one', (id, guarded, control) => {
+    expect(noteAt(id).test(guarded)).toBe(false)
+    expect(noteAt(id).test(control)).toBe(true)
+  })
+
+  // "Put together" is covered by the sentences above; these two carry the other words the exception
+  // names, and each has a control that places the same item with a destination.
+  it.each([
+    ["I've put your gaps below.", "I've put your gaps under what a good role has."],
+    ["I've put your gaps here.", "I've put your gaps under what a good role has."],
+  ])('does not take %s for a note, though it names the gaps', (presented, placed) => {
+    expect(noteAt('career-gaps-left-out').test(presented)).toBe(false)
+    expect(noteAt('career-gaps-left-out').test(placed)).toBe(true)
   })
 
   it('recognises no entry on plain framing', () => {

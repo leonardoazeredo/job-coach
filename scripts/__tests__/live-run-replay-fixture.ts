@@ -193,7 +193,8 @@ export const runReplay = (args: string[], env: Record<string, string>, adapter?:
 // A `docker` that logs each call to `log`. Its `exec` answers like claude does: one reply and a
 // result whose running total is FAKE_COST_BASE plus 0.1. FAKE_DIE_ON=n makes the nth exec exit
 // with nothing; FAKE_BUDGET_ON=n makes it spend 0.2, report an error result and exit 1;
-// FAKE_EXTRA_LINES is printed before the reply, FAKE_BUILD=fail and FAKE_RUN=fail fail those commands.
+// FAKE_EXTRA_LINES is printed before the reply, FAKE_BUILD=fail and FAKE_RUN=fail fail those commands;
+// FAKE_BUILD_LEAVES=path makes a failing build write that file first.
 // FAKE_SIGINT_ON=verb makes that command die of SIGINT (kill -INT on itself, a real signal), or
 // with FAKE_SIGINT_AS=exit exit 130 as a shell reports one.
 export const dockerStandIn = (dir: string): { bin: string; log: string } => {
@@ -208,7 +209,7 @@ if [ "$1" = "$FAKE_SIGINT_ON" ]; then
   sleep 5
 fi
 case "$1" in
-  build) [ "$FAKE_BUILD" = fail ] && { echo "Cannot connect to the Docker daemon" >&2; exit 1; }; exit 0 ;;
+  build) [ "$FAKE_BUILD" = fail ] && { [ -n "$FAKE_BUILD_LEAVES" ] && echo left > "$FAKE_BUILD_LEAVES"; echo "Cannot connect to the Docker daemon" >&2; exit 1; }; exit 0 ;;
   run) [ "$FAKE_RUN" = fail ] && exit 125; exit 0 ;;
   exec) case "$*" in *' npm ci'*) [ "$FAKE_NPM" = fail ] && exit 1; exit 0 ;; esac ;;
   *) exit 0 ;;
