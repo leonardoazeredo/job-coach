@@ -2,7 +2,15 @@
 // steps the coach drives across turns, because a file both sides changed needs the user's choice.
 // Nothing is stored between the steps: git's own merge state says where an update stands, and the
 // merge commit's first parent is the folder as it was before.
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  lstatSync,
+  mkdtempSync,
+  readFileSync,
+  readlinkSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { hasClash, narrow, type SettledLine, settle } from './clash.ts'
@@ -136,8 +144,9 @@ export type Rename = {
   base: string
   ours: string
   theirs: string
-  // The two sides also changed the same lines, or git could not merge the content, so the file
-  // differs between the two names.
+  // Git staged different content under the two names, or what it staged is not what merging the
+  // three committed versions again gives (it holds clash markers, the file is binary, or git has
+  // no --object-id). A text clash leaves git's marker copy at both new names.
   contentClash: boolean
 }
 
@@ -285,23 +294,56 @@ const pending = (git: Git): { renames?: Rename[] } => {
   return renames.length ? { renames } : {}
 }
 
-// Takes a whole side of a rename: its name stays, the other two paths go. When the content
-// clashes too, the side's own version of the file is kept, since git's merged copy holds markers.
-const resolveRename = (git: Git, side: 'ours' | 'theirs', rename: Rename) => {
+// The renamed paths whose file in the folder is not what the update left there: the blob git
+// staged for that name (the marker copy under a content clash). A file the user deleted counts as
+// an edit. The old name is not compared: nothing the update left stands there, so a file under it
+// is the user's, or on a disk that ignores capitals the same file as a new name.
+const editedByHand = (git: Git, top: string, rename: Rename): string[] => {
+  const held = stages(git)
+  return [rename.ours, rename.theirs].filter((path) => {
+    const staged = held.get(path)?.[0]
+    if (!staged) return false
+    const file = join(top, path)
+    try {
+      // A link is held as its target's text, which hash-object would read through.
+      if (lstatSync(file).isSymbolicLink())
+        return readlinkSync(file) !== git(['cat-file', 'blob', staged.id]).stdout
+      return git(['hash-object', '--', file]).stdout.trim() !== staged.id
+    } catch {
+      return true
+    }
+  })
+}
+
+// Takes a rename: the chosen name stays, the other two paths go, and the file holds the version of
+// one side. Git's merged copy holds markers under a content clash, so that version is the side's
+// own committed file; without a clash the merged copy already holds both sides' changes.
+const resolveRename = (
+  git: Git,
+  side: 'ours' | 'theirs',
+  text: 'ours' | 'theirs',
+  rename: Rename,
+) => {
   const chosen = rename[side]
-  const wanted = side === 'ours' ? '2' : '3'
   const entry = stages(git)
     .get(chosen)
-    ?.find((e) => e.stage === wanted)
+    ?.find((e) => e.stage === (side === 'ours' ? '2' : '3'))
   if (!entry) return
+  const textEntry = rename.contentClash
+    ? stages(git)
+        .get(rename[text])
+        ?.find((e) => e.stage === (text === 'ours' ? '2' : '3'))
+    : entry
   const id = rename.contentClash
-    ? blob(git, side === 'ours' ? 'HEAD' : 'MERGE_HEAD', chosen)
+    ? blob(git, text === 'ours' ? 'HEAD' : 'MERGE_HEAD', rename[text])
     : entry.id
-  // The old name is dropped from the index only: no saved file stands there, so whatever the
-  // folder shows under it (even on a disk that ignores capitals) is the user's and stays.
+  // The old name is dropped from the index only: what the folder shows under it is not a file the
+  // update put there. On a disk that ignores capitals it can be the same file as a renamed path,
+  // which the `git rm` of the two new paths below removes and the checkout writes back when that
+  // path is the chosen one.
   git(['update-index', '--force-remove', '--', rename.base])
   for (const path of [rename.ours, rename.theirs]) git(['rm', '-q', '-f', '--', path])
-  git(['update-index', '--add', '--cacheinfo', `${entry.mode},${id},${chosen}`])
+  git(['update-index', '--add', '--cacheinfo', `${textEntry?.mode ?? entry.mode},${id},${chosen}`])
   git(['checkout-index', '-f', '--', chosen])
 }
 
@@ -406,17 +448,52 @@ export type TakeResult =
   | { kind: 'not-clashing' }
   // The chosen file would replace a folder that holds files of the user's that are not saved.
   | { kind: 'in-the-way'; files: string[] }
+  // A renamed file whose content clashes too: the version of the text is a second choice, not given.
+  | { kind: 'needs-text'; rename: Rename }
+  // A text choice for a file that has none to make. Nothing is changed.
+  | { kind: 'no-text-choice' }
+  // A file of the rename is not what the update left, so a take would lose the user's change.
+  | { kind: 'hand-edited'; files: string[] }
 
-export const takeSide = (git: Git, side: 'ours' | 'theirs', file: string): TakeResult => {
+export type TakeOptions = {
+  // Whose version of the text a renamed file ends with, when the content clashes.
+  text?: 'ours' | 'theirs' | undefined
+  // Go on although a file of the rename was edited by hand.
+  discardEdits?: boolean | undefined
+}
+
+// What stops a take of a rename before it changes anything: a text choice that does not fit, a
+// missing one, or a file of the rename the user edited.
+const refusal = (
+  git: Git,
+  top: string,
+  rename: Rename | undefined,
+  opts: TakeOptions,
+): TakeResult | undefined => {
+  if (opts.text && !rename?.contentClash) return { kind: 'no-text-choice' }
+  if (!rename) return undefined
+  if (rename.contentClash && !opts.text) return { kind: 'needs-text', rename }
+  const files = opts.discardEdits ? [] : editedByHand(git, top, rename)
+  return files.length ? { kind: 'hand-edited', files } : undefined
+}
+
+export const takeSide = (
+  git: Git,
+  side: 'ours' | 'theirs',
+  file: string,
+  opts: TakeOptions = {},
+): TakeResult => {
   if (!inMerge(git)) return { kind: 'no-merge' }
   if (!unmerged(git).includes(file)) return { kind: 'not-clashing' }
   const top = topOf(git)
   const path = join(top, file)
   const rename = renamesOf(git).find((r) => inRename(r, file))
+  const refused = refusal(git, top, rename, opts)
+  if (refused) return refused
   // Only the clash blocks are the user's choice; the rest of the file already holds both sides'
   // changes. Any other kind has no blocks and is taken whole.
   if (rename) {
-    resolveRename(git, side, rename)
+    resolveRename(git, side, opts.text ?? side, rename)
   } else if (clashKinds(git, top).get(file) === 'text-open') {
     writeFileSync(path, settle(readFileSync(path, 'utf8'), side))
     git(['add', '--', file])

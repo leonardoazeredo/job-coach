@@ -49,13 +49,14 @@ import {
   mergeEngine,
   type Rename,
   type Settled,
+  type TakeOptions,
   takeSide,
 } from './lib/update-git.ts'
 import type { Run } from './lib/verified-update.ts'
 import { repoRoot } from './lib/workspace.ts'
 
 const USAGE =
-  'usage: node scripts/update.ts check [--now] | zip | changes | merge | take <ours|theirs> <file> | finish | cancel'
+  'usage: node scripts/update.ts check [--now] | zip | changes | merge | take <ours|theirs> <file> [--text <ours|theirs>] [--discard-edits] | finish | cancel'
 
 // Read by the coach and passed on to the user, so no technical words.
 const NO_ANSWER: Record<UnknownReason, string> = {
@@ -165,13 +166,52 @@ const mergeStep: Step = (git, root, _args, deps) => {
   }
 }
 
+// take <side> <file>, then the flags in any order; a flag given twice or an unknown one is a usage error.
+type Take = { side: 'ours' | 'theirs'; file: string; opts: TakeOptions }
+const parseTake = (args: string[]): Take | undefined => {
+  const [side, file, ...flags] = args
+  if ((side !== 'ours' && side !== 'theirs') || !file) return
+  let text: 'ours' | 'theirs' | undefined
+  let discardEdits = false
+  for (let i = 0; i < flags.length; i++) {
+    const flag = flags[i]
+    if (flag === '--discard-edits' && !discardEdits) discardEdits = true
+    else if (flag === '--text' && text === undefined) {
+      const value = flags[++i]
+      if (value !== 'ours' && value !== 'theirs') return
+      text = value
+    } else return
+  }
+  return { side, file, opts: { text, discardEdits } }
+}
+
 const takeStep: Step = (git, _root, args) => {
-  const [side, file] = args
-  if ((side !== 'ours' && side !== 'theirs') || !file || args.length !== 2) {
+  const parsed = parseTake(args)
+  if (!parsed) {
     console.error(USAGE)
     return EXIT.usage
   }
-  const result = takeSide(git, side, file)
+  const { side, file, opts } = parsed
+  const result = takeSide(git, side, file, opts)
+  if (result.kind === 'no-text-choice') {
+    console.error(
+      `--text applies only to a file both sides renamed whose content clashes: ${file} is not one`,
+    )
+    return EXIT.usage
+  }
+  if (result.kind === 'needs-text') {
+    say(
+      EXIT.problems,
+      `not taken: ${file} was renamed on both sides and its content clashes, so whose text it ends with is a second choice (--text ours or --text theirs); nothing was changed`,
+    )
+    printRenames([result.rename])
+    return EXIT.problems
+  }
+  if (result.kind === 'hand-edited')
+    return say(
+      EXIT.problems,
+      `not taken: you edited these by hand: ${result.files.join(', ')}; nothing was changed, and --discard-edits goes on anyway`,
+    )
   if (result.kind === 'no-merge') return refuse('no update is in progress')
   if (result.kind === 'not-clashing') return refuse(`${file} is not a clashing file`)
   if (result.kind === 'in-the-way')
