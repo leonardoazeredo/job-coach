@@ -5,6 +5,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  rmdirSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -89,6 +90,45 @@ const handEditCases = (
     expect(onDisk()[kept]).not.toBe('EDITED\n')
     expect(g(work(), 'ls-files', 'docs').split('\n')).toEqual([kept])
   })
+}
+
+// The user's folder stood at a new name, was emptied as the skill offers and then removed: the take
+// goes on only at the name it does not keep, since the file it would keep there is gone and counts
+// as an edit by hand.
+const settleAfterFolder = (
+  scene: { setUp: () => void; opts: { text?: 'ours' } },
+  side: 'ours' | 'theirs',
+  name: string,
+) => {
+  const { setUp, opts } = scene
+  const state = () => ({
+    status: g(work(), 'status', '--short'),
+    index: g(work(), 'ls-files', '-s'),
+    docs: readdirSync(join(work(), 'docs')).sort(),
+  })
+  setUp()
+  const { git } = start()
+  rmSync(join(work(), name))
+  mkdirSync(join(work(), name))
+  writeFileSync(join(work(), name, 'cv.pdf'), 'PDF\n')
+  expect(takeSide(git, side, A, opts)).toEqual({ kind: 'in-the-way', files: [`${name}/cv.pdf`] })
+  rmSync(join(work(), name, 'cv.pdf'))
+  const before = state()
+  for (const discardEdits of [false, true])
+    expect(takeSide(git, side, A, { ...opts, discardEdits })).toEqual({
+      kind: 'in-the-way',
+      files: [name],
+    })
+  expect(state()).toEqual(before)
+  rmdirSync(join(work(), name))
+  const kept = side === 'ours' ? B : C
+  const edits = name === kept ? { ...opts, discardEdits: true } : opts
+  if (name === kept)
+    expect(takeSide(git, side, A, opts)).toEqual({ kind: 'hand-edited', files: [name] })
+  expect(takeSide(git, side, A, edits)).toMatchObject({ kind: 'taken', left: [] })
+  expect(finishUpdate(work(), git, { run: runner().run })).toEqual({ kind: 'updated' })
+  expect(g(work(), 'ls-files', 'docs').split('\n')).toEqual([kept])
+  expect(existsSync(join(work(), side === 'ours' ? C : B))).toBe(false)
 }
 
 describe('a file both sides renamed', () => {
@@ -465,6 +505,49 @@ describe('a file both sides renamed', () => {
       ),
       docs: readdirSync(join(work(), 'docs')).sort(),
     })
+    // A folder holding a file stands at a new name: the take refuses, whether or not told to go on.
+    const refuseFolderWithFile = (
+      scene: { setUp: () => void; opts: { text?: 'ours' } },
+      name: string,
+      discardEdits: boolean,
+    ) => {
+      scene.setUp()
+      const { git } = start()
+      rmSync(join(work(), name))
+      mkdirSync(join(work(), name))
+      writeFileSync(join(work(), name, 'x'), 'MY FILE\n')
+      const before = { ...snapshot(), inside: readdirSync(join(work(), name)) }
+      expect(takeSide(git, 'ours', A, { ...scene.opts, discardEdits })).toEqual({
+        kind: 'in-the-way',
+        files: [`${name}/x`],
+      })
+      expect({ ...snapshot(), inside: readdirSync(join(work(), name)) }).toEqual(before)
+      expect(readFileSync(join(work(), name, 'x'), 'utf8')).toBe('MY FILE\n')
+    }
+    const folderCases = (setUp: () => void, opts: { text?: 'ours' }) => {
+      for (const [where, name] of [
+        ['the name that is kept', B],
+        ['the name that goes', C],
+      ] as const) {
+        for (const [told, discardEdits] of [
+          ['', false],
+          [', though told to go on', true],
+        ] as const)
+          it(`refuses with the files in the way when a folder holding a file stands at ${where}${told}`, () =>
+            refuseFolderWithFile({ setUp, opts }, name, discardEdits))
+      }
+    }
+    const emptiedFolderCases = (setUp: () => void, opts: { text?: 'ours' }) => {
+      for (const side of ['ours', 'theirs'] as const) {
+        for (const [where, name] of [
+          ['the first new name', B],
+          ['the second new name', C],
+        ] as const)
+          it(`settles the ${side} take once the user has emptied and removed the folder at ${where}`, () =>
+            settleAfterFolder({ setUp, opts }, side, name))
+      }
+    }
+
     const cases = [
       ['with a content clash', clash, { text: 'ours' }],
       ['without a content clash', clean, {}],
@@ -472,27 +555,8 @@ describe('a file both sides renamed', () => {
 
     for (const [how, setUp, opts] of cases) {
       describe(how, () => {
-        for (const [where, name] of [
-          ['the name that is kept', B],
-          ['the name that goes', C],
-        ] as const) {
-          for (const discardEdits of [false, true]) {
-            it(`refuses with the files in the way when a folder holding a file stands at ${where}${discardEdits ? ', though told to go on' : ''}`, () => {
-              setUp()
-              const { git } = start()
-              rmSync(join(work(), name))
-              mkdirSync(join(work(), name))
-              writeFileSync(join(work(), name, 'x'), 'MY FILE\n')
-              const before = { ...snapshot(), inside: readdirSync(join(work(), name)) }
-              expect(takeSide(git, 'ours', A, { ...opts, discardEdits })).toEqual({
-                kind: 'in-the-way',
-                files: [`${name}/x`],
-              })
-              expect({ ...snapshot(), inside: readdirSync(join(work(), name)) }).toEqual(before)
-              expect(readFileSync(join(work(), name, 'x'), 'utf8')).toBe('MY FILE\n')
-            })
-          }
-        }
+        folderCases(setUp, opts)
+        emptiedFolderCases(setUp, opts)
 
         it('refuses a take that went on over an executable bit the user set, and changes nothing', () => {
           setUp()
@@ -519,6 +583,66 @@ describe('a file both sides renamed', () => {
     }
   })
 
+  describe('a take git cannot carry out', () => {
+    it("stops with git's output and changes nothing, then settles once the folder can be written", () => {
+      renamedOnBothSides()
+      const { git } = start()
+      const docs = join(work(), 'docs')
+      const before = {
+        status: g(work(), 'status', '--short'),
+        index: g(work(), 'ls-files', '-s'),
+        disk: onDisk(),
+      }
+      chmodSync(docs, 0o555)
+      try {
+        expect(takeSide(git, 'ours', A)).toMatchObject({
+          kind: 'failed',
+          output: expect.stringContaining('Permission denied'),
+        })
+        expect({
+          status: g(work(), 'status', '--short'),
+          index: g(work(), 'ls-files', '-s'),
+          disk: onDisk(),
+        }).toEqual(before)
+      } finally {
+        chmodSync(docs, 0o755)
+      }
+      expect(takeSide(git, 'ours', A)).toEqual({ kind: 'taken', left: [] })
+      expect(g(work(), 'ls-files', 'docs').split('\n')).toEqual([B])
+    })
+  })
+
+  describe('two different files for the two new names of a binary', () => {
+    const bin = (tail: string) => `\0${BASE}${tail}\n`
+    const scene = () => {
+      cloned({ [A]: bin('base') })
+      g(work(), 'mv', A, B)
+      userCommit({ [B]: bin('mine') }, 'Saved: rename')
+      g(upstream(), 'mv', A, C)
+      writeFileSync(join(upstream(), C), bin('new'))
+      commitEngine('Rename')
+      return start().git
+    }
+    const state = () => ({ status: g(work(), 'status', '--short'), disk: onDisk() })
+
+    it("counts the other side's version at the kept name as an edit by hand", () => {
+      const git = scene()
+      writeFileSync(join(work(), B), bin('new'))
+      const before = state()
+      expect(takeSide(git, 'ours', A, { text: 'ours' })).toEqual({
+        kind: 'hand-edited',
+        files: [B],
+      })
+      expect(state()).toEqual(before)
+    })
+
+    it('takes the same side when the kept name still holds its own version', () => {
+      const git = scene()
+      expect(takeSide(git, 'ours', A, { text: 'ours' })).toEqual({ kind: 'taken', left: [] })
+      expect(onDisk()).toEqual({ [A]: null, [B]: bin('mine'), [C]: null })
+    })
+  })
+
   describe('a binary file renamed to names that differ only in capitals', () => {
     it('is not reported as edited when the two names are one file or two untouched ones', () => {
       const bin = (tail: string) => `\0${BASE}${tail}\n`
@@ -535,6 +659,32 @@ describe('a file both sides renamed', () => {
       expect(finishUpdate(work(), git, { run: runner().run })).toEqual({ kind: 'updated' })
       expect(readFileSync(join(work(), 'docs/NOTES.bin'), 'utf8')).toBe(bin('new'))
     })
+  })
+
+  describe('a file where a parent folder of a new name should be', () => {
+    it.each([['ours'], ['theirs']] as const)(
+      "refuses the %s take and keeps the user's file",
+      (side) => {
+        cloned({ [A]: BASE, 'docs/keep.md': 'kept\n' })
+        mkdirSync(join(work(), 'mine'))
+        g(work(), 'mv', A, 'mine/b.md')
+        userCommit({}, 'Saved: rename into a folder')
+        g(upstream(), 'mv', A, 'c.md')
+        commitEngine('Rename')
+        const { git } = start()
+        expect(renamesOf(git)).toMatchObject([{ base: A, ours: 'mine/b.md', theirs: 'c.md' }])
+        rmSync(join(work(), 'mine'), { recursive: true })
+        writeFileSync(join(work(), 'mine'), 'MY FILE\n')
+        const before = g(work(), 'status', '--short')
+        for (const discardEdits of [false, true])
+          expect(takeSide(git, side, A, { discardEdits })).toEqual({
+            kind: 'in-the-way',
+            files: ['mine'],
+          })
+        expect(g(work(), 'status', '--short')).toEqual(before)
+        expect(readFileSync(join(work(), 'mine'), 'utf8')).toBe('MY FILE\n')
+      },
+    )
   })
 
   describe('the text choice', () => {
