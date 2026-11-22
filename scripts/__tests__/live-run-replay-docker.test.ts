@@ -138,6 +138,31 @@ describe('the real sample runner', () => {
     expect(existsSync(named)).toBe(true)
   })
 
+  it('does not leave a folder --out made when the image does not build', () => {
+    const made = join(tmp, 'made-out')
+    rmSync(made, { recursive: true, force: true })
+    const r = runReplay([run, '3', '1', '--out', made], env({ FAKE_BUILD: 'fail' }))
+    expect(r.code).toBe(1)
+    expect(existsSync(made)).toBe(false)
+  })
+
+  // Only an empty folder is removed, so something a failed build left in it stays; how the run
+  // ends then is not pinned here.
+  it('leaves what a failed build wrote into a folder --out made', () => {
+    const made = join(tmp, 'made-with-file')
+    rmSync(made, { recursive: true, force: true })
+    const kept = join(made, 'from-the-build.txt')
+    try {
+      runReplay(
+        [run, '3', '1', '--out', made],
+        env({ FAKE_BUILD: 'fail', FAKE_BUILD_LEAVES: kept }),
+      )
+    } catch {
+      // The run may stop with an error of its own.
+    }
+    expect(readFileSync(kept, 'utf8')).toBe('left\n')
+  })
+
   it.each([
     ['exits 130', 'exit'],
     ['dies of SIGINT', 'signal'],
