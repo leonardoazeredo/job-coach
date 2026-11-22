@@ -12,7 +12,6 @@ import {
   rmSync,
   symlinkSync,
   writeFileSync,
-  writeSync,
 } from 'node:fs'
 import { join } from 'node:path'
 import type { Git } from './history.ts'
@@ -67,12 +66,16 @@ const takeLock = (lock: string, bytes: Buffer) => {
       continue
     }
     try {
-      writeSync(fd, bytes)
+      writeFileSync(fd, bytes)
+      closeSync(fd)
     } catch (error) {
+      try {
+        closeSync(fd)
+      } catch {
+        // Closing is only for the descriptor; whether it works or not, the lock must go.
+      }
       rmSync(lock, { force: true })
       throw error
-    } finally {
-      closeSync(fd)
     }
     return
   }
