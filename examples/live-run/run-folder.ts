@@ -3,7 +3,7 @@
 // raw/reply<n>.txt (the persona's message), session.id, costlog.txt, last.txt, transcript.md and,
 // from a run's start, kind; snap/before<n>.tgz is what a replay of turn n starts from, and cost.txt
 // marks a run finished. This module also takes the snapshot before a turn, says whether a replay
-// has what it needs, lays out a replay sample's folder from a snapshot, and writes and reads a
+// has what it needs, lays out a replay sample's folder from a snapshot and trims it afterwards, and writes and reads a
 // finished run's cost. turn.sh and the finish scripts call the command line at the bottom for
 // everything they record or read here; no other shell script parses these files.
 import { spawnSync } from 'node:child_process'
@@ -320,6 +320,17 @@ export const sessionAfter = (run: string, turn: number): string => {
   return id
 }
 
+// A step that Ctrl-C ended: killed by the signal, or a shell that reports it as exit 130. The replay
+// runs its steps synchronously, so this is the only way it learns of a Ctrl-C.
+export const interruptedBy = (r: { status: number | null; signal: string | null }): boolean =>
+  r.signal === 'SIGINT' || r.status === 130
+
+export class Interrupted extends Error {
+  constructor() {
+    super('interrupted')
+  }
+}
+
 // A replay sample has a run folder's shape, so turn.sh and the scorer work on it unchanged: the
 // snapshot unpacked, the transcript and raw streams up to the turn (which is how the scorer knows
 // what came earlier), the persona's message as reply.txt and, after turn 1, the session and the
@@ -330,6 +341,7 @@ export const prepareReplaySample = (run: string, turn: number, sample: string): 
   const tar = spawnSync('tar', ['-xzf', join(run, snap, `before${turn}.tgz`), '-C', sample], {
     encoding: 'utf8',
   })
+  if (interruptedBy(tar)) throw new Interrupted()
   if (tar.status !== 0) throw new Error(`could not unpack the snapshot: ${tar.stderr}`)
   for (const d of [raw, cachehome, tmpd]) mkdirSync(join(sample, d), { recursive: true })
   if (existsSync(join(run, 'engine')))
@@ -345,6 +357,17 @@ export const prepareReplaySample = (run: string, turn: number, sample: string): 
     // Only the line for the turn before: the sample's own turn.sh adds the replayed turn's line.
     writeFileSync(join(sample, 'costlog.txt'), costLine(turn - 1, costAfter(run, turn - 1)))
   }
+}
+
+// What a replay sample keeps once its turn is done or has failed: what the scorer, a rescore and a
+// reader open (the stream in raw/, the replies, the cost log, the transcript, the session id and the
+// kind). The copy is kept for a person reading a sample later, not for the scorer, but without its
+// installed packages. The rest was only there to run the turn: the snapshot, the coach's session and
+// caches, the temp folder, and the engine an update run reads. The installed packages are most of a sample.
+export const trimReplaySample = (sample: string): void => {
+  const { copy, claudehome, cachehome, tmpd, snap } = LAYOUT
+  for (const gone of [snap, claudehome, cachehome, tmpd, 'engine', join(copy, 'node_modules')])
+    rmSync(join(sample, gone), { recursive: true, force: true })
 }
 
 // ---- a finished run's cost ----

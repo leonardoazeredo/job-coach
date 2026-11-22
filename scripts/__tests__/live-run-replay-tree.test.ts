@@ -35,6 +35,14 @@ const makeCopy = (name: string) => {
 const count = (copy: string) => git(copy, 'rev-list', '--count', 'HEAD').stdout.trim()
 
 describe('applying the wording under test', () => {
+  it('refuses to go on when git cannot say what changed', () => {
+    const copy = join(tmp, 'no-git')
+    mkdirSync(join(copy, '.claude', 'skills'), { recursive: true })
+    expect(() => applyTree(copy, makeTree('t-no-git', 'new\n'))).toThrow(
+      /could not read the wording under test/,
+    )
+  })
+
   it('commits it with the base commit\u2019s date', () => {
     const copy = makeCopy('dated')
     applyTree(copy, makeTree('t-dated', 'new\n'))

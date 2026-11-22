@@ -2,7 +2,7 @@
 // with the environment it reads and its output captured, a docker stand-in for the real adapter
 // (real up.sh and turn.sh run against it) and a fake adapter for the replay's own rules.
 
-import { appendFileSync, chmodSync, mkdirSync, writeFileSync } from 'node:fs'
+import { appendFileSync, chmodSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { vi } from 'vitest'
 import {
@@ -97,14 +97,44 @@ export const makeRun = (tmp: string, opts: RunOptions = {}): string => {
 // What turn.sh leaves in a sample folder for a turn whose running total is `total`: claude's stream
 // recorded through the run-folder module, as turn.sh records it. The one place a fake adapter
 // writes a turn's outputs.
-export const writeTurnOutputs = (sample: string, turn: number, total: number) => {
+export const writeTurnOutputs = (
+  sample: string,
+  turn: number,
+  total: number,
+  before: string[] = [],
+) => {
   const stream = [
+    ...before,
     '{"type":"assistant","message":{"content":[{"type":"text","text":"a reply"}]}}',
     `{"type":"result","session_id":"s","total_cost_usd":${total},"usage":{"cache_read_input_tokens":5,"cache_creation_input_tokens":7}}`,
   ]
   writeFileSync(join(sample, 'raw', `turn${turn}.jsonl`), `${stream.join('\n')}\n`)
   const recorded = recordTurn(sample, turn, join(sample, 'reply.txt'))
   if ('failure' in recorded) throw new Error(recorded.failure)
+}
+
+// The stream lines of a turn that drafts a profile file and gets the summary back, as the scorer
+// reads them from the stream.
+export const draftLines = (file: string, summary: string): string[] => [
+  JSON.stringify({
+    type: 'assistant',
+    message: {
+      content: [
+        { type: 'tool_use', id: 't1', input: { command: `node scripts/profile.ts draft ${file}` } },
+      ],
+    },
+  }),
+  JSON.stringify({
+    type: 'user',
+    message: { content: [{ type: 'tool_result', tool_use_id: 't1', content: summary }] },
+  }),
+]
+
+// What the docker adapter's npm ci leaves in a sample: the installed packages, most of its size.
+// Over 1 MB, so a size printed before the trim cannot pass for a trimmed one.
+export const installPackages = (sample: string) => {
+  mkdirSync(join(sample, 'copy', 'node_modules', 'pkg'), { recursive: true })
+  writeFileSync(join(sample, 'copy', 'node_modules', 'pkg', 'index.js'), 'x'.repeat(1_200_000))
 }
 
 // Spends 0.1 per sample on top of the run's 0.75; `failAt` is the sample that fails, with what it
@@ -117,13 +147,24 @@ export const fakeAdapter =
       build: () => undefined,
       runSample: (sample): SampleOutcome => {
         n++
-        if (opts.failAt?.sample === n)
+        if (opts.failAt?.sample === n) {
+          installPackages(sample)
           return { spend: opts.failAt.spend, failure: opts.failAt.failure }
+        }
+        installPackages(sample)
         writeTurnOutputs(sample, turn, 0.85)
         return { spend: 0.1 }
       },
     }
   }
+
+// A folder holding one command that runs `body` instead of the real one; put it first on PATH.
+export const fakeBin = (dir: string, name: string, body: string): string => {
+  const bin = mkdtempSync(join(dir, `fake-${name}-`))
+  writeFileSync(join(bin, name), `#!/bin/bash\n${body}\n`)
+  chmodSync(join(bin, name), 0o755)
+  return bin
+}
 
 // Calls replayCommand with `env` set for the call, and says what it returned and printed.
 export const runReplay = (args: string[], env: Record<string, string>, adapter?: MakeAdapter) => {
@@ -153,12 +194,19 @@ export const runReplay = (args: string[], env: Record<string, string>, adapter?:
 // result whose running total is FAKE_COST_BASE plus 0.1. FAKE_DIE_ON=n makes the nth exec exit
 // with nothing; FAKE_BUDGET_ON=n makes it spend 0.2, report an error result and exit 1;
 // FAKE_EXTRA_LINES is printed before the reply, FAKE_BUILD=fail and FAKE_RUN=fail fail those commands.
+// FAKE_SIGINT_ON=verb makes that command die of SIGINT (kill -INT on itself, a real signal), or
+// with FAKE_SIGINT_AS=exit exit 130 as a shell reports one.
 export const dockerStandIn = (dir: string): { bin: string; log: string } => {
   const bin = join(dir, 'bin')
   const log = join(dir, 'docker.log')
   mkdirSync(bin, { recursive: true })
   const script = `#!/bin/bash
 echo "$*" >> "${log}"
+if [ "$1" = "$FAKE_SIGINT_ON" ]; then
+  [ "$FAKE_SIGINT_AS" = exit ] && exit 130
+  kill -INT $$
+  sleep 5
+fi
 case "$1" in
   build) [ "$FAKE_BUILD" = fail ] && { echo "Cannot connect to the Docker daemon" >&2; exit 1; }; exit 0 ;;
   run) [ "$FAKE_RUN" = fail ] && exit 125; exit 0 ;;

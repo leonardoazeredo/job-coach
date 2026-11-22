@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it, vi } from 'vitest'
+import { afterAll, describe, expect, it, vi } from 'vitest'
 import { transcriptBlock } from '../../examples/live-run/run-folder.ts'
 import { scoreCommand, scoreRun } from '../../examples/live-run/score.ts'
 import { EXIT } from '../lib/problem.ts'
@@ -128,8 +128,16 @@ const draftRaw = (
     .map((l) => JSON.stringify(l))
     .join('\n')
 
+// Every run folder made here goes when the file ends, so a test that does not remove its own (or
+// fails before it can) leaves nothing in the temp directory.
+const made: string[] = []
+afterAll(() => {
+  for (const dir of made) rmSync(dir, { recursive: true, force: true })
+})
+
 const makeRun = (setup: (dir: string) => void) => {
   const dir = mkdtempSync(join(tmpdir(), 'score-'))
+  made.push(dir)
   setup(dir)
   return dir
 }

@@ -1,5 +1,13 @@
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
@@ -40,7 +48,10 @@ const everyStartedIsRemoved = () => {
 }
 const sampleFolders = (out: string[]) => {
   const line = out.find((l) => l.trim().startsWith('Samples are in ')) ?? ''
-  return line.trim().replace('Samples are in ', '')
+  return line
+    .trim()
+    .replace('Samples are in ', '')
+    .replace(/ \([^()]*\)$/, '')
 }
 
 describe('the real sample runner', () => {
@@ -115,6 +126,41 @@ describe('the real sample runner', () => {
     const r = runReplay([run, '3', '3'], env({ FAKE_BUILD: 'fail' }))
     expect(r.code).toBe(1)
     expect(r.err.join('\n')).toContain('Cannot connect to the Docker daemon')
+    expect(readdirSync(join(run, 'replays'))).toEqual([])
+  })
+
+  it('leaves a folder that --out named and that already held nothing, when the image does not build', () => {
+    const named = join(tmp, 'named-out')
+    rmSync(named, { recursive: true, force: true })
+    mkdirSync(named)
+    const r = runReplay([run, '3', '1', '--out', named], env({ FAKE_BUILD: 'fail' }))
+    expect(r.code).toBe(1)
+    expect(existsSync(named)).toBe(true)
+  })
+
+  it.each([
+    ['exits 130', 'exit'],
+    ['dies of SIGINT', 'signal'],
+  ])('dies of SIGINT itself, as a script, when a step %s', (_, how) => {
+    // An exit code of 130 would not stop a caller's shell loop; only the signal does.
+    const r = spawnSync(
+      process.execPath,
+      [join(import.meta.dirname, '../../examples/live-run/replay.ts'), run, '3', '1'],
+      {
+        encoding: 'utf8',
+        env: {
+          ...withoutGitVariables(process.env),
+          ...env({
+            CLAUDE_CODE_OAUTH_TOKEN: 'not-a-real-token',
+            LIVE_RUN_BUDGET_USD: '5',
+            FAKE_SIGINT_ON: 'exec',
+            FAKE_SIGINT_AS: how,
+          }),
+        },
+      },
+    )
+    expect(r.signal, r.stderr).toBe('SIGINT')
+    expect(r.status).toBeNull()
   })
 
   it('installs the packages the coach needs before the turn when the snapshot had them', () => {
@@ -126,6 +172,40 @@ describe('the real sample runner', () => {
     expect(execs[0]).toMatch(/ npm ci --silent$/)
     expect(execs[1]).toContain(' claude ')
   })
+
+  it.each([
+    ['build', 'signal'],
+    ['build', 'exit'],
+    ['run', 'signal'],
+    ['run', 'exit'],
+    ['exec', 'signal'],
+    ['exec', 'exit'],
+    ['rm', 'signal'],
+    ['rm', 'exit'],
+  ])(
+    'ends the replay with 130 when docker %s dies of Ctrl-C (%s), and starts no later sample',
+    (verb, how) => {
+      const r = runReplay(
+        [run, '3', '3'],
+        env({ FAKE_SIGINT_ON: verb, FAKE_SIGINT_AS: how, LIVE_RUN_BUDGET_USD: '5' }),
+      )
+      expect(r.code).toBe(130)
+      expect(dockerLines('run')).toHaveLength(verb === 'build' ? 0 : 1)
+      if (verb === 'build') {
+        // No sample started, so the output folder this run made is removed rather than left empty.
+        expect(readdirSync(join(run, 'replays'))).toEqual([])
+        return
+      }
+      // up.sh dying is not followed by a removal, as when the container does not start.
+      if (verb !== 'run') everyStartedIsRemoved()
+      const out = sampleFolders(r.out)
+      const name = out.split('/').pop()
+      expect(readdirSync(out)).toEqual([`${name}-s1`])
+      const sample = join(out, `${name}-s1`)
+      expect(existsSync(join(sample, 'claudehome'))).toBe(false)
+      expect(existsSync(join(sample, 'raw'))).toBe(true)
+    },
+  )
 
   it('says the packages did not install, runs no turn and removes the container', () => {
     writeFileSync(join(run, 'snap', 'before3.packages'), '')
