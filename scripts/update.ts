@@ -1,7 +1,8 @@
 // Engine updates for the update-coach skill.
 // Usage: node scripts/update.ts check [--now]
 //        node scripts/update.ts zip
-//        node scripts/update.ts changes | merge | take <ours|theirs> <file> | finish | cancel
+//        node scripts/update.ts changes | merge | take <ours|theirs> <file> [--text <ours|theirs>]
+//                               [--discard-edits] | finish | cancel
 // check asks GitHub once whether a newer engine exists. Without --now it runs at most once a
 // week (once a day after a failed try) and prints "available" or, when it got no answer, one plain
 // line saying so; with --now it always asks and prints its answer. Before onboarding has created
@@ -18,17 +19,29 @@
 //   changes  connects to the engine, fetches it, and prints latest, or available followed by one
 //            "- " line per change, or not fetched.
 //   merge    checks the records first and prints not started when they already fail; otherwise merges
-//            the new version and prints merged, clashes: <files>, latest, not fetched (run changes
-//            first) or not merged.
-//   take     settles one clashing file with the user's version (ours) or the new one (theirs).
+//            the new version and prints merged, clashes: <files> followed by one "- renamed" line
+//            per file both sides renamed, latest, not fetched (run changes first) or not merged.
+//   take     settles one clashing file with the user's version (ours) or the new one (theirs);
+//            for a file both sides renamed it settles all three of its paths, and --text picks
+//            whose content it ends with when that clashes too. It prints taken: <file>; clashes
+//            left: <files> or no clashes left, then the "- renamed" lines; or not taken: <why>,
+//            followed by the file's "- renamed" line when whose text it ends with is still to
+//            choose.
 //   finish   commits, installs, runs the record check and prints updated, or clashes left while a
-//            file holds a clash marker, is binary or one side removed it, or undone when the
+//            file holds a clash marker, is binary, is not a plain file (a link, or a file against
+//            a folder), one side removed it, both renamed it (with its "- renamed" lines), or only
+//            the old version holds it, or not committed when the commit failed, or undone when the
 //            install or check failed and the folder went back to how it was, or not undone when
 //            that putting back failed too.
 //   cancel   abandons a merge in progress; nothing changes.
-// Exit 64 on a usage error, zip in a folder that keeps history, or a history step in one without.
-// Exit 1 when an update did not start, was undone or not undone, could not fetch the new version or has clashes
-// left, with the reason on stderr. Otherwise 0, including a check that got no answer.
+// Exit 64 on a usage error (including take or finish with no update in progress, take on a file
+// that is not clashing, and --text or --discard-edits where they do not apply), zip in a folder
+// that keeps history, or a history step in one without.
+// Exit 1 when an update did not start, could not fetch or merge the new version, was not committed,
+// was undone or not undone, could not be cancelled, when finish finds clashes left, and when
+// take stops (not taken: ...). The line is on stdout and the reason on stderr when there is one:
+// git's words, the install's or the record check's (merge, finish and zip), or the system's.
+// Otherwise 0, including a check that got no answer.
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { type Git, gitIn } from './lib/history.ts'
@@ -47,14 +60,16 @@ import {
   engineChanges,
   finishUpdate,
   mergeEngine,
+  type Rename,
   type Settled,
+  type TakeOptions,
   takeSide,
 } from './lib/update-git.ts'
 import type { Run } from './lib/verified-update.ts'
 import { repoRoot } from './lib/workspace.ts'
 
 const USAGE =
-  'usage: node scripts/update.ts check [--now] | zip | changes | merge | take <ours|theirs> <file> | finish | cancel'
+  'usage: node scripts/update.ts check [--now] | zip | changes | merge | take <ours|theirs> <file> [--text <ours|theirs>] [--discard-edits] | finish | cancel'
 
 // Read by the coach and passed on to the user, so no technical words.
 const NO_ANSWER: Record<UnknownReason, string> = {
@@ -126,6 +141,15 @@ const printSettled = (settled: Settled[] = []): number => {
   return 0
 }
 
+// One line per file both sides renamed, with both new paths: its three paths are one clash.
+const printRenames = (renames: Rename[] = []): number => {
+  for (const r of renames)
+    console.log(
+      `- renamed ${r.base}: yours ${r.ours}, new version ${r.theirs}${r.contentClash ? '; the content clashes too' : ''}`,
+    )
+  return 0
+}
+
 const mergeStep: Step = (git, root, _args, deps) => {
   const result = mergeEngine(root, git, { url: deps.engineUrl, run: deps.run })
   switch (result.kind) {
@@ -136,6 +160,7 @@ const mergeStep: Step = (git, root, _args, deps) => {
       return printSettled(result.settled)
     case 'clashes':
       say(0, `clashes: ${result.files.join(', ')}`)
+      printRenames(result.renames)
       return printSettled(result.settled)
     case 'not-started':
       return say(
@@ -154,13 +179,64 @@ const mergeStep: Step = (git, root, _args, deps) => {
   }
 }
 
+// take <side> <file>, then the flags in any order; a flag given twice or an unknown one is a usage error.
+type Take = { side: 'ours' | 'theirs'; file: string; opts: TakeOptions }
+const parseTake = (args: string[]): Take | undefined => {
+  const [side, file, ...flags] = args
+  if ((side !== 'ours' && side !== 'theirs') || !file) return
+  let text: 'ours' | 'theirs' | undefined
+  let discardEdits = false
+  for (let i = 0; i < flags.length; i++) {
+    const flag = flags[i]
+    if (flag === '--discard-edits' && !discardEdits) discardEdits = true
+    else if (flag === '--text' && text === undefined) {
+      const value = flags[++i]
+      if (value !== 'ours' && value !== 'theirs') return
+      text = value
+    } else return
+  }
+  return { side, file, opts: { text, discardEdits } }
+}
+
 const takeStep: Step = (git, _root, args) => {
-  const [side, file] = args
-  if ((side !== 'ours' && side !== 'theirs') || !file || args.length !== 2) {
+  const parsed = parseTake(args)
+  if (!parsed) {
     console.error(USAGE)
     return EXIT.usage
   }
-  const result = takeSide(git, side, file)
+  const { side, file, opts } = parsed
+  const result = takeSide(git, side, file, opts)
+  if (result.kind === 'failed')
+    return say(
+      EXIT.problems,
+      result.restored
+        ? 'not taken: the file could not be settled; nothing was changed'
+        : `not taken: the file could not be settled and the folder could not be put back as it was; look at: ${result.files.join(', ')}`,
+      result.output,
+    )
+  if (result.kind === 'no-discard-choice') {
+    console.error(`--discard-edits applies only to a file both sides renamed: ${file} is not one`)
+    return EXIT.usage
+  }
+  if (result.kind === 'no-text-choice') {
+    console.error(
+      `--text applies only to a file both sides renamed whose content clashes: ${file} is not one`,
+    )
+    return EXIT.usage
+  }
+  if (result.kind === 'needs-text') {
+    say(
+      EXIT.problems,
+      `not taken: ${file} was renamed on both sides and its content clashes, so whose text it ends with is a second choice (--text ours or --text theirs); nothing was changed`,
+    )
+    printRenames([result.rename])
+    return EXIT.problems
+  }
+  if (result.kind === 'hand-edited')
+    return say(
+      EXIT.problems,
+      `not taken: you edited these by hand: ${result.files.join(', ')}; nothing was changed, and --discard-edits goes on anyway`,
+    )
   if (result.kind === 'no-merge') return refuse('no update is in progress')
   if (result.kind === 'not-clashing') return refuse(`${file} is not a clashing file`)
   if (result.kind === 'in-the-way')
@@ -169,7 +245,8 @@ const takeStep: Step = (git, _root, args) => {
       `not taken: these files are in the way: ${result.files.join(', ')}; nothing was changed`,
     )
   const left = result.left.length ? `clashes left: ${result.left.join(', ')}` : 'no clashes left'
-  return say(0, `taken: ${file}; ${left}`)
+  say(0, `taken: ${file}; ${left}`)
+  return printRenames(result.renames)
 }
 
 const finishStep: Step = (git, root, _args, deps) => {
@@ -180,7 +257,9 @@ const finishStep: Step = (git, root, _args, deps) => {
     case 'no-merge':
       return refuse('no update is in progress')
     case 'clashes':
-      return say(EXIT.problems, `clashes left: ${result.files.join(', ')}`)
+      say(EXIT.problems, `clashes left: ${result.files.join(', ')}`)
+      printRenames(result.renames)
+      return EXIT.problems
     case 'not-committed':
       return say(
         EXIT.problems,

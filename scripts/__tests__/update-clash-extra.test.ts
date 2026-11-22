@@ -51,6 +51,37 @@ describe('a take that would delete files git does not keep', () => {
     expect(clashKinds(git, work()).get('x~origin_main')).toBe('other')
   })
 
+  it('refuses going on over hand edits for a file that is no rename, and changes nothing', () => {
+    const git = userDirVsEngineFile()
+    const before = files('x', 'x/m.md', 'x/notes.txt', 'x/cv.pdf', 'x~origin_main')
+    expect(takeSide(git, 'theirs', 'x~origin_main', { discardEdits: true })).toEqual({
+      kind: 'no-discard-choice',
+    })
+    expect(files('x', 'x/m.md', 'x/notes.txt', 'x/cv.pdf', 'x~origin_main')).toEqual(before)
+    expect(takeSide(git, 'theirs', 'x~origin_main')).toMatchObject({ kind: 'in-the-way' })
+  })
+
+  it('refuses --discard-edits on the command line for a file that is no rename, and changes nothing', async () => {
+    userDirVsEngineFile()
+    const before = files('x', 'x/m.md', 'x/notes.txt', 'x/cv.pdf', 'x~origin_main')
+    const errors: unknown[] = []
+    const error = vi.spyOn(console, 'error').mockImplementation((line) => void errors.push(line))
+    const code = await updateCommand(
+      ['take', 'theirs', 'x~origin_main', '--discard-edits'],
+      work(),
+      {
+        engineUrl: upstream(),
+        run: runner().run,
+      },
+    )
+    error.mockRestore()
+    expect(code).toBe(EXIT.usage)
+    expect(errors).toEqual([
+      '--discard-edits applies only to a file both sides renamed: x~origin_main is not one',
+    ])
+    expect(files('x', 'x/m.md', 'x/notes.txt', 'x/cv.pdf', 'x~origin_main')).toEqual(before)
+  })
+
   it('refuses to delete a saved file whose edits were made after the update started', () => {
     const git = userDirVsEngineFile(false)
     writeFileSync(join(work(), 'x/m.md'), 'edited since\n')
