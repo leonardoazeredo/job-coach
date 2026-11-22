@@ -1,4 +1,14 @@
-import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { EXIT } from '../lib/problem.ts'
@@ -32,6 +42,54 @@ const onDisk = () =>
       return [rel, existsSync(path) ? readFileSync(path, 'utf8') : null]
     }),
   )
+
+// Registers the refusal (or the plain take, where the take removes the changed name anyway) and the
+// go-on take for one change by hand and one side taken.
+const handEditCases = (
+  side: 'ours' | 'theirs',
+  what: string,
+  scene: { setUp: () => void; change: () => void; opts: { text?: 'ours' } },
+  refuses: { ours: readonly string[]; theirs: readonly string[] },
+) => {
+  const { setUp, change, opts } = scene
+  const files = refuses[side]
+  const kept = side === 'ours' ? B : C
+  const state = () => ({
+    status: g(work(), 'status', '--short'),
+    index: g(work(), 'ls-files', '-s'),
+    disk: onDisk(),
+  })
+  const start1 = () => {
+    setUp()
+    const { git } = start()
+    change()
+    return git
+  }
+  it.runIf(files.length > 0)(
+    `refuses the ${side} take and changes nothing when the file is ${what}`,
+    () => {
+      const git = start1()
+      const before = state()
+      expect(takeSide(git, side, A, opts)).toEqual({ kind: 'hand-edited', files })
+      expect(state()).toEqual(before)
+    },
+  )
+  it.runIf(files.length === 0)(`takes ${side} without refusing when the file is ${what}`, () => {
+    const git = start1()
+    expect(takeSide(git, side, A, opts)).toEqual({ kind: 'taken', left: [] })
+    expect(g(work(), 'ls-files', 'docs').split('\n')).toEqual([kept])
+  })
+  it(`goes on with the ${side} take when told to, though the file is ${what}`, () => {
+    const git = start1()
+    expect(takeSide(git, side, A, { ...opts, discardEdits: true })).toEqual({
+      kind: 'taken',
+      left: [],
+    })
+    expect(finishUpdate(work(), git, { run: runner().run })).toEqual({ kind: 'updated' })
+    expect(onDisk()[kept]).not.toBe('EDITED\n')
+    expect(g(work(), 'ls-files', 'docs').split('\n')).toEqual([kept])
+  })
+}
 
 describe('a file both sides renamed', () => {
   it('judges all three paths as one rename and reports both new names', () => {
@@ -312,43 +370,39 @@ describe('a file both sides renamed', () => {
           expect(takeSide(git, 'ours', B, opts)).toEqual({ kind: 'taken', left: [] })
         })
 
-        for (const [what, change, files] of [
-          ['edited in the first new name', () => writeFileSync(join(work(), B), 'EDITED\n'), [B]],
-          ['edited in the second new name', () => writeFileSync(join(work(), C), 'EDITED\n'), [C]],
+        for (const [what, change, refuses] of [
+          [
+            'edited in the first new name',
+            () => writeFileSync(join(work(), B), 'EDITED\n'),
+            { ours: [B], theirs: [B] },
+          ],
+          [
+            'edited in the second new name',
+            () => writeFileSync(join(work(), C), 'EDITED\n'),
+            { ours: [C], theirs: [C] },
+          ],
           [
             'edited in both new names',
             () => {
               writeFileSync(join(work(), B), 'EDITED\n')
               writeFileSync(join(work(), C), 'EDITED\n')
             },
-            [B, C],
+            { ours: [B, C], theirs: [B, C] },
           ],
-          ['deleted from the first new name', () => rmSync(join(work(), B)), [B]],
-          ['deleted from the second new name', () => rmSync(join(work(), C)), [C]],
+          // The take removes the name it does not keep, so only a missing file at the kept name counts.
+          [
+            'deleted from the first new name',
+            () => rmSync(join(work(), B)),
+            { ours: [B], theirs: [] },
+          ],
+          [
+            'deleted from the second new name',
+            () => rmSync(join(work(), C)),
+            { ours: [], theirs: [C] },
+          ],
         ] as const) {
-          for (const side of ['ours', 'theirs'] as const) {
-            it(`refuses the ${side} take and changes nothing when the file is ${what}`, () => {
-              setUp()
-              const { git } = start()
-              change()
-              const before = state()
-              expect(takeSide(git, side, A, opts)).toEqual({ kind: 'hand-edited', files })
-              expect(state()).toEqual(before)
-            })
-
-            it(`goes on with the ${side} take when told to, though the file is ${what}`, () => {
-              setUp()
-              const { git } = start()
-              change()
-              expect(takeSide(git, side, A, { ...opts, discardEdits: true })).toEqual({
-                kind: 'taken',
-                left: [],
-              })
-              expect(finishUpdate(work(), git, { run: runner().run })).toEqual({ kind: 'updated' })
-              expect(onDisk()[side === 'ours' ? B : C]).not.toBe('EDITED\n')
-              expect(g(work(), 'ls-files', 'docs').split('\n')).toEqual([side === 'ours' ? B : C])
-            })
-          }
+          for (const side of ['ours', 'theirs'] as const)
+            handEditCases(side, what, { setUp, change, opts }, refuses)
         }
 
         it('accepts the go-on form when nothing was edited, and changes nothing more', () => {
@@ -392,6 +446,94 @@ describe('a file both sides renamed', () => {
       const before = state()
       expect(takeSide(git, 'theirs', C, { text: 'theirs' })).toEqual({ kind: 'not-clashing' })
       expect(state()).toEqual(before)
+    })
+  })
+
+  describe('a take that meets something else on disk', () => {
+    const clash = () => renamedOnBothSides(edited(BASE, 5, 'mine'), edited(BASE, 5, 'new'))
+    const clean = () => renamedOnBothSides()
+    const modeOf = (rel: string) => statSync(join(work(), rel)).mode & 0o777
+    const snapshot = () => ({
+      status: g(work(), 'status', '--short'),
+      index: g(work(), 'ls-files', '-s'),
+      disk: Object.fromEntries(
+        [A, B, C].map((rel) => {
+          const stat = lstatSync(join(work(), rel), { throwIfNoEntry: false })
+          if (!stat) return [rel, null]
+          return [rel, stat.isDirectory() ? 'dir' : readFileSync(join(work(), rel), 'utf8')]
+        }),
+      ),
+      docs: readdirSync(join(work(), 'docs')).sort(),
+    })
+    const cases = [
+      ['with a content clash', clash, { text: 'ours' }],
+      ['without a content clash', clean, {}],
+    ] as const
+
+    for (const [how, setUp, opts] of cases) {
+      describe(how, () => {
+        for (const [where, name] of [
+          ['the name that is kept', B],
+          ['the name that goes', C],
+        ] as const) {
+          for (const discardEdits of [false, true]) {
+            it(`refuses with the files in the way when a folder holding a file stands at ${where}${discardEdits ? ', though told to go on' : ''}`, () => {
+              setUp()
+              const { git } = start()
+              rmSync(join(work(), name))
+              mkdirSync(join(work(), name))
+              writeFileSync(join(work(), name, 'x'), 'MY FILE\n')
+              const before = { ...snapshot(), inside: readdirSync(join(work(), name)) }
+              expect(takeSide(git, 'ours', A, { ...opts, discardEdits })).toEqual({
+                kind: 'in-the-way',
+                files: [`${name}/x`],
+              })
+              expect({ ...snapshot(), inside: readdirSync(join(work(), name)) }).toEqual(before)
+              expect(readFileSync(join(work(), name, 'x'), 'utf8')).toBe('MY FILE\n')
+            })
+          }
+        }
+
+        it('refuses a take that went on over an executable bit the user set, and changes nothing', () => {
+          setUp()
+          const { git } = start()
+          chmodSync(join(work(), B), 0o755)
+          const before = { ...snapshot(), mode: modeOf(B) }
+          expect(takeSide(git, 'ours', A, opts)).toEqual({ kind: 'hand-edited', files: [B] })
+          expect({ ...snapshot(), mode: modeOf(B) }).toEqual(before)
+          expect(takeSide(git, 'ours', A, { ...opts, discardEdits: true })).toEqual({
+            kind: 'taken',
+            left: [],
+          })
+          expect(modeOf(B)).toBe(0o644)
+        })
+
+        it('does not report a mode edit when git does not track modes', () => {
+          setUp()
+          const { git } = start()
+          g(work(), 'config', 'core.fileMode', 'false')
+          chmodSync(join(work(), B), 0o755)
+          expect(takeSide(git, 'ours', A, opts)).toEqual({ kind: 'taken', left: [] })
+        })
+      })
+    }
+  })
+
+  describe('a binary file renamed to names that differ only in capitals', () => {
+    it('is not reported as edited when the two names are one file or two untouched ones', () => {
+      const bin = (tail: string) => `\0${BASE}${tail}\n`
+      const old = 'docs/Notes.bin'
+      cloned({ [old]: bin('base') })
+      g(work(), 'mv', old, 'docs/notes.bin')
+      userCommit({ 'docs/notes.bin': bin('mine') }, 'Saved: rename')
+      g(upstream(), 'mv', old, 'docs/NOTES.bin')
+      writeFileSync(join(upstream(), 'docs/NOTES.bin'), bin('new'))
+      commitEngine('Rename')
+      const { git } = start()
+      expect(renamesOf(git)).toMatchObject([{ contentClash: true }])
+      expect(takeSide(git, 'theirs', old, { text: 'theirs' })).toEqual({ kind: 'taken', left: [] })
+      expect(finishUpdate(work(), git, { run: runner().run })).toEqual({ kind: 'updated' })
+      expect(readFileSync(join(work(), 'docs/NOTES.bin'), 'utf8')).toBe(bin('new'))
     })
   })
 

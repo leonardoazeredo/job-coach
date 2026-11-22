@@ -51,6 +51,16 @@ describe('a take that would delete files git does not keep', () => {
     expect(clashKinds(git, work()).get('x~origin_main')).toBe('other')
   })
 
+  it('refuses going on over hand edits for a file that is no rename, and changes nothing', () => {
+    const git = userDirVsEngineFile()
+    const before = files('x', 'x/m.md', 'x/notes.txt', 'x/cv.pdf', 'x~origin_main')
+    expect(takeSide(git, 'theirs', 'x~origin_main', { discardEdits: true })).toEqual({
+      kind: 'no-discard-choice',
+    })
+    expect(files('x', 'x/m.md', 'x/notes.txt', 'x/cv.pdf', 'x~origin_main')).toEqual(before)
+    expect(takeSide(git, 'theirs', 'x~origin_main')).toMatchObject({ kind: 'in-the-way' })
+  })
+
   it('refuses to delete a saved file whose edits were made after the update started', () => {
     const git = userDirVsEngineFile(false)
     writeFileSync(join(work(), 'x/m.md'), 'edited since\n')

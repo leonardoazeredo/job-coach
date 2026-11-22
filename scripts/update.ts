@@ -193,6 +193,10 @@ const takeStep: Step = (git, _root, args) => {
   }
   const { side, file, opts } = parsed
   const result = takeSide(git, side, file, opts)
+  if (result.kind === 'no-discard-choice') {
+    console.error(`--discard-edits applies only to a file both sides renamed: ${file} is not one`)
+    return EXIT.usage
+  }
   if (result.kind === 'no-text-choice') {
     console.error(
       `--text applies only to a file both sides renamed whose content clashes: ${file} is not one`,
