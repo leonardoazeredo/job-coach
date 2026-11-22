@@ -153,7 +153,7 @@ describe('a take whose step fails', () => {
       const result = takeSide(
         failing(git, steps['adding the kept name to the index'], () => {
           writeFileSync(lock, '')
-          spawn('sh', ['-c', `sleep 0.4; rm -f '${lock}'`], {
+          spawn('sh', ['-c', `sleep 0.2; rm -f '${lock}'`], {
             detached: true,
             stdio: 'ignore',
           }).unref()

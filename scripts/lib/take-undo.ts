@@ -3,13 +3,16 @@
 // input, and each file at the paths given is saved with its bytes and mode.
 import {
   chmodSync,
+  closeSync,
   lstatSync,
+  openSync,
   readFileSync,
   readlinkSync,
   renameSync,
   rmSync,
   symlinkSync,
   writeFileSync,
+  writeSync,
 } from 'node:fs'
 import { join } from 'node:path'
 import type { Git } from './history.ts'
@@ -47,25 +50,37 @@ const putBack = (top: string, held: Held) => {
   } else if (held.kind === 'link') symlinkSync(held.target, file)
 }
 
-// The index file is replaced the way git replaces it, through its lock, so a lock another program
-// holds stops the restore instead of being overwritten.
 const LOCK_TRIES = 5
 const LOCK_WAIT_MS = 250
 
-// A program that holds the lock for a moment, an editor saving, should not turn the restore into
-// a failure, so the lock is tried a few times over about a second.
+// Creates the lock holding the new index. Only a lock another program holds is waited for: a
+// failure to write is thrown at once, after removing the lock this call created.
 const takeLock = (lock: string, bytes: Buffer) => {
   for (let tried = 1; ; tried++) {
+    let fd: number
     try {
-      writeFileSync(lock, bytes, { flag: 'wx' })
-      return
+      fd = openSync(lock, 'wx')
     } catch (error) {
-      if (tried === LOCK_TRIES) throw error
+      const held = (error as NodeJS.ErrnoException).code === 'EEXIST'
+      if (!held || tried === LOCK_TRIES) throw error
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, LOCK_WAIT_MS)
+      continue
     }
+    try {
+      writeSync(fd, bytes)
+    } catch (error) {
+      rmSync(lock, { force: true })
+      throw error
+    } finally {
+      closeSync(fd)
+    }
+    return
   }
 }
 
+// The index file is replaced the way git replaces it, through its lock. A program that holds the
+// lock for a moment, such as an editor's git panel refreshing, is waited for over about a second;
+// a lock still held after that stops the restore instead of being overwritten.
 const putBackIndex = (indexFile: string, bytes: Buffer) => {
   const lock = `${indexFile}.lock`
   takeLock(lock, bytes)
