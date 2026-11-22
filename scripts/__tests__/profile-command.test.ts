@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 import { EXIT } from '../lib/problem.ts'
+import { isRefusalLine } from '../lib/profile-lines.ts'
 import { repoRoot } from '../lib/workspace.ts'
 import { draft, drafted, personaFile, repo, run, useProfileRepo, write } from './profile-repo.ts'
 
@@ -160,6 +161,28 @@ describe('profile draft refusals', () => {
     expect(existsSync(repo.path('.coach/drafts/profile/identity.yaml'))).toBe(false)
     expect((await write('profile/identity.yaml')).code).toBe(EXIT.missing)
     expect(existsSync(repo.path('profile/identity.yaml'))).toBe(false)
+  })
+
+  it('prints every line of a refusal in the shape the live-run scorer leaves out of a summary', async () => {
+    const values = personaFile('profile/identity.yaml')
+    delete values.location.timezone
+    repo.remove('profile/identity.yaml')
+    const refused = await draft('profile/identity.yaml', values)
+    const lines = refused.stderr.split('\n').filter(Boolean)
+    expect(lines.length).toBeGreaterThan(0)
+    expect(lines.filter((l) => !isRefusalLine(l))).toEqual([])
+    const unread = await run(['draft', 'profile/identity.yaml'], 'not values at all')
+    expect(unread.code).toBe(EXIT.data)
+    const unreadLines = unread.stderr.split('\n').filter(Boolean)
+    expect(unreadLines).toHaveLength(1)
+    expect(unreadLines.filter((l) => !isRefusalLine(l))).toEqual([])
+  })
+
+  it('prints no line of a drafted summary in the refusal shape', async () => {
+    const shown = await draft('profile/stack.yaml', {
+      tools: [{ name: 'Postman', roles: ['brightwell'], claim_as: 'Postman (API testing)' }],
+    })
+    expect(shown.stdout.split('\n').filter(Boolean).filter(isRefusalLine)).toEqual([])
   })
 
   it('refuses a new job that leaves a sample date in place', async () => {

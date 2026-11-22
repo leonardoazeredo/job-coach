@@ -287,7 +287,7 @@ describe('the drafts in a stream', () => {
       },
     })
 
-  it('pairs a call with its result, keeps the last summary of a file and flags the wins file', () => {
+  it('pairs a call with its result, keeps both summaries of a file drafted twice and flags the wins file', () => {
     const d = draftsIn(
       [
         use('a', 'profile/wins.yaml'),
@@ -297,20 +297,622 @@ describe('the drafts in a stream', () => {
         'junk',
       ].join('\n'),
     )
-    expect(d).toEqual({ summaries: ['new one', 'new two'], winsDrafted: true })
+    // The false finding on the first summary is accepted, see the comment in draftsIn.
+    expect(d).toEqual({ summaries: ['old', 'line', 'new one', 'new two'], winsDrafted: true })
   })
 
-  it('leaves out an empty result, "No change." and an error', () => {
+  describe('a command that drafts and echoes', () => {
+    const call = (command: string) =>
+      JSON.stringify({
+        type: 'assistant',
+        message: { content: [{ type: 'tool_use', id: 'c', input: { command } }] },
+      })
+    const draft = (f: string) => 'node scripts/profile.ts draft ' + f
+    const both = (sep: string) =>
+      draft('profile/identity.yaml') + '\n' + sep + '\n' + draft('profile/search.yaml')
+    const summaries = (command: string, result: string) =>
+      draftsIn(call(command) + '\n' + out('c', result)).summaries
+    const callAs = (id: string, command: string) =>
+      JSON.stringify({
+        type: 'assistant',
+        message: { content: [{ type: 'tool_use', id, input: { command } }] },
+      })
+
+    it('leaves out a separator the command echoed between two drafts', () => {
+      expect(summaries(both('echo ----'), 'Name: A\n----\nCity: B')).toEqual(['Name: A', 'City: B'])
+    })
+
+    it('still counts a summary line that is dropped from the result of such a command', () => {
+      const lines = summaries(both('echo ----'), 'Name: A\n----\nCity: B\nCountry: C')
+      expect(lines).toContain('Country: C')
+    })
+
+    it('never leaves out an echoed text that holds a letter or a digit', () => {
+      expect(summaries(both('echo Done'), 'Name: A\nDone\nCity: B')).toContain('Done')
+      expect(summaries(both("echo 'Name: X'"), 'Name: X\nCity: B')).toContain('Name: X')
+      expect(summaries(both('echo 2024'), 'Name: A\n2024\nCity: B')).toContain('2024')
+    })
+
+    it('leaves out a separator only when the command echoed that very text', () => {
+      expect(summaries(both('echo ===='), 'Name: A\n----\nCity: B')).toContain('----')
+    })
+
+    it('leaves out a separator a summary also holds, and still counts the real lines', () => {
+      const result = 'Name: A\n----\nCity: B\n----\nCountry: C'
+      const shown = summaries(both('echo ----'), result)
+      expect(shown).toEqual(['Name: A', 'City: B', 'Country: C'])
+      expect(shown).not.toContain('----')
+    })
+
+    it('counts a line of only non-Latin letters that the command echoed exactly', () => {
+      expect(summaries(both('echo こんにちは'), 'Name: A\nこんにちは\nCity: B')).toContain(
+        'こんにちは',
+      )
+    })
+
+    it('keeps the flag for the achievements file when another draft follows in the turn', () => {
+      const d = draftsIn(
+        [
+          call(draft('profile/wins.yaml')),
+          out('c', 'Win: A'),
+          use('d', 'profile/identity.yaml'),
+          out('d', 'Name: A'),
+        ].join('\n'),
+      )
+      expect(d.winsDrafted).toBe(true)
+    })
+
+    it('flags the achievements file when it is the first of two drafts in one command', () => {
+      const command = both('echo ----').replace('identity.yaml', 'wins.yaml')
+      expect(draftsIn(call(command) + '\n' + out('c', 'Win: A\n----\nCity: B')).winsDrafted).toBe(
+        true,
+      )
+    })
+
+    it.each([
+      ['a command after it', 'node scripts/profile.ts draft profile/wins.yaml; echo x'],
+      ['quotes', 'node scripts/profile.ts draft "profile/wins.yaml"'],
+      ['a redirect', 'node scripts/profile.ts draft profile/wins.yaml>/dev/null'],
+      ['a pipe', 'node scripts/profile.ts draft profile/wins.yaml|cat'],
+      ['a subshell', '(node scripts/profile.ts draft profile/wins.yaml)'],
+      ['&&', 'node scripts/profile.ts draft profile/wins.yaml && echo x'],
+      [
+        'a heredoc with a space',
+        "node scripts/profile.ts draft profile/wins.yaml <<'EOF'\n{}\nEOF",
+      ],
+      [
+        'a heredoc without a space',
+        "node scripts/profile.ts draft profile/wins.yaml<<'EOF'\n{}\nEOF",
+      ],
+    ])('flags the achievements file named with %s', (_name, command) => {
+      expect(draftsIn(call(command) + '\n' + out('c', 'Name: A')).winsDrafted).toBe(true)
+    })
+
+    it('flags an unknown call whose command holds the achievements file (a false check, accepted)', () => {
+      const command = 'node scripts/profile.ts draft profile/identity.yaml; echo wins.yaml'
+      expect(draftsIn(call(command) + '\n' + out('c', 'Name: A')).winsDrafted).toBe(true)
+    })
+
+    it('does not flag the achievements file when a call with a plain name only has an echo naming it', () => {
+      const command = 'node scripts/profile.ts draft profile/identity.yaml\necho wins.yaml'
+      expect(draftsIn(call(command) + '\n' + out('c', 'Name: A')).winsDrafted).toBe(false)
+    })
+
+    it('counts the lines of an error result when the command holds several drafts', () => {
+      const result = 'Name: A\nboom: search.yaml failed'
+      const d = draftsIn(call(both('echo ----')) + '\n' + out('c', result, true))
+      expect(d.summaries).toEqual(['Name: A', 'boom: search.yaml failed'])
+    })
+
+    it('counts the lines of an error result when the command holds one draft', () => {
+      const command = draft('profile/identity.yaml') + '; cat missing-file'
+      const d = draftsIn(
+        call(command) + '\n' + out('c', 'Name: A\ncat: missing-file: No such file', true),
+      )
+      expect(d.summaries).toEqual(['Name: A', 'cat: missing-file: No such file'])
+    })
+
+    it('adds an error result of a redraft to the earlier summary of the same file', () => {
+      const d = draftsIn(
+        [
+          use('a', 'profile/search.yaml'),
+          out('a', 'Search city: Leeds'),
+          use('b', 'profile/search.yaml'),
+          out('b', 'boom: search.yaml failed', true),
+        ].join('\n'),
+      )
+      expect(d.summaries).toEqual(['Search city: Leeds', 'boom: search.yaml failed'])
+    })
+
+    it('drops an earlier error result of a file when a good redraft follows, and keeps the good summary', () => {
+      const d = draftsIn(
+        [
+          use('a', 'profile/search.yaml'),
+          out('a', 'Search city: Leeds'),
+          use('b', 'profile/search.yaml'),
+          out('b', 'boom: search.yaml failed', true),
+          use('c', 'profile/search.yaml'),
+          out('c', 'Search city: York'),
+        ].join('\n'),
+      )
+      expect(d.summaries).toEqual(['Search city: Leeds', 'Search city: York'])
+    })
+
+    it('drops an error result when a good call drafts every file its command named', () => {
+      const d = draftsIn(
+        [
+          call(both('echo ----')),
+          out('c', 'Name: A\nboom: search.yaml failed', true),
+          callAs('d', both('echo ----')),
+          out('d', 'Name: B\n----\nCity: B2'),
+        ].join('\n'),
+      )
+      expect(d.summaries).toEqual(['Name: B', 'City: B2'])
+    })
+
+    it('keeps an error result when the good redraft covers only some of its files', () => {
+      const d = draftsIn(
+        [
+          call(both('echo ----')),
+          out('c', 'Name: A\nboom: search.yaml failed', true),
+          use('d', 'profile/search.yaml'),
+          out('d', 'City: B2'),
+        ].join('\n'),
+      )
+      expect(d.summaries).toEqual(['Name: A', 'boom: search.yaml failed', 'City: B2'])
+    })
+
+    it('keeps an error result when a later error result drafts all of its files', () => {
+      const d = draftsIn(
+        [
+          use('a', 'profile/search.yaml'),
+          out('a', 'boom: one', true),
+          use('b', 'profile/search.yaml'),
+          out('b', 'boom: two', true),
+        ].join('\n'),
+      )
+      expect(d.summaries).toEqual(['boom: one', 'boom: two'])
+    })
+
+    // Limit: output of another command that exited 0 is not an error result, so it is never dropped.
+    it('keeps the lines of other output that exited 0 next to a good redraft of the same file', () => {
+      const d = draftsIn(
+        [
+          use('a', 'profile/search.yaml'),
+          out('a', 'refused: search.yaml has no city'),
+          use('b', 'profile/search.yaml'),
+          out('b', 'Search city: York'),
+        ].join('\n'),
+      )
+      expect(d.summaries).toEqual(['refused: search.yaml has no city', 'Search city: York'])
+    })
+
+    it('flags the achievements file when the command failed after its draft', () => {
+      const command = draft('profile/wins.yaml') + '; grep x file'
+      expect(draftsIn(call(command) + '\n' + out('c', 'Name: A', true)).winsDrafted).toBe(true)
+    })
+
+    it('lets an echo text inside a heredoc body excuse a separator line, which carries nothing', () => {
+      const command =
+        draft('profile/identity.yaml') +
+        "\ncat > notes.txt <<'EOF'\necho ----\nEOF\n" +
+        draft('profile/search.yaml')
+      expect(summaries(command, 'Name: A\n----\nCity: B')).toEqual(['Name: A', 'City: B'])
+    })
+
+    it('flags the achievements file for a second draft and for a heredoc written without a space', () => {
+      const wins = (command: string) =>
+        draftsIn(call(command) + '\n' + out('c', 'Name: A')).winsDrafted
+      expect(wins(both('echo ----').replace('search.yaml', 'wins.yaml'))).toBe(true)
+      expect(wins("node scripts/profile.ts draft profile/wins.yaml<<'EOF'\n{}\nEOF")).toBe(true)
+      expect(wins(both('echo ----'))).toBe(false)
+    })
+  })
+
+  describe('two calls in one turn', () => {
+    const callAs = (id: string, command: string) =>
+      JSON.stringify({
+        type: 'assistant',
+        message: { content: [{ type: 'tool_use', id, input: { command } }] },
+      })
+    const draft = (f: string) => `node scripts/profile.ts draft ${f}`
+    const identity = 'profile/identity.yaml'
+    const search = 'profile/search.yaml'
+    const twoFiles = `${draft(identity)}\necho ----\n${draft(search)}`
+    const shown = (...parts: string[]) => draftsIn(parts.join('\n')).summaries
+
+    it('keeps the summaries of two different files drafted in separate calls', () => {
+      expect(
+        shown(use('a', identity), out('a', 'Name: A'), use('b', search), out('b', 'City: B')),
+      ).toEqual(['Name: A', 'City: B'])
+    })
+
+    it('keeps the earlier lines of a file the later call did not draft', () => {
+      expect(
+        shown(
+          callAs('a', twoFiles),
+          out('a', 'Name: A\n----\nCity: B'),
+          use('b', search),
+          out('b', 'City: B2'),
+        ),
+      ).toEqual(['Name: A', 'City: B', 'City: B2'])
+    })
+
+    it('never replaces a good result, even when the later call drafts every file it did', () => {
+      expect(
+        shown(
+          use('a', search),
+          out('a', 'City: B'),
+          callAs('b', twoFiles),
+          out('b', 'Name: B\n----\nCity: B2'),
+        ),
+      ).toEqual(['City: B', 'Name: B', 'City: B2'])
+    })
+
+    it('keeps the summary of a two-draft result where one draft printed "No change."', () => {
+      // The "No change." line stays with the summary: only a result that is that alone is skipped.
+      expect(shown(callAs('a', twoFiles), out('a', 'Name: A\n----\nNo change.'))).toEqual([
+        'Name: A',
+        'No change.',
+      ])
+      expect(shown(callAs('a', twoFiles), out('a', 'No change.\n----\nCity: B'))).toEqual([
+        'No change.',
+        'City: B',
+      ])
+    })
+
+    it('leaves out a result that is "No change." alone, however it is padded', () => {
+      expect(shown(use('a', search), out('a', '\n No change. \n'))).toEqual([])
+    })
+  })
+
+  describe('a draft call whose file name follows a redirect', () => {
+    const callAs = (id: string, command: string) =>
+      JSON.stringify({
+        type: 'assistant',
+        message: { content: [{ type: 'tool_use', id, input: { command } }] },
+      })
+    const heredoc = "node scripts/profile.ts draft <<'EOF' profile/wins.yaml\n{}\nEOF"
+    const fromFile = 'node scripts/profile.ts draft < a.json profile/search.yaml'
+
+    it.each([
+      ['a heredoc opener before the name', heredoc, true],
+      ['an input file before the name', fromFile, false],
+    ])('counts the summary lines with %s', (_name, command, wins) => {
+      const d = draftsIn(callAs('a', command) + '\n' + out('a', 'Name: A\nCity: B'))
+      expect(d).toEqual({ summaries: ['Name: A', 'City: B'], winsDrafted: wins })
+    })
+
+    it('keeps an error entry whose files are unknown after a later good call', () => {
+      const d = draftsIn(
+        [
+          callAs('a', fromFile.replace(' profile/search.yaml', ' && cat nope')),
+          out('a', 'Search city: Leeds\ncat: nope', true),
+          use('b', 'profile/search.yaml'),
+          out('b', 'Search city: York'),
+        ].join('\n'),
+      )
+      expect(d.summaries).toEqual(['Search city: Leeds', 'cat: nope', 'Search city: York'])
+    })
+
+    it('lets a later call with unknown files drop nothing', () => {
+      const d = draftsIn(
+        [
+          callAs('a', 'node scripts/profile.ts draft profile/search.yaml && cat nope'),
+          out('a', 'Search city: Leeds\ncat: nope', true),
+          callAs(
+            'b',
+            'node scripts/profile.ts draft profile/search.yaml && node scripts/profile.ts draft < b.json',
+          ),
+          out('b', 'Search city: York'),
+        ].join('\n'),
+      )
+      expect(d.summaries).toEqual(['Search city: Leeds', 'cat: nope', 'Search city: York'])
+    })
+
+    it.each([
+      ['"No change."', 'No change.'],
+      ['an empty result', ''],
+      ['only a write line', 'written: profile/search.yaml'],
+    ])('keeps an error entry when the later call that drafts its file printed %s', (_n, later) => {
+      const d = draftsIn(
+        [
+          callAs('a', 'node scripts/profile.ts draft profile/search.yaml && cat nope'),
+          out('a', 'Search city: Leeds\ncat: nope', true),
+          use('b', 'profile/search.yaml'),
+          out('b', later),
+        ].join('\n'),
+      )
+      expect(d.summaries).toEqual(['Search city: Leeds', 'cat: nope'])
+    })
+
+    const wins = (command: string) =>
+      draftsIn(callAs('a', command) + '\n' + out('a', 'Name: A')).winsDrafted
+    const draft = (f: string) => `node scripts/profile.ts draft ${f}`
+
+    it('keeps a line of an error entry whose draft is followed by a semicolon, after a later good call', () => {
+      const d = draftsIn(
+        [
+          callAs(
+            'a',
+            `${draft('profile/search.yaml')} < a.json; ${draft('profile/identity.yaml')} < b.json; cat nope`,
+          ),
+          out('a', 'Search city: Leeds\nName: Hannah\ncat: nope', true),
+          callAs('b', `${draft('profile/search.yaml')} < c.json`),
+          out('b', 'Search city: York'),
+        ].join('\n'),
+      )
+      expect(d.summaries).toEqual([
+        'Search city: Leeds',
+        'Name: Hannah',
+        'cat: nope',
+        'Search city: York',
+      ])
+    })
+
+    it('pins a name with a trailing semicolon as unknown, so the error entry stays', () => {
+      const d = draftsIn(
+        [
+          callAs('a', `${draft('profile/search.yaml')}; cat nope`),
+          out('a', 'Search city: Leeds\ncat: nope', true),
+          use('b', 'profile/search.yaml'),
+          out('b', 'Search city: York'),
+        ].join('\n'),
+      )
+      expect(d.summaries).toEqual(['Search city: Leeds', 'cat: nope', 'Search city: York'])
+    })
+
+    it('drops an error entry for a plain redraft of the same file', () => {
+      const d = draftsIn(
+        [
+          callAs('a', `${draft('profile/search.yaml')} && cat nope`),
+          out('a', 'Search city: Leeds\ncat: nope', true),
+          use('b', 'profile/search.yaml'),
+          out('b', 'Search city: York'),
+        ].join('\n'),
+      )
+      expect(d.summaries).toEqual(['Search city: York'])
+    })
+
+    it('keeps the lines of an error entry when the call has a line continuation after draft', () => {
+      const d = draftsIn(
+        [
+          callAs('a', 'node scripts/profile.ts draft \\\nprofile/search.yaml && cat nope'),
+          out('a', 'Search city: Leeds\ncat: nope', true),
+          callAs('b', 'node scripts/profile.ts draft \\\nprofile/identity.yaml'),
+          out('b', 'Name: B'),
+        ].join('\n'),
+      )
+      expect(d.summaries).toEqual(['Search city: Leeds', 'cat: nope', 'Name: B'])
+    })
+
+    it('counts and flags a call whose continuation sits between profile.ts and draft', () => {
+      const command = 'node scripts/profile.ts \\\ndraft profile/wins.yaml'
+      expect(draftsIn(callAs('a', command) + '\n' + out('a', 'Win: A'))).toEqual({
+        summaries: ['Win: A'],
+        winsDrafted: true,
+      })
+    })
+
+    it.each([
+      ['after a semicolon', `${draft('profile/identity.yaml')}; ${draft('profile/wins.yaml')}`],
+      [
+        'after && with no spaces',
+        `${draft('profile/identity.yaml')}&&${draft('profile/wins.yaml')}`,
+      ],
+      ['after a subshell', `(${draft('profile/identity.yaml')}); ${draft('profile/wins.yaml')}`],
+    ])('flags the achievements file as a second draft %s', (_n, command) => {
+      expect(wins(command)).toBe(true)
+    })
+  })
+
+  describe('a draft call whose file name is not a plain path with an extension', () => {
+    const callAs = (id: string, command: string) =>
+      JSON.stringify({
+        type: 'assistant',
+        message: { content: [{ type: 'tool_use', id, input: { command } }] },
+      })
+    const draft = (f: string) => 'node scripts/profile.ts draft ' + f
+    const shown = (...parts: string[]) => draftsIn(parts.join('\n')).summaries
+    const wins = (command: string) =>
+      draftsIn(callAs('a', command) + '\n' + out('a', 'Name: A')).winsDrafted
+
+    it.each([
+      ['a descriptor number before an input file', draft('0<a.json profile/search.yaml')],
+      ['a descriptor number before a heredoc', draft("0<<'EOF' profile/search.yaml\n{}\nEOF")],
+    ])(
+      'keeps the lines of an error entry when the next call has %s only in the first',
+      (_n, first) => {
+        expect(
+          shown(
+            callAs('a', first + '; cat nope'),
+            out('a', 'Search city: Leeds\ncat: nope', true),
+            callAs('b', draft('0<b.json profile/identity.yaml')),
+            out('b', 'Name: B'),
+          ),
+        ).toEqual(['Search city: Leeds', 'cat: nope', 'Name: B'])
+      },
+    )
+
+    it('flags the achievements file named after a descriptor number', () => {
+      expect(wins(draft('0<a.json profile/wins.yaml'))).toBe(true)
+    })
+
+    it('treats a bare draft at a line end followed by another word as unknown', () => {
+      expect(
+        shown(
+          callAs('a', draft('profile/search.yaml') + '\n' + draft('\necho x') + '; false'),
+          out('a', 'Search city: Leeds', true),
+          callAs('b', draft('profile/search.yaml')),
+          out('b', 'Search city: York'),
+        ),
+      ).toEqual(['Search city: Leeds', 'Search city: York'])
+    })
+
+    it.each([
+      ['a relative path with ./', './profile/wins.yaml'],
+      ['an absolute path', '/Users/x/job/profile/wins.yaml'],
+    ])('flags the achievements file given as %s', (_n, file) => {
+      expect(wins(draft(file))).toBe(true)
+    })
+
+    it('makes a call with a variable name unknown, so it never covers an error entry', () => {
+      expect(
+        shown(
+          callAs('a', 'F=profile/wins.yaml; ' + draft('$F') + ' ; false'),
+          out('a', 'Achievement: KEEP', true),
+          callAs('b', 'F=profile/stack.yaml; ' + draft('$F')),
+          out('b', 'Stack: S'),
+        ),
+      ).toEqual(['Achievement: KEEP', 'Stack: S'])
+    })
+
+    it('flags the achievements file drafted through a variable', () => {
+      expect(wins('W=profile/wins.yaml; ' + draft('$W'))).toBe(true)
+    })
+
+    it('makes the whole call unknown when one of several names is not plain', () => {
+      const two = (f: string) => 'D=profile; ' + draft('profile/stack.yaml') + ' ; ' + draft(f)
+      expect(
+        shown(
+          callAs('a', two('$F') + ' ; false'),
+          out('a', 'Stack: KEEP', true),
+          callAs('b', two('$F')),
+          out('b', 'Stack: S'),
+        ),
+      ).toEqual(['Stack: KEEP', 'Stack: S'])
+    })
+
+    it('does not read a name that holds a variable as plain even when it ends in an extension', () => {
+      expect(
+        shown(
+          callAs('a', 'D=profile; ' + draft('$D/wins.yaml') + ' ; false'),
+          out('a', 'Achievement: KEEP', true),
+          callAs('b', 'D=profile; ' + draft('$D/wins.yaml')),
+          out('b', 'Achievement: NEW'),
+        ),
+      ).toEqual(['Achievement: KEEP', 'Achievement: NEW'])
+    })
+  })
+
+  it.each([
+    ['"No change."', 'No change.'],
+    ['only write lines', 'written: profile/wins.yaml\ndropped: profile/voice.md'],
+    ['an empty result', ''],
+  ])('flags the achievements file when its result is %s', (_name, result) => {
+    const d = draftsIn([use('a', 'profile/wins.yaml'), out('a', result)].join('\n'))
+    expect(d).toEqual({ summaries: [], winsDrafted: true })
+  })
+
+  it('leaves out an empty result and "No change."', () => {
     const d = draftsIn(
       [
         use('a', 'profile/voice.md'),
         out('a', 'No change.'),
-        use('b', 'profile/stack.yaml'),
-        out('b', 'boom', true),
         use('c', 'profile/coach.md'),
         out('c', '  '),
       ].join('\n'),
     )
     expect(d).toEqual({ summaries: [], winsDrafted: false })
+  })
+
+  describe('a draft the Draft command refused', () => {
+    const refusal =
+      'error  profile/identity.yaml: "Timezone" still holds the template\'s example; give a value, or null to leave it out'
+    const identity = 'profile/identity.yaml'
+    const wins = 'profile/wins.yaml'
+    const calls = (id: string, command: string) =>
+      JSON.stringify({
+        type: 'assistant',
+        message: { content: [{ type: 'tool_use', id, input: { command } }] },
+      })
+    const shown = (...parts: string[]) => draftsIn(parts.join('\n')).summaries
+
+    it.each([
+      ['an error result', true, `Exit code 1\n${refusal}`],
+      ['a result of a command that exited 0', false, refusal],
+      [
+        'a result that could not read its input',
+        true,
+        'Exit code 65\nprofile/identity.yaml: the input could not be read as values: Unexpected token',
+      ],
+    ])('adds no summary line for %s', (_name, isError, result) => {
+      expect(shown(use('a', identity), out('a', result, isError))).toEqual([])
+    })
+
+    it('still flags the achievements file when its draft was refused', () => {
+      const d = draftsIn(
+        [use('a', wins), out('a', `Exit code 1\n${refusal.replace(identity, wins)}`, true)].join(
+          '\n',
+        ),
+      )
+      expect(d).toEqual({ summaries: [], winsDrafted: true })
+    })
+
+    it('keeps every summary line of a draft that a later draft in the same command refused', () => {
+      const command = `node scripts/profile.ts draft ${identity} <<'A'\n{}\nA\nnode scripts/profile.ts draft ${wins} <<'B'\n{}\nB`
+      expect(
+        shown(
+          calls('a', command),
+          out('a', `Exit code 1\nName: A\nCity: B\n${refusal.replace(identity, wins)}`, true),
+        ),
+      ).toEqual(['Name: A', 'City: B'])
+    })
+
+    it('keeps the earlier summary required when a redraft of the file was refused', () => {
+      expect(
+        shown(
+          use('a', identity),
+          out('a', 'Name: A\nCity: B'),
+          use('b', identity),
+          out('b', `Exit code 1\n${refusal}`, true),
+        ),
+      ).toEqual(['Name: A', 'City: B'])
+    })
+
+    it('keeps the summary of an earlier failed command beside a later refusal-only redraft', () => {
+      const command = `node scripts/profile.ts draft profile/search.yaml && cat nope`
+      expect(
+        shown(
+          calls('a', command),
+          out('a', 'Search city: Leeds\ncat: nope', true),
+          use('b', 'profile/search.yaml'),
+          out('b', `Exit code 1\n${refusal.replace(identity, 'profile/search.yaml')}`, true),
+        ),
+      ).toEqual(['Search city: Leeds', 'cat: nope'])
+    })
+
+    it('leaves out "Exit code N" only as the first line of an error result', () => {
+      expect(
+        shown(use('a', identity), out('a', 'Exit code 1\nName: A\nExit code 2', true)),
+      ).toEqual(['Name: A', 'Exit code 2'])
+      expect(shown(use('a', identity), out('a', 'Exit code 1\nName: A', false))).toEqual([
+        'Exit code 1',
+        'Name: A',
+      ])
+    })
+
+    it('counts the line of a failing command that follows a draft', () => {
+      const command = `node scripts/profile.ts draft ${identity}; cat nope`
+      expect(
+        shown(
+          calls('a', command),
+          out('a', 'Exit code 1\nName: A\ncat: nope: No such file or directory', true),
+        ),
+      ).toEqual(['Name: A', 'cat: nope: No such file or directory'])
+    })
+
+    it.each([
+      ['an error that is not the refusal shape', 'error: the draft failed'],
+      ['a refusal naming no file extension', 'error  notapath: x'],
+      ['a refusal with one space', 'error profile/identity.yaml: x'],
+      ['an indented refusal', `  ${refusal}`],
+      ['a capitalised refusal', 'Error  profile/identity.yaml: x'],
+      ['a warning', 'warn   profile/identity.yaml: x'],
+      ['a refusal with no colon after the path', 'error  profile/identity.yaml x'],
+      ['a refusal text in the middle of a line', `Note: ${refusal}`],
+    ])('counts %s as a line of the result', (_name, line) => {
+      expect(shown(use('a', identity), out('a', `Exit code 1\n${line}`, true))).toEqual([line])
+    })
   })
 })

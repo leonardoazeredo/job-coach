@@ -18,7 +18,7 @@ import {
 } from 'node:fs'
 import { join } from 'node:path'
 import { EXIT } from '../../scripts/lib/problem.ts'
-import { isWriteOrDropLine } from '../../scripts/lib/profile-lines.ts'
+import { isRefusalLine, isWriteOrDropLine } from '../../scripts/lib/profile-lines.ts'
 
 // The folders of a run. start.sh and start-update.sh create all but snap by these names in shell,
 // and up.sh mounts most of them, so a rename has to reach those scripts too; snap is made here.
@@ -113,30 +113,123 @@ const textOf = (content: unknown): string =>
     ? content.map((p: { text?: string }) => p.text ?? '').join('\n')
     : String(content ?? '')
 
+// The names a draft call is read for are the words that follow `profile.ts draft`. Any doubt about
+// them (a shell character stuck to a name, a quote, a variable, a redirect or heredoc opener before
+// the name, a draft with no name) makes the call's files unknown, and unknown only ever keeps lines.
+const DRAFT_WORD = /profile\.ts\s+draft\b/g
+const DRAFT_FILE = /profile\.ts\s+draft\s+([^\s<]+)/g
+// A file extension is required: a file descriptor number before a redirect (`0<a.json`) and a bare
+// word of the next line (`echo`) are then not read as a file name.
+const PLAIN_PATH = /^[\w./-]+\.\w+$/
+// The wins file is matched without requiring it to end the token, so a shell character after it
+// (`;`, `|`, `>`, `)`, a quote) cannot hide the draft; a file other than wins.yaml named later in the
+// command cannot match because the lazy \S* stops at whitespace.
+const WINS_DRAFT = /profile\.ts\s+draft\s+["'(]*\S*?wins\.yaml/
+const escaped = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+type DraftCall = { command: string; files: string[]; unknown: boolean }
+
+// undefined when the command holds no `profile.ts draft`. Whether a call is a draft is decided by
+// that alone, so its result's lines count even when no file name can be read. A line continuation
+// can sit between any two words of the call, so it is read as a space first.
+const draftCall = (raw: unknown): DraftCall | undefined => {
+  const command = String(raw ?? '').replace(/\\\n/g, ' ')
+  const calls = [...command.matchAll(DRAFT_WORD)].length
+  if (calls === 0) return undefined
+  const files = [...command.matchAll(DRAFT_FILE)].map((m) => m[1] ?? '')
+  return {
+    command,
+    files,
+    unknown: files.length < calls || !files.every((f) => PLAIN_PATH.test(f)),
+  }
+}
+
+// An error entry is dropped only when both sides have every file name. Unknown is checked
+// explicitly because [].every is true: an entry with no readable name would be dropped by any call.
+const covers = (
+  call: DraftCall,
+  entry: Pick<DraftCall, 'files' | 'unknown'> & { error: boolean },
+): boolean =>
+  entry.error && !entry.unknown && !call.unknown && entry.files.every((f) => call.files.includes(f))
+
+// The harness puts "Exit code N" first in an error result; it is no output of the Draft command.
+const EXIT_CODE_LINE = /^Exit code \d+$/
+
+const summaryLines = (result: string, command: string, isError: boolean): string[] => {
+  const all = result.split('\n')
+  const shown = isError && EXIT_CODE_LINE.test(all[0] ?? '') ? all.slice(1) : all
+  return shown.filter(
+    (l) =>
+      l.trim() !== '' && !isWriteOrDropLine(l) && !isRefusalLine(l) && !echoedSeparator(command, l),
+  )
+}
+
+const nothingNew = (shown: string[]): boolean =>
+  shown.length === 0 || shown.join('\n').trim() === 'No change.'
+
+const flagsWins = (c: DraftCall): boolean =>
+  WINS_DRAFT.test(c.command) || (c.unknown && /wins\.yaml/.test(c.command))
+
+// A separator line has nothing in it to lose, so a reply that does not relay it is not at fault,
+// but only when the command itself echoed it: a line of that shape in a summary is still counted.
+const echoedSeparator = (command: string, line: string): boolean =>
+  !/[\p{L}\p{N}]/u.test(line) &&
+  new RegExp(`\\becho\\s+(['"]?)${escaped(line.trim())}\\1\\s*(?:[;&|\\n]|$)`).test(command)
+
 // A turn's stream pairs each tool call with its result; the stdout of a `profile.ts draft` call is
 // the summary the coach was to relay. A command that chains a write or a drop with the draft has
-// their lines in the same result; those are the command's own and never part of a summary.
+// their lines in the same result; those are the command's own and never part of a summary, and
+// neither is a line the Draft command printed to refuse a draft: the user's yes writes nothing from
+// it. Any other line of the result counts, even when another command printed it, so a fault is
+// never hidden at the price of a finding on output that is not a summary.
+//
+// An error result is counted line by line, whatever the number of drafts: a later part of the
+// command can fail after a draft printed its summary, which still has to be relayed. Output of a
+// failing command other than the Draft command's refusal then gives a visible false finding, which
+// is accepted over a silent pass.
+//
+// The echo check reads the whole command, heredoc bodies included, so an echo text inside a heredoc
+// can excuse a separator line; such a line carries nothing, so no summary is lost by it.
 export const draftsIn = (text: string): { summaries: string[]; winsDrafted: boolean } => {
   let winsDrafted = false
-  const files = new Map<string, string>()
-  // A file drafted again in the same turn replaces its earlier summary: only the last one is shown.
-  const latest = new Map<string, string[]>()
+  const commands = new Map<string, DraftCall>()
+  // A non-error result is never replaced: a later call that names the same file may have printed
+  // nothing for it (a refused redraft, "No change."), and the lines of the first summary are then
+  // still the draft the user's yes would write. When both drafts of a file were good, the first
+  // summary's lines that differ are a false finding, accepted over dropping a real summary on a
+  // guess about which of a command's lines were whose.
+  // An error result is counted too, since its command may have printed a summary before failing.
+  // It is dropped only when a later non-error call drafts every file the error call's command
+  // named, which is what a redraft after a refusal looks like.
+  // One silent pass remains: a draft that printed its summary inside a command whose later part
+  // failed, then a call that exits 0, names that file anywhere in its command (a comment, an
+  // unquoted echo or a heredoc body count), and prints something besides "No change." (an
+  // unchanged redraft alone is skipped) while its own redraft of the file was refused or
+  // unchanged. Only the Draft command recording what it printed could close it.
+  // A call whose file names cannot be read never covers an error entry, and an error entry whose
+  // names cannot be read is never dropped.
+  // Files are the names read from the command; unknown is set when fewer names were read than drafts
+  // were called, or when a name is not a plain path.
+  let latest: { files: string[]; unknown: boolean; lines: string[]; error: boolean }[] = []
   const blocks: Block[] = parseStream(text).events.flatMap((e) =>
     Array.isArray(e.message?.content) ? e.message.content : [],
   )
   for (const block of blocks) {
-    const file = /profile\.ts\s+draft\s+(\S+)/.exec(String(block.input?.command ?? ''))?.[1]
-    if (block.type === 'tool_use' && block.id && file) files.set(block.id, file)
-    const drafted = files.get(block.tool_use_id ?? '')
-    if (block.type !== 'tool_result' || drafted === undefined || block.is_error) continue
-    const shown = textOf(block.content)
-      .split('\n')
-      .filter((l) => l.trim() !== '' && !isWriteOrDropLine(l))
-    if (shown.length === 0 || shown.join('\n').trim() === 'No change.') continue
-    latest.set(drafted, shown)
-    winsDrafted ||= /wins\.yaml$/.test(drafted)
+    const call = block.type === 'tool_use' && block.id ? draftCall(block.input?.command) : undefined
+    if (block.id && call) commands.set(block.id, call)
+    const drafted = commands.get(block.tool_use_id ?? '')
+    if (block.type !== 'tool_result' || drafted === undefined) continue
+    const error = block.is_error === true
+    const shown = summaryLines(textOf(block.content), drafted.command, error)
+    // Set before the skip below: it only widens the check of a wins.yaml draft, and a draft whose
+    // result printed nothing new is still a draft of that file. An unknown call is flagged when
+    // wins.yaml appears anywhere in it: a false check is accepted over a missed one.
+    winsDrafted ||= flagsWins(drafted)
+    if (nothingNew(shown)) continue
+    if (!error) latest = latest.filter((e) => !covers(drafted, e))
+    latest.push({ files: drafted.files, unknown: drafted.unknown, lines: shown, error })
   }
-  return { summaries: [...latest.values()].flat(), winsDrafted }
+  return { summaries: latest.flatMap((e) => e.lines), winsDrafted }
 }
 
 // ---- the cost log and the session ----

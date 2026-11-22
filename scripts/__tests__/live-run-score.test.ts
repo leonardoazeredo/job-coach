@@ -106,7 +106,7 @@ const draftRaw = (
   id: string,
   file: string,
   out: string,
-  command = `node scripts/profile.ts draft ${file}`,
+  { command = `node scripts/profile.ts draft ${file}`, isError = false } = {},
 ) =>
   [
     {
@@ -124,7 +124,9 @@ const draftRaw = (
     },
     {
       type: 'user',
-      message: { content: [{ type: 'tool_result', tool_use_id: id, content: out }] },
+      message: {
+        content: [{ type: 'tool_result', tool_use_id: id, content: out, is_error: isError }],
+      },
     },
   ]
     .map((l) => JSON.stringify(l))
@@ -183,7 +185,9 @@ describe('what the scorer will not call a pass or a fault', () => {
     rmSync(dir, { recursive: true })
   })
 
-  it('keeps only the last summary of a file drafted twice in a turn', () => {
+  // A file drafted twice with both results good is a false finding, accepted: the scorer cannot tell
+  // a replaced summary from one the second call printed nothing for.
+  it('marks the first summary of a file drafted twice when both results were good', () => {
     const dir = makeRun((d) => {
       mkdirSync(join(d, 'raw'))
       mkdirSync(join(d, 'written'))
@@ -193,8 +197,147 @@ describe('what the scorer will not call a pass or a fault', () => {
         `${draftRaw('a', 'profile/identity.yaml', 'Name: Hanna Pruitt')}\n${draftRaw('b', 'profile/identity.yaml', 'Name: Hannah Pruitt')}\n`,
       )
     })
-    expect(scoreRun(dir)).toContain('line 4 PASS')
+    expect(scoreRun(dir).filter((l) => l.startsWith('line 4'))).toEqual([
+      'line 4 FAIL T1 "Name: Hanna Pruitt"',
+    ])
     rmSync(dir, { recursive: true })
+  })
+
+  describe('a good summary followed by a call that names the same file again', () => {
+    const line4 = (second: { command: string; out: string; isError?: boolean }, reply: string) => {
+      const dir = makeRun((d) => {
+        mkdirSync(join(d, 'raw'))
+        mkdirSync(join(d, 'written'))
+        writeFileSync(join(d, 'transcript.md'), turn(1, reply))
+        writeFileSync(
+          join(d, 'raw/turn1.jsonl'),
+          `${draftRaw('a', 'profile/search.yaml', 'Search city: Leeds')}\n${draftRaw('b', 'x', second.out, { command: second.command, isError: second.isError })}\n`,
+        )
+      })
+      const rows = scoreRun(dir).filter((l) => l.startsWith('line 4'))
+      rmSync(dir, { recursive: true })
+      return rows
+    }
+    const search = 'node scripts/profile.ts draft profile/search.yaml < a.json'
+    const identity = 'node scripts/profile.ts draft profile/identity.yaml < b.json'
+    const leeds = ['line 4 FAIL T1 "Search city: Leeds"']
+
+    it('still requires the first summary when a newline-separated command printed only the second file', () => {
+      const second = { command: `${search}\necho ----\n${identity}`, out: 'Name: A' }
+      expect(line4(second, 'Name: A')).toEqual(leeds)
+      expect(line4(second, 'Name: A\nSearch city: Leeds')).toEqual(['line 4 PASS'])
+    })
+
+    it('still requires the first summary when a ; chain printed only the second file', () => {
+      const second = { command: `${search}; echo ----; ${identity}`, out: 'Name: A' }
+      expect(line4(second, 'Name: A')).toEqual(leeds)
+    })
+
+    // Limit: other output of a command that exited 0 is not an error result, so the scorer takes
+    // its text for a summary line and requires it.
+    it('counts the text of other output that exited 0 as a line of its own', () => {
+      const second = { command: search, out: 'refused: search.yaml has no city' }
+      expect(line4(second, 'Search city: Leeds')).toEqual([
+        'line 4 FAIL T1 "refused: search.yaml has no city"',
+      ])
+    })
+  })
+
+  describe('two files drafted in separate calls of one turn', () => {
+    const line4 = (reply: string) => {
+      const dir = makeRun((d) => {
+        mkdirSync(join(d, 'raw'))
+        mkdirSync(join(d, 'written'))
+        writeFileSync(join(d, 'transcript.md'), turn(1, reply))
+        writeFileSync(
+          join(d, 'raw/turn1.jsonl'),
+          `${draftRaw('a', 'profile/identity.yaml', 'Name: Hannah Pruitt\nTimezone: Europe/London')}\n${draftRaw('b', 'profile/search.yaml', 'Search city: Leeds')}\n`,
+        )
+      })
+      const rows = scoreRun(dir).filter((l) => l.startsWith('line 4'))
+      rmSync(dir, { recursive: true })
+      return rows
+    }
+
+    it('scores no finding when the reply relays both summaries', () => {
+      expect(line4('Name: Hannah Pruitt\nTimezone: Europe/London\nSearch city: Leeds')).toEqual([
+        'line 4 PASS',
+      ])
+    })
+
+    it('marks exactly the line the reply left out of the first summary', () => {
+      expect(line4('Name: Hannah Pruitt\nSearch city: Leeds')).toEqual([
+        'line 4 FAIL T1 "Timezone: Europe/London"',
+      ])
+    })
+  })
+
+  describe('a draft the Draft command refused', () => {
+    const refusal =
+      'error  cv/master.json: "LinkedIn" still holds the template\'s example; give a value, or null to leave it out'
+    const rowsOf = (reply: string, result = `Exit code 1\n${refusal}`) => {
+      const dir = makeRun((d) => {
+        mkdirSync(join(d, 'raw'))
+        mkdirSync(join(d, 'written'))
+        writeFileSync(join(d, 'transcript.md'), turn(1, reply))
+        writeFileSync(
+          join(d, 'raw/turn1.jsonl'),
+          `${draftRaw('a', 'cv/master.json', result, { isError: true })}\n`,
+        )
+      })
+      const rows = scoreRun(dir).filter((l) => /^line (4|5) /.test(l))
+      rmSync(dir, { recursive: true })
+      return rows
+    }
+
+    const reply = 'Thanks. I need a few more things for the CV, one at a time.'
+
+    it('is no draft turn: a reply that does not relay the refusal passes lines 4 and 5', () => {
+      expect(rowsOf(reply)).toEqual(['line 4 PASS', 'line 5 PASS'])
+    })
+
+    it('is told from a failing command: its first line is still a summary line to relay', () => {
+      expect(rowsOf(reply, 'Exit code 1\nboom: cv/master.json failed')).toEqual([
+        'line 4 FAIL T1 "boom: cv/master.json failed"',
+        'line 5 FAIL T1 "Thanks."',
+        'line 5 FAIL T1 "I need a few more things for the CV, one at a time."',
+      ])
+    })
+  })
+
+  describe('an error result of a redraft after a good summary of the same file', () => {
+    const line4 = (reply: string) => {
+      const dir = makeRun((d) => {
+        mkdirSync(join(d, 'raw'))
+        mkdirSync(join(d, 'written'))
+        writeFileSync(join(d, 'transcript.md'), turn(1, reply))
+        writeFileSync(
+          join(d, 'raw/turn1.jsonl'),
+          `${draftRaw('a', 'profile/search.yaml', 'Search city: Leeds')}\n${draftRaw('b', 'profile/search.yaml', 'boom: search.yaml failed', { isError: true })}\n`,
+        )
+      })
+      const rows = scoreRun(dir).filter((l) => l.startsWith('line 4'))
+      rmSync(dir, { recursive: true })
+      return rows
+    }
+
+    it("still requires the earlier summary, which the user's yes would write", () => {
+      expect(line4('boom: search.yaml failed')).toEqual(['line 4 FAIL T1 "Search city: Leeds"'])
+      expect(line4('boom: search.yaml failed\nSearch city: Leeds')).toEqual(['line 4 PASS'])
+    })
+
+    // Accepted false finding: a reply that drops the error text of a failing command is marked.
+    it('marks a reply that relays the earlier summary and not the error text', () => {
+      const boom = 'line 4 FAIL T1 "boom: search.yaml failed"'
+      expect(line4('Search city: Leeds')).toEqual([boom])
+    })
+
+    it('marks every line of both when the reply relays neither', () => {
+      expect(line4('Looks fine.')).toEqual([
+        'line 4 FAIL T1 "Search city: Leeds"',
+        'line 4 FAIL T1 "boom: search.yaml failed"',
+      ])
+    })
   })
 
   it('scores an update run on line 13 only', () => {
@@ -325,7 +468,7 @@ describe('a write or a drop chained with a draft', () => {
       writeFileSync(join(d, 'transcript.md'), turn(1, reply))
       writeFileSync(
         join(d, 'raw/turn1.jsonl'),
-        `${draftRaw('a', 'profile/search.yaml', out, command)}\n`,
+        `${draftRaw('a', 'profile/search.yaml', out, { command })}\n`,
       )
     })
   const chains = [
@@ -366,24 +509,154 @@ describe('a write or a drop chained with a draft', () => {
     })
   }
 
+  describe('an echoed separator between two drafts', () => {
+    const command =
+      'node scripts/profile.ts draft profile/identity.yaml\necho ----\nnode scripts/profile.ts draft profile/search.yaml'
+    const result = 'Name: Hannah Pruitt\n----\n' + summary
+    const line4 = (reply: string) => {
+      const dir = run(command, result, reply)
+      const rows = scoreRun(dir).filter((l) => l.startsWith('line 4'))
+      rmSync(dir, { recursive: true })
+      return rows
+    }
+
+    it('scores no finding when the reply relays both summaries', () => {
+      expect(line4('Here it is.\nName: Hannah Pruitt\n' + summary + '\nIs it right?')).toEqual([
+        'line 4 PASS',
+      ])
+    })
+
+    const both = (sep: string) =>
+      `node scripts/profile.ts draft profile/identity.yaml${sep}node scripts/profile.ts draft profile/search.yaml`
+    const relayed = 'Here it is.\nName: Hannah Pruitt\n' + summary + '\nIs it right?'
+    const rowsFor = (cmd: string, out: string, reply: string) => {
+      const dir = run(cmd, out, reply)
+      const rows = scoreRun(dir).filter((l) => l.startsWith('line 4'))
+      rmSync(dir, { recursive: true })
+      return rows
+    }
+
+    it('scores a dropped line that an echo also printed when it holds a letter', () => {
+      expect(
+        rowsFor(both('\necho Done\n'), 'Name: Hannah Pruitt\nDone\n' + summary, relayed),
+      ).toEqual(['line 4 FAIL T1 "Done"'])
+    })
+
+    it.each([
+      ['a quoted echo', both('\necho "----"\n')],
+      ['an echo ended by a semicolon on one line', both('; echo ----; ')],
+      ['an && chain', both(' && echo ---- && ')],
+    ])('scores no finding for the separator of %s', (_name, cmd) => {
+      expect(rowsFor(cmd, 'Name: Hannah Pruitt\n----\n' + summary, relayed)).toEqual([
+        'line 4 PASS',
+      ])
+    })
+
+    it('scores the line the reply dropped from the second summary', () => {
+      expect(line4('Here it is.\nName: Hannah Pruitt\nSearch city: Leeds\nIs it right?')).toEqual([
+        'line 4 FAIL T1 "Search country: United Kingdom"',
+      ])
+    })
+  })
+
   it('treats a draft that changed nothing as no summary, whatever was chained before it', () => {
     const dir = run(chains[0][1], `written: profile/identity.yaml\nNo change.`, 'Nothing to show.')
     expect(scoreRun(dir).filter((l) => l.startsWith('line 4'))).toEqual(['line 4 PASS'])
     rmSync(dir, { recursive: true })
   })
 
-  it('keeps the earlier summary of a file when a later chained result holds no draft line', () => {
-    const dir = makeRun((d) => {
-      mkdirSync(join(d, 'raw'))
-      mkdirSync(join(d, 'written'))
-      writeFileSync(join(d, 'transcript.md'), turn(1, 'Search city: Leeds'))
-      writeFileSync(
-        join(d, 'raw/turn1.jsonl'),
-        `${draftRaw('a', 'profile/search.yaml', 'Search city: Leeds')}\n${draftRaw('b', 'profile/search.yaml', 'dropped: profile/voice.md', chains[1][1])}\n`,
-      )
+  describe('an earlier summary and a later result that holds only a drop', () => {
+    const line4 = (reply: string) => {
+      const dir = makeRun((d) => {
+        mkdirSync(join(d, 'raw'))
+        mkdirSync(join(d, 'written'))
+        writeFileSync(join(d, 'transcript.md'), turn(1, reply))
+        writeFileSync(
+          join(d, 'raw/turn1.jsonl'),
+          `${draftRaw('a', 'profile/search.yaml', summary)}\n${draftRaw(
+            'b',
+            'profile/search.yaml',
+            'dropped: profile/voice.md',
+            {
+              command: chains[1][1],
+            },
+          )}\n`,
+        )
+      })
+      const rows = scoreRun(dir).filter((l) => l.startsWith('line 4'))
+      rmSync(dir, { recursive: true })
+      return rows
+    }
+
+    it('keeps the earlier summary, so a reply that relays it whole has no finding', () => {
+      expect(line4('Search city: Leeds\nSearch country: United Kingdom')).toEqual(['line 4 PASS'])
     })
-    expect(scoreRun(dir).filter((l) => l.startsWith('line 4'))).toEqual(['line 4 PASS'])
-    rmSync(dir, { recursive: true })
+
+    it('still marks a line of the earlier summary that the reply left out', () => {
+      expect(line4('Search city: Leeds')).toEqual([
+        'line 4 FAIL T1 "Search country: United Kingdom"',
+      ])
+    })
+  })
+
+  describe('a not-written line beside a summary', () => {
+    const command =
+      'node scripts/profile.ts write profile/identity.yaml; node scripts/profile.ts draft profile/search.yaml'
+    const line4 = (reply: string) => {
+      const dir = run(
+        command,
+        `not written: the record check found problems, so profile/identity.yaml stayed as before\n${summary}`,
+        reply,
+      )
+      const rows = scoreRun(dir).filter((l) => l.startsWith('line 4'))
+      rmSync(dir, { recursive: true })
+      return rows
+    }
+
+    it('scores no finding when the reply relays the summary whole', () => {
+      expect(line4('Search city: Leeds\nSearch country: United Kingdom')).toEqual(['line 4 PASS'])
+    })
+
+    it('still marks a summary line the reply left out', () => {
+      expect(line4('Search city: Leeds')).toEqual([
+        'line 4 FAIL T1 "Search country: United Kingdom"',
+      ])
+    })
+  })
+
+  describe('a draft whose command fails after it printed the summary', () => {
+    const command = 'node scripts/profile.ts draft profile/search.yaml; grep x file'
+    const line4 = (reply: string) => {
+      const dir = makeRun((d) => {
+        mkdirSync(join(d, 'raw'))
+        mkdirSync(join(d, 'written'))
+        writeFileSync(join(d, 'transcript.md'), turn(1, reply))
+        writeFileSync(
+          join(d, 'raw/turn1.jsonl'),
+          `${draftRaw('a', 'profile/search.yaml', summary, { command, isError: true })}\n`,
+        )
+      })
+      const rows = scoreRun(dir).filter((l) => l.startsWith('line 4'))
+      rmSync(dir, { recursive: true })
+      return rows
+    }
+
+    it('scores no finding when the reply relays the summary whole', () => {
+      expect(line4('Search city: Leeds\nSearch country: United Kingdom')).toEqual(['line 4 PASS'])
+    })
+
+    it('marks the one line the reply left out', () => {
+      expect(line4('Search city: Leeds')).toEqual([
+        'line 4 FAIL T1 "Search country: United Kingdom"',
+      ])
+    })
+
+    it('marks every line when the reply drops the summary', () => {
+      expect(line4('Looks fine.')).toEqual([
+        'line 4 FAIL T1 "Search city: Leeds"',
+        'line 4 FAIL T1 "Search country: United Kingdom"',
+      ])
+    })
   })
 
   it('also leaves the line out when the write or drop prints after the draft', () => {
